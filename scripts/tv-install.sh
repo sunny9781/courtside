@@ -45,6 +45,8 @@ for d in data.get("result", {}).get("devices", []):
     props = d.get("deviceProperties", {})
     if hw.get("platform", "").lower() != "tvos":
         continue
+    if hw.get("reality", "physical") != "physical":   # skip the simulator used for screenshots
+        continue
     name = props.get("name", "")
     ident = d.get("identifier", "")
     if not wanted or wanted in (name.lower(), ident.lower(), hw.get("udid", "").lower()):
