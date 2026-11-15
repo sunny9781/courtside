@@ -242,17 +242,30 @@ struct TVPlayerView: View {
 /// on in the Apple TV's Settings › Video and Audio.
 @MainActor
 enum DisplayMatcher {
-    private static var window: UIWindow? {
-        UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
+    /// The display manager, found carefully: where it lives has changed between tvOS versions, and asking an
+    /// object that doesn't have it crashes the app. Nil when this Apple TV doesn't offer it.
+    private static var manager: AVDisplayManager? {
+        let key = "avDisplayManager"
+        let selector = NSSelectorFromString(key)
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        for scene in scenes {
+            if scene.responds(to: selector), let m = scene.value(forKey: key) as? AVDisplayManager { return m }
+            for window in scene.windows where window.responds(to: selector) {
+                if let m = window.value(forKey: key) as? AVDisplayManager { return m }
+            }
+        }
+        return nil
     }
 
-    /// Whether the Apple TV allows apps to switch the frame rate (its own Match Content setting).
+    /// Whether frame-rate switching can work here: the Apple TV offers it and its Match Content setting is on.
     static var systemAllows: Bool {
-        window?.avDisplayManager.isDisplayCriteriaMatchingEnabled ?? false
+        manager?.isDisplayCriteriaMatchingEnabled ?? false
     }
+
+    static var available: Bool { manager != nil }
 
     static func match(frameRate fps: Double, height label: String) {
-        guard fps > 0, let manager = window?.avDisplayManager, manager.isDisplayCriteriaMatchingEnabled else { return }
+        guard fps > 0, let manager, manager.isDisplayCriteriaMatchingEnabled else { return }
         let size: (Int32, Int32) = label == "4K" ? (3840, 2160) : (label == "720p" ? (1280, 720) : (1920, 1080))
         var format: CMVideoFormatDescription?
         guard CMVideoFormatDescriptionCreate(allocator: kCFAllocatorDefault, codecType: kCMVideoCodecType_H264,
@@ -262,6 +275,7 @@ enum DisplayMatcher {
     }
 
     static func reset() {
-        window?.avDisplayManager.preferredDisplayCriteria = nil
+        guard let manager, manager.preferredDisplayCriteria != nil else { return }
+        manager.preferredDisplayCriteria = nil
     }
 }

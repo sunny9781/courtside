@@ -107,9 +107,11 @@ struct TVSettingsView: View {
         case .playback:
             toggle("Switch to the next stream when one stalls", detail: "USA and Canada streams are tried first.", $autoSwitch)
             toggle("Match frame rate",
-                   detail: DisplayMatcher.systemAllows
-                       ? "Switches your TV to each stream's frame rate (50 or 60 fps) for smoother motion."
-                       : "Also turn on Settings › Video and Audio › Match Content › Match Frame Rate on the Apple TV.",
+                   detail: !DisplayMatcher.available
+                       ? "Not available on this Apple TV's version of tvOS."
+                       : (DisplayMatcher.systemAllows
+                          ? "Switches your TV to each stream's frame rate (50 or 60 fps) for smoother motion."
+                          : "Also turn on Settings › Video and Audio › Match Content › Match Frame Rate on the Apple TV."),
                    $matchFrameRate)
             toggle("Mini player", detail: "Click a stream once to play it in the mini player, again for full screen.", $guidePreview)
             action("Buffer", detail: "More buffer means fewer stalls but a longer delay behind live.",
