@@ -1,0 +1,61 @@
+name: iPhone and iPad screenshots
+
+# Runs the iPhone/iPad app in the simulator with sample data (-demo, no real login), takes a picture of each
+# screen, and saves them on the "screenshots" branch. Started by hand.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  screens:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build for the simulator
+        run: |
+          set -o pipefail
+          xcodebuild -project Courtside.xcodeproj -scheme CourtsideiOS -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath build-sim \
+            CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 || { grep -E "error:" build.log | sort -u | head -40; exit 1; }
+      - name: Screenshots
+        run: |
+          mkdir -p shots
+          APP=build-sim/Build/Products/Debug-iphonesimulator/CourtsideiOS.app
+          pick() { xcrun simctl list devices available -j | /usr/bin/python3 -c "
+          import json, sys
+          want = sys.argv[1]
+          best = None
+          for rt, ds in json.load(sys.stdin)['devices'].items():
+              if 'iOS' not in rt: continue
+              for d in ds:
+                  if d['name'].startswith(want): best = d['udid']
+          print(best or '')" "$1"; }
+          for dev in "iPhone 17 Pro" "iPad Pro 13"; do
+            SIM=$(pick "$dev")
+            [ -z "$SIM" ] && SIM=$(pick "${dev%% *}")
+            [ -z "$SIM" ] && { echo "No $dev simulator"; continue; }
+            echo "$dev: $SIM"
+            xcrun simctl boot "$SIM" 2>/dev/null || true
+            xcrun simctl bootstatus "$SIM" -b >/dev/null
+            xcrun simctl ui "$SIM" appearance dark || true
+            xcrun simctl install "$SIM" "$APP"
+            tag=$(echo "$dev" | cut -d' ' -f1 | tr 'A-Z' 'a-z')
+            for screen in home sport game epg settings; do
+              xcrun simctl terminate "$SIM" ca.sunny9781.courtside.ios 2>/dev/null || true
+              xcrun simctl launch "$SIM" ca.sunny9781.courtside.ios -demo -screen "$screen" >/dev/null
+              sleep 8
+              xcrun simctl io "$SIM" screenshot "shots/$tag-$screen.png" >/dev/null
+            done
+            xcrun simctl shutdown "$SIM" || true
+          done
+          ls shots
+      - name: Save to the screenshots branch
+        run: |
+          cd shots
+          git init -q -b screenshots
+          git add .
+          git -c user.name="Courtside screenshots" -c user.email="noreply@github.com" commit -qm "Screenshots for ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" screenshots
