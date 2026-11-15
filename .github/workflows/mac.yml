@@ -1,11 +1,11 @@
 name: Mac app
 
-# Every push to main builds the Mac app on Sunny's Mac (a self-hosted runner) and publishes it to
-# sunny9781/courtside-releases, where the installed apps pick it up automatically.
+# Every push to main builds the Mac app on GitHub's Macs and publishes it to sunny9781/courtside-releases,
+# where the installed apps pick it up automatically. Nothing runs on Sunny's Mac.
 on:
   push:
     branches: [main]
-    paths-ignore: ["**.md"]
+    paths-ignore: ["**.md", "CourtsideTV/**", "CourtsideTV-Info.plist", "scripts/tv-*.sh"]
   workflow_dispatch:
 
 concurrency:
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: [self-hosted, macOS]
+    runs-on: macos-26
     timeout-minutes: 30
     env:
       BUILD_NUMBER: ${{ github.run_number }}
