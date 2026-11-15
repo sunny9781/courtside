@@ -70,7 +70,7 @@ struct IOSGameView: View {
 
                     // Foreign-language countries, folded into one group.
                     if !listing.foreign.isEmpty {
-                        groupHeader("Foreign languages", count: listing.foreignCount, open: showForeign) { showForeign.toggle() }
+                        groupHeader("Foreign streams", count: listing.foreignCount, open: showForeign) { showForeign.toggle() }
                         if showForeign {
                             ForEach(listing.foreign) { sectionView($0) }
                         }

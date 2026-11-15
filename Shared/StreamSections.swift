@@ -46,8 +46,11 @@ enum StreamSections {
     /// ("LATINO | ESPN" → Latino).
     static func country(of match: StreamMatch) -> String? {
         if let c = match.country { return c }
-        return CategoryGrouping.foreignCountry(match.channel.categoryName)
+        let found = CategoryGrouping.foreignCountry(match.channel.categoryName)
             ?? CategoryGrouping.foreignCountry(match.channel.name)
+        // French-Canadian channels (Quebec, RDS, TVA) are Canadian, never foreign.
+        if found == "Quebec" { return "Canada" }
+        return found
     }
 
     static func isForeign(_ match: StreamMatch, home: [String]) -> Bool {

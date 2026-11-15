@@ -26,6 +26,8 @@ final class AppUpdater: ObservableObject {
 
     private let feed = URL(string: "https://raw.githubusercontent.com/sunny9781/courtside-releases/main/mac/latest.json")!
     private var stagedApp: URL?
+    /// Build number of the downloaded update, so a newer one replaces it before you restart.
+    private var stagedBuild = 0
     private var timer: Timer?
 
     var currentVersion: String {
@@ -48,33 +50,39 @@ final class AppUpdater: ObservableObject {
     func start() {
         guard timer == nil else { return }
         Task { await check() }
-        timer = Timer.scheduledTimer(withTimeInterval: 4 * 3600, repeats: true) { _ in
+        // Every 15 minutes: a tiny file, and it means "Restart to update" always has the newest build.
+        timer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: true) { _ in
             Task { @MainActor in await AppUpdater.shared.check() }
         }
     }
 
+    /// Always looks at the newest published build. If several came out since this one, it goes straight to the
+    /// newest; if an update is already downloaded and a newer one appears, the newer one replaces it.
     func check(userInitiated: Bool = false) async {
-        if isReady { return }
         if case .downloading = state { return }
         if isDevelopmentBuild && !userInitiated { return }
 
-        state = .checking
+        let wasReady = state
+        if !isReady { state = .checking }
         do {
-            var request = URLRequest(url: feed)
+            // The time in the address gets past GitHub's few-minutes cache of the file.
+            var request = URLRequest(url: URL(string: feed.absoluteString + "?t=\(Int(Date().timeIntervalSince1970))")!)
             request.cachePolicy = .reloadIgnoringLocalCacheData
             let (data, _) = try await URLSession.shared.data(for: request)
             let latest = try JSONDecoder().decode(Latest.self, from: data)
             lastChecked = Date()
 
-            guard latest.build > currentBuild, let zipURL = URL(string: latest.url) else {
-                state = .upToDate
+            guard latest.build > max(currentBuild, stagedBuild), let zipURL = URL(string: latest.url) else {
+                if !isReady { state = .upToDate }
                 return
             }
             state = .downloading(latest.version)
             stagedApp = try await download(zipURL)
+            stagedBuild = latest.build
             state = .ready(latest.version)
         } catch {
             lastChecked = Date()
+            if case .ready = wasReady { state = wasReady; return }   // keep the update already downloaded
             state = userInitiated ? .failed("Couldn't check for updates.") : .idle
         }
     }
@@ -107,8 +115,22 @@ final class AppUpdater: ObservableObject {
     }
 
     /// Quits, swaps in the new copy and opens it again.
+    /// Checks once more for anything newer (a few seconds at most), then installs and restarts.
     func restartToUpdate() {
-        guard let stagedApp else { return }
+        Task { @MainActor in
+            // Whichever finishes first: the check (and a download, if something newer turned up) or 20 seconds.
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await self.check() }
+                group.addTask { try? await Task.sleep(for: .seconds(20)) }
+                await group.next()
+                group.cancelAll()
+            }
+            self.install()
+        }
+    }
+
+    private func install() {
+        guard isReady, let stagedApp else { return }
         let target = installLocation.path
         let pid = ProcessInfo.processInfo.processIdentifier
 

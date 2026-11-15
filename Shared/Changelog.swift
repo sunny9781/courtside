@@ -55,6 +55,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(date: "2026-11-15", title: "Player strip everywhere and better updates", changes: [
+            Change(text: "The player is the strip under the top bar on every screen, game screens included.", apps: mac),
+            Change(text: "\"Foreign languages\" is now \"Foreign streams\"; Canadian channels (French ones included) are never in it.", apps: all),
+            Change(text: "Updates: \"Restart to update\" always installs the newest version, even if several came out since you last restarted. The app checks every 15 minutes.", apps: mac)
+        ]),
         Release(date: "2026-11-15", title: "Tidier game screen and player", changes: [
             Change(text: "Player: the quality and buttons sit over the bottom of the video and only show when you hover over it.", apps: mac),
             Change(text: "Player: no more dragging to resize.", apps: mac),

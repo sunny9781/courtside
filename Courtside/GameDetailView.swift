@@ -78,7 +78,7 @@ struct GameDetailView: View {
 
                     // Foreign-language countries, folded into one group.
                     if !listing.foreign.isEmpty {
-                        groupHeader("Foreign languages", count: listing.foreignCount, open: showForeign) {
+                        groupHeader("Foreign streams", count: listing.foreignCount, open: showForeign) {
                             showForeign.toggle()
                         }
                         if showForeign {
@@ -185,19 +185,12 @@ struct GameDetailView: View {
         }
     }
 
-    /// The score and game info, combined with the pinned player when it's playing one of this game's streams.
-    @ViewBuilder
+    /// The score and game info. The player is in the strip under the top bar, like on every other screen.
     private var hero: some View {
-        if let item = model.pinned, model.pinnedIsFrom(gameID: game.id) {
-            PinnedPlayerBar(item: item, hidden: model.nowPlaying != nil, card: true, slimTitle: slimScore) {
-                scoreAndInfo
-            }
-        } else {
-            scoreAndInfo
-                .frame(height: 245)
-                .padding(20)
-                .background(RoundedRectangle(cornerRadius: 20).fill(Theme.card))
-        }
+        scoreAndInfo
+            .frame(height: 200)
+            .padding(20)
+            .background(RoundedRectangle(cornerRadius: 20).fill(Theme.card))
     }
 
     /// The slim player bar's one line: "TOR 78 – 81 BOS · Q3 4:12".

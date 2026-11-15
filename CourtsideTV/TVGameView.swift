@@ -244,8 +244,8 @@ struct TVGameView: View {
 
                 // Foreign-language countries, folded into one group.
                 if !listing.foreign.isEmpty {
-                    Button(showForeign ? "Hide foreign-language streams (\(listing.foreignCount))"
-                                       : "Show foreign-language streams (\(listing.foreignCount))") {
+                    Button(showForeign ? "Hide foreign streams (\(listing.foreignCount))"
+                                       : "Show foreign streams (\(listing.foreignCount))") {
                         showForeign.toggle()
                     }
                     .buttonStyle(TVPillButtonStyle())
