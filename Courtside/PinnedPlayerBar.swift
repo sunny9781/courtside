@@ -238,31 +238,31 @@ struct PinnedDetails: View {
     let game: Game?
     let height: CGFloat
 
-    /// The full-size score panel needs about 245 points of height.
-    private var scale: CGFloat { min(1, max(0.6, height / 245)) }
+    @State private var width: CGFloat = 900
 
-    var body: some View {
-        if let game {
-            // Whatever fits beside the video: everything, then without the venue and times, then just the score.
-            ViewThatFits(in: .horizontal) {
-                row(game, info: true, showsGameInfo: true)
-                row(game, info: true, showsGameInfo: false)
-                GameScorePanel(game: game, scale: scale, showsInfo: false)
-            }
-        } else {
-            PinnedInfo(item: item)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-        }
+    /// Everything stays; it just gets smaller to fit. The full-size layout needs about 245 points of height and,
+    /// with the score, about 900 of width.
+    private var scale: CGFloat {
+        let byHeight = height / 245
+        let byWidth = game == nil ? 1 : width / 900
+        return min(1, max(0.45, min(byHeight, byWidth)))
     }
 
-    private func row(_ game: Game, info: Bool, showsGameInfo: Bool) -> some View {
-        HStack(alignment: .top, spacing: 26) {
-            PinnedInfo(item: item)
-                .frame(width: 260, alignment: .topLeading)
-            Rectangle().fill(Theme.raised).frame(width: 1)
-            GameScorePanel(game: game, scale: scale, showsInfo: showsGameInfo)
-                .frame(minWidth: showsGameInfo ? 560 : 260, alignment: .topLeading)
+    var body: some View {
+        Group {
+            if let game {
+                HStack(alignment: .top, spacing: 26 * scale) {
+                    PinnedInfo(item: item, scale: scale)
+                        .frame(width: 260 * scale, alignment: .topLeading)
+                    Rectangle().fill(Theme.raised).frame(width: 1)
+                    GameScorePanel(game: game, scale: scale)
+                }
+            } else {
+                PinnedInfo(item: item, scale: min(1, height / 245))
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 }
 
@@ -271,15 +271,18 @@ struct PinnedInfo: View {
     @EnvironmentObject var model: AppModel
     @ObservedObject private var controller = PlaybackController.shared
     let item: NowPlaying
+    /// Below 1 when there's less room beside the video.
+    var scale: CGFloat = 1
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: max(3, 5 * scale)) {
             Text(model.playerTitle(item))
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: max(12, 17 * scale), weight: .semibold))
                 .foregroundStyle(Theme.text)
                 .lineLimit(2)
+                .minimumScaleFactor(0.8)
             Text(item.channel.name)
-                .font(.system(size: 12))
+                .font(.system(size: max(10, 12 * scale)))
                 .foregroundStyle(Theme.muted)
                 .lineLimit(1)
             if !controller.resolution.isEmpty || controller.frameRate > 0 {

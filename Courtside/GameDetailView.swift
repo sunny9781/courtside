@@ -281,7 +281,7 @@ struct GameScorePanel: View {
                     scoreLine(game.home)
                 }
             }
-            .frame(minWidth: z(240, min: 180), maxWidth: 420, alignment: .topLeading)
+            .frame(minWidth: z(240, min: 110), maxWidth: 420, alignment: .topLeading)
 
             if showsInfo {
                 Rectangle().fill(Theme.raised).frame(width: 1)
