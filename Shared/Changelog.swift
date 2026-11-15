@@ -65,6 +65,7 @@ enum Changelog {
             Change(text: "Closing the Picture in Picture window no longer ends everything: open the app again and the stream carries on in the player at the top.", apps: ios),
             Change(text: "Full screen: swiping goes back to the player at the top instead of changing stream (the arrows still switch streams).", apps: ios),
             Change(text: "Back after leaving full screen on a game screen goes back to Home instead of leaving the app.", apps: tv),
+            Change(text: "After full screen, the highlight goes back to the stream (or EPG channel) you were watching.", apps: tv),
             Change(text: "Player: as you drag it bigger, the title, score and game info beside the video shrink to fit instead of disappearing.", apps: mac)
         ]),
         Release(version: "1.26", date: "2026-11-15", time: "18:30", title: "Apple TV focus fixes", changes: [

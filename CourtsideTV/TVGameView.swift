@@ -76,6 +76,14 @@ struct TVGameView: View {
             }
         }
         .onExitCommand { if !nav.homePath.isEmpty { nav.homePath.removeLast() } }
+        // Back from full screen: focus goes back to the stream you were watching, not up to the tabs.
+        .onChange(of: model.nowPlaying == nil) {
+            guard model.nowPlaying == nil, let id = model.lastPlayedChannelID else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(250))   // once the page can take focus again
+                focusedStream = id
+            }
+        }
     }
 
     // MARK: Top: mini player, score, details

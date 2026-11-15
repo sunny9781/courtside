@@ -119,6 +119,14 @@ struct TVLiveView: View {
                     selectedID = focusedCategory
                 }
             }
+            // Back from full screen: focus goes back to the channel you were watching, not up to the tabs.
+            .onChange(of: model.nowPlaying == nil) {
+                guard model.nowPlaying == nil, let id = model.lastPlayedChannelID else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    focusedChannel = id
+                }
+            }
             .onChange(of: focusedChannel) {
                 if let focusedChannel { focusedChannelID = focusedChannel }
             }
