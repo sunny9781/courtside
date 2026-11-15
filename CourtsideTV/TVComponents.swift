@@ -6,7 +6,7 @@ enum TVLayout {
     /// The left column on Home while you're on the games: icons and counts only.
     static let compactSidebar: CGFloat = 170
     /// Width of the left column on Home, EPG and Settings.
-    static let sidebar: CGFloat = 470
+    static let sidebar: CGFloat = 400   // same width as the player's video above it
     static let corner: CGFloat = 20
 }
 

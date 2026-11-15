@@ -2,10 +2,12 @@ import SwiftUI
 
 /// The player under the top bar, like the Mac and iPhone: shown only while something plays, in the same spot on
 /// every screen, and it keeps playing as you move between Home, games, EPG and Settings. Beside the video: what's
-/// playing with its resolution and frame rate, and the score when it's a game. It never takes focus, so moving
-/// around works as before. Click the playing stream again for full screen; Play/Pause on the remote stops it.
+/// playing with its resolution and frame rate, and the score when it's a game. Move up onto the video and click it
+/// for full screen (it can't take focus straight from the tabs, so pressing down from them still lands on the
+/// page). Play/Pause on the remote stops it.
 struct TVPinnedStrip: View {
     @EnvironmentObject var model: AppModel
+    @EnvironmentObject var nav: TVNav
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
     @ObservedObject private var controller = PlaybackController.shared
     let item: NowPlaying
@@ -13,14 +15,20 @@ struct TVPinnedStrip: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 36) {
-            ZStack {
-                Color.black
-                if model.nowPlaying == nil && !DemoData.isOn {
-                    TVVideoSurface(view: controller.view)
+            Button {
+                model.play(item.channel, gameTitle: item.gameTitle, lineup: item.lineup)
+            } label: {
+                ZStack {
+                    Color.black
+                    if model.nowPlaying == nil && !DemoData.isOn {
+                        TVVideoSurface(view: controller.view)
+                    }
                 }
+                .frame(width: 400, height: 225)
+                .clipShape(RoundedRectangle(cornerRadius: TVLayout.corner))
             }
-            .frame(width: 400, height: 225)
-            .clipShape(RoundedRectangle(cornerRadius: TVLayout.corner))
+            .buttonStyle(.card)
+            .disabled(nav.tabsFocused)
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(model.playerTitle(item))
@@ -36,7 +44,7 @@ struct TVPinnedStrip: View {
                     if controller.frameRate > 0 { TVBadge(text: PlaybackController.fpsLabel(controller.frameRate)) }
                 }
                 Spacer(minLength: 0)
-                Text("Click it again for full screen · Play/Pause stops")
+                Text("Move up to the video and click for full screen · Play/Pause stops")
                     .font(.system(size: 18))
                     .foregroundStyle(Theme.muted.opacity(0.8))
             }

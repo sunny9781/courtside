@@ -24,6 +24,8 @@ struct TVHomeView: View {
                 TVSportList(focused: $sidebarFocus, compact: inPane)
                     .frame(width: inPane ? TVLayout.compactSidebar : TVLayout.sidebar)
                     .focusSection()
+                    // Coming back from the games lands on the sport you left, not the row beside it.
+                    .defaultFocus($sidebarFocus, sidebarTarget, priority: .userInitiated)
                     .zIndex(0)
                 TVGamesPane(inPane: $inPane)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

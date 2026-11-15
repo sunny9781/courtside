@@ -47,6 +47,9 @@ final class TVNav: ObservableObject {
     @Published var tab: TVTab = .home
     @Published var homeSelection: HomeSelection = .liveNow
     @Published var homePath: [String] = []
+    /// Focus is on Home / EPG / Settings at the top. The player's video can't take focus then, so pressing down
+    /// from the tabs still lands on the page's left column.
+    @Published var tabsFocused = false
 
     init() {
         switch DemoData.screen {
@@ -104,6 +107,7 @@ struct TVShell: View {
             // The player, in the same spot on every screen while something plays (never takes focus).
             if let item = model.pinned {
                 TVPinnedStrip(item: item, game: pinnedGame)
+                    .focusSection()
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
             Group {
@@ -188,6 +192,7 @@ struct TVTopBar: View {
             .defaultFocus($focusedTab, nav.tab, priority: .userInitiated)
             // Moving across Home / EPG / Settings switches straight away, no click needed.
             .onChange(of: focusedTab) {
+                nav.tabsFocused = focusedTab != nil
                 if let focusedTab, focusedTab != nav.tab {
                     NotificationCenter.default.post(name: .tvSwitchTab, object: focusedTab)
                 }
