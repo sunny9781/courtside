@@ -49,7 +49,7 @@ struct IOSGameView: View {
                     HStack(spacing: 8) {
                         HStack(spacing: 6) {
                             Image(systemName: "magnifyingglass").foregroundStyle(Theme.muted)
-                            TextField("Search streams", text: $search)
+                            TextField("Filter", text: $search)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                             if !search.isEmpty {

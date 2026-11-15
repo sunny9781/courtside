@@ -59,7 +59,7 @@ struct IOSEPGView: View {
             HStack(spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass").foregroundStyle(Theme.muted)
-                    TextField("Search categories and channels", text: $search)
+                    TextField("Filter", text: $search)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     if !search.isEmpty {
