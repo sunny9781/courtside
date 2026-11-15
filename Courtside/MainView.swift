@@ -1,0 +1,236 @@
+import SwiftUI
+import AppKit
+
+enum Route: Hashable {
+    case home
+    case sport(Sport)
+    case guide
+    case settings
+}
+
+/// Top bar plus the selected screen, with the player covering everything when a stream is open.
+struct ShellView: View {
+    @EnvironmentObject var model: AppModel
+    @State private var route: Route = .home
+    @State private var openGameID: String?
+    /// The sport picked in Home's left column; nil means "All sports".
+    @State private var selectedSport: Sport?
+    @State private var selectedLeague: String?
+
+    var body: some View {
+        ZStack {
+            VStack(spacing: 0) {
+                TopBar(route: $route) { openGameID = nil }
+                content
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .background(Theme.bg)
+            .ignoresSafeArea()
+
+            if let item = model.nowPlaying {
+                PlayerView(item: item)
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: model.nowPlaying)
+        .overlay(alignment: .bottom) {
+            if let notice = model.notice {
+                Text(notice)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Theme.text)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 12)
+                    .background(Capsule().fill(Theme.raised))
+                    .padding(.bottom, 24)
+                    .task {
+                        try? await Task.sleep(for: .seconds(4))
+                        model.notice = nil
+                    }
+            }
+        }
+        .task {
+            await model.refresh()
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch route {
+        case .home, .sport:
+            if let id = openGameID, let game = model.games.first(where: { $0.id == id }) {
+                GameDetailView(game: game) { openGameID = nil }
+            } else {
+                DashboardView(selectedSport: $selectedSport, selectedLeague: $selectedLeague) { game in
+                    openGameID = game.id
+                }
+            }
+        case .guide:
+            GuideView { gameID in
+                if let game = model.games.first(where: { $0.id == gameID }) {
+                    selectedSport = game.league.sport
+                    selectedLeague = nil
+                    route = .home
+                    openGameID = gameID
+                }
+            }
+        case .settings:
+            SettingsView()
+        }
+    }
+}
+
+/// Along the top: Courtside (home and sports), Live TV (the guide) and Settings.
+/// It sits in the window's title bar area, so it leaves room for the window buttons on the left.
+struct TopBar: View {
+    @EnvironmentObject var model: AppModel
+    @ObservedObject private var updater = AppUpdater.shared
+    @Binding var route: Route
+    let onNavigate: () -> Void
+
+    private var onHome: Bool {
+        if case .sport = route { return true }
+        return route == .home
+    }
+
+    var body: some View {
+        ZStack {
+            // Tabs in the middle of the bar.
+            HStack(spacing: 10) {
+                TopTab(title: "Courtside", symbol: "basketball.fill", selected: onHome) { go(.home) }
+                TopTab(title: "Live TV", symbol: "tv", selected: route == .guide) { go(.guide) }
+                TopTab(title: "Settings", symbol: "slider.horizontal.3", selected: route == .settings) { go(.settings) }
+            }
+
+            // Refresh status on the right; the left stays clear for the window buttons.
+            HStack(spacing: 10) {
+                Spacer()
+                if case .ready(let version) = updater.state {
+                    UpdateReadyButton(version: version) { updater.restartToUpdate() }
+                }
+                status
+                    .padding(.trailing, 20)
+            }
+        }
+        .frame(height: 64)
+        .background(Theme.sidebar)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Theme.raised).frame(height: 1)
+        }
+        .onAppear {
+            // Lets you drag the window by the bar's empty space, like a normal title bar.
+            NSApp.windows.forEach { $0.isMovableByWindowBackground = true }
+        }
+    }
+
+    private func go(_ target: Route) {
+        route = target
+        onNavigate()
+    }
+
+    /// "Updated 1:15 PM" is itself the refresh button. It shows when the channels and guide were last
+    /// downloaded (scores update on their own every minute), and a spinner only while that download runs.
+    @ViewBuilder
+    private var status: some View {
+        if model.downloadingChannels {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Downloading channels…")
+            }
+            .font(.system(size: 12))
+            .foregroundStyle(Theme.muted)
+        } else if let note = model.guideStatus {
+            Label(note, systemImage: "tablecells")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.muted)
+                .lineLimit(1)
+        } else if let saved = model.savedAt {
+            UpdatedButton(date: saved) {
+                Task { await model.refresh(force: true) }
+            }
+        }
+    }
+}
+
+/// Shows when a new version has downloaded; clicking it restarts into the new version.
+struct UpdateReadyButton: View {
+    let version: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("Restart to update")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundStyle(Theme.onAccent)
+            .padding(.horizontal, 14)
+            .frame(height: 32)
+            .background(Capsule().fill(Theme.accent))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("Version \(version) is ready")
+    }
+}
+
+struct UpdatedButton: View {
+    let date: Date
+    let action: () -> Void
+    @State private var hovering = false
+
+    private var text: String {
+        Calendar.current.isDateInToday(date)
+            ? "Updated \(date.formatted(date: .omitted, time: .shortened))"
+            : "Updated \(date.formatted(.dateTime.month(.abbreviated).day().hour().minute()))"
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(text)
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundStyle(hovering ? Theme.text : Theme.muted)
+            .padding(.horizontal, 12)
+            .frame(height: 32)
+            .background(Capsule().fill(hovering ? Theme.raised : Color.clear))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help("Download channels, guide and scores now")
+    }
+}
+
+struct TopTab: View {
+    let title: String
+    let symbol: String
+    let selected: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: symbol)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(selected ? Theme.accent : Theme.soft)
+                Text(title)
+                    .font(.system(size: 17, weight: selected ? .bold : .medium))
+                    .foregroundStyle(selected ? Theme.text : Theme.soft)
+            }
+            .padding(.horizontal, 22)
+            .frame(height: 46)
+            .background(RoundedRectangle(cornerRadius: 12)
+                .fill(selected ? Theme.raised : (hovering ? Theme.card : Color.clear)))
+            .contentShape(RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+    }
+}

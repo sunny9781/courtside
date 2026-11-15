@@ -1,0 +1,53 @@
+name: Mac app
+
+# Every push to main builds the Mac app on Sunny's Mac (a self-hosted runner) and publishes it to
+# sunny9781/courtside-releases, where the installed apps pick it up automatically.
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md"]
+  workflow_dispatch:
+
+concurrency:
+  group: mac-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    env:
+      BUILD_NUMBER: ${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          # Build numbers start at 2 so a copy built in Xcode (build 1) is always "older".
+          BUILD=$((BUILD_NUMBER + 1))
+          echo "BUILD=$BUILD" >> "$GITHUB_ENV"
+          echo "VERSION=1.0.$BUILD" >> "$GITHUB_ENV"
+          xcodebuild \
+            -project Courtside.xcodeproj \
+            -scheme Courtside \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath build \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="-" \
+            CURRENT_PROJECT_VERSION="$BUILD" \
+            MARKETING_VERSION="1.0.$BUILD" \
+            build | tail -n 40
+          test -d build/Build/Products/Release/Courtside.app
+
+      - name: Zip
+        run: |
+          cd build/Build/Products/Release
+          ditto -c -k --keepParent Courtside.app "$GITHUB_WORKSPACE/Courtside.zip"
+          ls -lh "$GITHUB_WORKSPACE/Courtside.zip"
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          NOTES: ${{ github.event.head_commit.message }}
+        run: scripts/publish-mac.sh Courtside.zip

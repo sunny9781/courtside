@@ -1,0 +1,452 @@
+import SwiftUI
+import AppKit
+import AVFoundation
+#if canImport(VLCKitSPM)
+import VLCKitSPM
+#endif
+
+/// Wraps VLC when the VLCKit package is added to the project, and falls back to Apple's player otherwise.
+@MainActor
+final class PlaybackController: ObservableObject {
+    enum Status: Equatable {
+        case idle, opening, buffering, playing, paused, ended
+        case failed(String)
+    }
+
+    @Published var status: Status = .idle
+    @Published var resolution = ""
+
+    let view: NSView
+    private var timer: Timer?
+    /// The stream currently loaded, so asking for it again doesn't reconnect.
+    private(set) var currentURL: URL?
+
+    /// One player shared by the mini player and full screen, so switching between them never reconnects.
+    static let shared = PlaybackController()
+
+    static var usesVLC: Bool {
+        #if canImport(VLCKitSPM)
+        return true
+        #else
+        return false
+        #endif
+    }
+
+    #if canImport(VLCKitSPM)
+    private let player = VLCMediaPlayer()
+    #else
+    private let player = AVPlayer()
+    private let playerLayer = AVPlayerLayer()
+    #endif
+
+    init() {
+        view = NSView()
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.black.cgColor
+        #if canImport(VLCKitSPM)
+        player.drawable = view
+        #else
+        playerLayer.player = player
+        playerLayer.videoGravity = .resizeAspect
+        playerLayer.frame = view.bounds
+        playerLayer.autoresizingMask = [.layerWidthSizable, .layerHeightSizable]
+        view.layer?.addSublayer(playerLayer)
+        #endif
+    }
+
+    func play(_ url: URL, bufferMs: Int) {
+        if url == currentURL, status != .idle, status != .ended {
+            if case .failed = status {} else {
+                if status == .paused { togglePause() }
+                return
+            }
+        }
+        currentURL = url
+        status = .opening
+        resolution = ""
+        #if canImport(VLCKitSPM)
+        let media = VLCMedia(url: url)
+        media.addOption(":network-caching=\(bufferMs)")
+        player.media = media
+        player.play()
+        #else
+        let item = AVPlayerItem(url: url)
+        item.preferredForwardBufferDuration = Double(bufferMs) / 1000
+        player.replaceCurrentItem(with: item)
+        player.play()
+        #endif
+        startPolling()
+    }
+
+    func togglePause() {
+        #if canImport(VLCKitSPM)
+        if player.isPlaying { player.pause() } else { player.play() }
+        #else
+        if player.rate > 0 { player.pause() } else { player.play() }
+        #endif
+    }
+
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+        #if canImport(VLCKitSPM)
+        player.stop()
+        #else
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        #endif
+        currentURL = nil
+        status = .idle
+    }
+
+    private func startPolling() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
+            Task { @MainActor in self?.poll() }
+        }
+    }
+
+    private func poll() {
+        #if canImport(VLCKitSPM)
+        switch player.state {
+        case .opening:
+            status = .opening
+        case .buffering:
+            status = player.isPlaying ? .playing : .buffering
+        case .playing:
+            status = .playing
+        case .paused:
+            status = .paused
+        case .error:
+            status = .failed("This stream couldn't be opened. Try another stream for this game.")
+        case .ended:
+            status = .ended
+        case .stopped:
+            if status == .playing { status = .ended }
+        default:
+            break
+        }
+        let size = player.videoSize
+        if size.height > 0 { resolution = Self.label(size.height) }
+        #else
+        guard let item = player.currentItem else { return }
+        switch item.status {
+        case .failed:
+            status = .failed("Apple's player can't play this stream. Add the VLCKit package in Xcode for the built-in VLC engine.")
+        case .readyToPlay:
+            switch player.timeControlStatus {
+            case .playing: status = .playing
+            case .paused: status = .paused
+            default: status = .buffering
+            }
+        default:
+            status = .opening
+        }
+        if item.presentationSize.height > 0 { resolution = Self.label(item.presentationSize.height) }
+        #endif
+    }
+
+    private static func label(_ height: CGFloat) -> String {
+        if height >= 2000 { return "4K" }
+        if height >= 1000 { return "1080p" }
+        if height >= 700 { return "720p" }
+        return "\(Int(height))p"
+    }
+}
+
+struct VideoSurface: NSViewRepresentable {
+    let view: NSView
+
+    func makeNSView(context: Context) -> NSView { view }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+struct PlayerView: View {
+    @EnvironmentObject var model: AppModel
+    @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
+    @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
+    /// Streams already tried in this viewing, so automatic switching never loops.
+    @State private var tried: Set<Int> = []
+    /// When the current stream started buffering (or opening) without playing.
+    @State private var stalledSince: Date?
+    @State private var switchingAutomatically = false
+    @ObservedObject private var controller = PlaybackController.shared
+    @State private var showControls = true
+    @State private var hideTask: Task<Void, Never>?
+    @State private var flipLabel: String?
+    @State private var isFullScreen = NSApp.keyWindow?.styleMask.contains(.fullScreen) ?? false
+    /// True when opening the player put the window into full screen, so leaving it can undo that.
+    @State private var enteredFullScreen = false
+    @State private var flipTask: Task<Void, Never>?
+    let item: NowPlaying
+
+    private var position: Int {
+        (item.lineup.firstIndex(where: { $0.id == item.channel.id }) ?? 0) + 1
+    }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            Color.black.ignoresSafeArea()
+            VideoSurface(view: controller.view)
+                .ignoresSafeArea()
+
+            // The video view swallows mouse events, so this clear layer sits on top to catch them.
+            Color.clear
+                .contentShape(Rectangle())
+                .ignoresSafeArea()
+                .onContinuousHover { _ in poke() }
+                .onTapGesture(count: 2) { exitPlayer() }
+                .onTapGesture { poke() }
+
+            statusOverlay
+
+            bottomBar
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .opacity(showControls ? 1 : 0)
+
+            keyboardShortcuts
+
+            if let flipLabel {
+                Text(flipLabel)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(Capsule().fill(.black.opacity(0.75)))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .padding(.top, 48)
+                    .transition(.opacity)
+            }
+        }
+        .onAppear {
+            tried = [item.channel.id]
+            start()
+            enterFullScreen()
+        }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+            checkForStall()
+        }
+        .onChange(of: item.channel.id) {
+            stalledSince = nil
+            start()
+            if switchingAutomatically {
+                switchingAutomatically = false   // keep the "Switched to…" message showing
+            } else {
+                tried = [item.channel.id]        // you switched yourself: start fresh
+                showFlipLabel()
+            }
+        }
+        .onChange(of: controller.resolution) {
+            if !controller.resolution.isEmpty {
+                model.recordQuality(item.channel.id, controller.resolution)
+            }
+        }
+        .onDisappear {
+            hideTask?.cancel()
+            flipTask?.cancel()
+            // Playback carries on in the mini player if there is one; the model stops it otherwise.
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
+            isFullScreen = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didExitFullScreenNotification)) { _ in
+            isFullScreen = false
+        }
+    }
+
+    /// Failed, dropped, or stuck buffering/opening for 10 seconds: move to the next stream automatically.
+    private func checkForStall() {
+        guard autoSwitch, item.lineup.count > 1 else { return }
+        switch controller.status {
+        case .failed, .ended:
+            switchToNext(reason: "The stream stopped")
+        case .buffering, .opening:
+            if let since = stalledSince {
+                if Date().timeIntervalSince(since) >= 10 { switchToNext(reason: "The stream stalled") }
+            } else {
+                stalledSince = Date()
+            }
+        default:
+            stalledSince = nil
+        }
+    }
+
+    /// The next stream not tried yet, USA and Canada first, otherwise in the game screen's order.
+    private func switchToNext(reason: String) {
+        stalledSince = nil
+        let untried = item.lineup.filter { !tried.contains($0.id) }
+        let preferred = untried.filter { ["USA", "Canada"].contains(Matcher.country(of: $0) ?? "") }
+        guard let next = preferred.first ?? untried.first else {
+            flipMessage("\(reason). No other streams left to try.")
+            return
+        }
+        tried.insert(next.id)
+        switchingAutomatically = true
+        controller.stop()
+        model.switchStream(to: next)
+        flipMessage("\(reason). Switched to \(next.name)")
+    }
+
+    private func flipMessage(_ text: String) {
+        withAnimation(.easeOut(duration: 0.15)) { flipLabel = text }
+        flipTask?.cancel()
+        flipTask = Task {
+            try? await Task.sleep(for: .seconds(4))
+            if !Task.isCancelled {
+                withAnimation(.easeOut(duration: 0.3)) { flipLabel = nil }
+            }
+        }
+    }
+
+    private func start() {
+        guard let url = model.streamURL(for: item.channel, hls: !PlaybackController.usesVLC) else { return }
+        controller.play(url, bufferMs: bufferMs)
+        poke()
+    }
+
+    private func showFlipLabel() {
+        guard item.lineup.count > 1 else { return }
+        withAnimation(.easeOut(duration: 0.15)) {
+            flipLabel = "\(position) of \(item.lineup.count) · \(item.channel.name)"
+        }
+        flipTask?.cancel()
+        flipTask = Task {
+            try? await Task.sleep(for: .seconds(2))
+            if !Task.isCancelled {
+                withAnimation(.easeOut(duration: 0.3)) { flipLabel = nil }
+            }
+        }
+    }
+
+    private var window: NSWindow? { NSApp.keyWindow ?? NSApp.mainWindow }
+
+    /// Watching full screen means the whole screen: go full screen if the window isn't already.
+    private func enterFullScreen() {
+        guard let window, !window.styleMask.contains(.fullScreen) else { return }
+        window.toggleFullScreen(nil)
+        enteredFullScreen = true
+    }
+
+    /// Back to where you were: leave full screen (if opening the player entered it) and close the player.
+    private func exitPlayer() {
+        if enteredFullScreen, let window, window.styleMask.contains(.fullScreen) {
+            window.toggleFullScreen(nil)
+        }
+        model.closePlayer()
+    }
+
+    private func poke() {
+        showControls = true
+        hideTask?.cancel()
+        hideTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            if !Task.isCancelled, controller.status == .playing {
+                withAnimation(.easeOut(duration: 0.3)) { showControls = false }
+                NSCursor.setHiddenUntilMouseMoves(true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var statusOverlay: some View {
+        switch controller.status {
+        case .opening, .buffering, .idle:
+            VStack(spacing: 12) {
+                ProgressView()
+                    .controlSize(.large)
+                Text(controller.status == .buffering ? "Buffering…" : "Opening \(item.channel.name)…")
+                    .foregroundStyle(Theme.soft)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .failed(let why):
+            VStack(spacing: 14) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 34))
+                    .foregroundStyle(Theme.accent)
+                Text(why)
+                    .foregroundStyle(Theme.soft)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 420)
+                HStack(spacing: 10) {
+                    Button("Try again") {
+                        controller.stop()
+                        start()
+                    }
+                        .buttonStyle(GhostButtonStyle())
+
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .ended:
+            VStack(spacing: 12) {
+                Text("The stream stopped.")
+                    .foregroundStyle(Theme.soft)
+                Button("Reconnect") {
+                    controller.stop()
+                    start()
+                }
+                    .buttonStyle(GhostButtonStyle())
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        case .playing, .paused:
+            EmptyView()
+        }
+    }
+
+    /// Title, channel, resolution and the way back, along the bottom; fades out with the mouse pointer.
+    private var bottomBar: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(model.playerTitle(item))
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                Text(item.lineup.count > 1
+                     ? "\(item.channel.name) · \(position) of \(item.lineup.count) · Up/Down to switch"
+                     : item.channel.name)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Theme.muted)
+            }
+            .lineLimit(1)
+
+            Spacer()
+
+            if !controller.resolution.isEmpty {
+                Badge(text: controller.resolution)
+            }
+
+            Button {
+                exitPlayer()
+            } label: {
+                Image(systemName: "arrow.down.right.and.arrow.up.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(.white.opacity(0.12)))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
+            .help("Back to the mini player (Esc or double-click)")
+        }
+        .padding(.horizontal, 28)
+        .padding(.top, 60)
+        .padding(.bottom, 28)
+        .background(
+            LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .top, endPoint: .bottom)
+        )
+    }
+
+    /// Up/Down switch streams from the keyboard (and a TV remote later) without buttons on screen.
+    private var keyboardShortcuts: some View {
+        ZStack {
+            Button("Previous stream") { model.step(-1) }
+                .keyboardShortcut(.upArrow, modifiers: [])
+            Button("Next stream") { model.step(1) }
+                .keyboardShortcut(.downArrow, modifiers: [])
+        }
+        .opacity(0)
+        .frame(width: 0, height: 0)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
