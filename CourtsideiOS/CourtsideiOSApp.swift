@@ -99,6 +99,11 @@ struct IOSShell: View {
             switch scenePhase {
             case .active:
                 Task { await model.refresh() }
+                // Back in the app after closing Picture in Picture: carry on in the player at the top.
+                if let item = model.pinned, model.nowPlaying == nil, !playback.isActive {
+                    let buffer = UserDefaults.standard.object(forKey: Prefs.bufferMs) as? Int ?? 2000
+                    playback.play(item.channel, model: model, bufferMs: buffer)
+                }
             case .background:
                 // Leaving the app stops the sound unless it went into Picture in Picture (which starts on its own
                 // as you swipe up). Checked a moment later so Picture in Picture has time to start.
@@ -124,13 +129,13 @@ struct IOSShell: View {
             }
         }
         .onAppear {
-            // Picture in Picture: "back to app" returns to the app with the pinned player (or full screen) still
-            // there; closing the floating window stops it.
+            // Picture in Picture: "back to app" returns to the app with the stream still playing. Closing the floating
+            // window stops the stream (so nothing plays in the background) but keeps your place: opening the app
+            // again carries on in the player at the top.
             playback.av.onPiPRestore = {}
-            playback.av.onPiPClosed = { [weak model] in
+            playback.av.onPiPClosed = {
+                guard UIApplication.shared.applicationState != .active else { return }
                 IOSPlayback.shared.stop()
-                model?.pinned = nil
-                model?.closePlayer()
             }
         }
         .overlay(alignment: .bottom) {

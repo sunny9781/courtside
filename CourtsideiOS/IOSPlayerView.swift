@@ -52,12 +52,9 @@ struct IOSPlayerView: View {
         .contentShape(Rectangle())
         .onTapGesture { toggleControls() }
         .gesture(
+            // Swiping leaves full screen (back to the player at the top); the arrows switch streams.
             DragGesture(minimumDistance: 40)
-                .onEnded { value in
-                    let dy = value.translation.height
-                    guard abs(dy) > abs(value.translation.width) else { return }
-                    model.step(dy < 0 ? 1 : -1)
-                }
+                .onEnded { _ in close() }
         )
         .statusBarHidden(!showControls)
         .persistentSystemOverlays(.hidden)
@@ -248,7 +245,7 @@ struct IOSPlayerView: View {
                         .font(.headline)
                         .foregroundStyle(.white)
                     Text(item.lineup.count > 1
-                         ? "\(item.channel.name) · \(position) of \(item.lineup.count) · swipe up or down to switch"
+                         ? "\(item.channel.name) · \(position) of \(item.lineup.count)"
                          : item.channel.name)
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.75))
