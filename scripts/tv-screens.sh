@@ -20,7 +20,7 @@ TYPE=$(xcrun simctl list devicetypes -j | /usr/bin/python3 -c '
 import json, sys
 tv = [t for t in json.load(sys.stdin)["devicetypes"] if "Apple TV" in t["name"]]
 ts = [t for t in tv if "1080p" in t["name"]] or tv
-print(ts[-1]["identifier"] if ts else "")')
+print(ts[0]["identifier"] if ts else "")')
 SIM=$(xcrun simctl list devices -j | /usr/bin/python3 -c '
 import json, sys
 for rt, ds in json.load(sys.stdin)["devices"].items():
