@@ -203,7 +203,7 @@ struct TVPlayerView: View {
             Image(systemName: "pause.fill")
                 .font(.system(size: 80))
                 .foregroundStyle(Theme.text.opacity(0.85))
-        case .playing:
+        case .playing, .opening, .buffering, .idle:
             EmptyView()
         }
     }
