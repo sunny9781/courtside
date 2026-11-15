@@ -1,6 +1,6 @@
 #!/bin/bash
 # Run this on your Mac to put the latest Courtside on the Apple TV (and to renew it; free signing lasts 7 days).
-#   ~/projects/courtside-tv/scripts/tv-update.sh (or double-click "Update Apple TV.command" in projects)
+#   ~/projects/courtside-tv/scripts/tv-update.sh (or double-click "Update Apple TV and iPhone.command" in shortcuts)
 # The Apple TV needs to be on and on the same Wi-Fi. Takes a few minutes.
 set -e
 cd "$(dirname "$0")/.."
