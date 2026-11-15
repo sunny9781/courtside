@@ -6,6 +6,8 @@ struct TVHomeView: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var nav: TVNav
     @FocusState private var sidebarFocus: TVNav.HomeSelection?
+    /// Focus is on the games (or league chips) on the right: the left column shrinks to icons and counts.
+    @State private var inPane = false
 
     /// The row to land on when coming down from the tabs: the selected sport (or Live Now).
     private var sidebarTarget: TVNav.HomeSelection {
@@ -18,23 +20,28 @@ struct TVHomeView: View {
 
     var body: some View {
         NavigationStack(path: $nav.homePath) {
-            HStack(alignment: .top, spacing: 30) {
-                TVSportList(focused: $sidebarFocus)
-                    .frame(width: TVLayout.sidebar)
+            HStack(alignment: .top, spacing: inPane ? 20 : 30) {
+                TVSportList(focused: $sidebarFocus, compact: inPane)
+                    .frame(width: inPane ? TVLayout.compactSidebar : TVLayout.sidebar)
                     .focusSection()
                     .zIndex(0)
-                TVGamesPane()
+                TVGamesPane(inPane: $inPane)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .focusSection()
                     .zIndex(1)
             }
+            .animation(.easeOut(duration: 0.25), value: inPane)
             .padding(.horizontal, TVLayout.margin)
+            // The navigation container adds wide side margins of its own; use the full width instead.
+            .ignoresSafeArea(.container, edges: .horizontal)
+            .onChange(of: sidebarFocus) { if sidebarFocus != nil { inPane = false } }
             // Pressing down from Home / EPG / Settings starts on the left column.
             .defaultFocus($sidebarFocus, sidebarTarget, priority: .userInitiated)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { gameID in
                 TVGameView(gameID: gameID)
                     .toolbar(.hidden, for: .navigationBar)
+                    .ignoresSafeArea(.container, edges: .horizontal)
             }
         }
     }
@@ -49,6 +56,8 @@ struct TVSportList: View {
     @AppStorage(Prefs.hiddenSports) private var hiddenSports = ""
     @AppStorage(Prefs.favoriteSports) private var favoriteSports = ""
     var focused: FocusState<TVNav.HomeSelection?>.Binding
+    /// Just icons and counts (while you're on the games), to leave more room for them.
+    var compact = false
 
     private var sports: [Sport] {
         _ = (sportOrder, hiddenSports, favoriteSports)
@@ -109,6 +118,14 @@ struct TVSportList: View {
                 Image(systemName: symbol)
                     .font(.system(size: 28))
                     .frame(width: 40)
+                if compact {
+                    Spacer(minLength: 0)
+                    if live > 0 {
+                        TVBadge(text: "\(live)", fill: Theme.accent, color: Theme.onAccent)
+                    } else if total > 0 {
+                        Text("\(total)").font(.system(size: 21)).opacity(0.6)
+                    }
+                } else {
                 Text(name)
                     .font(.system(size: 28, weight: .semibold))
                     .lineLimit(1)
@@ -125,6 +142,7 @@ struct TVSportList: View {
                         .font(.system(size: 21))
                         .opacity(0.6)
                         .fixedSize()
+                }
                 }
             }
         }
@@ -143,6 +161,9 @@ struct TVSportList: View {
 struct TVGamesPane: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var nav: TVNav
+    /// Set while focus is on a game card or league chip here.
+    @Binding var inPane: Bool
+    @FocusState private var focusedGame: String?
     @AppStorage(Prefs.hiddenSports) private var hiddenSports = ""
     @AppStorage(Prefs.sportOrder) private var sportOrder = ""
     /// Width available for the cards, so they stretch to fill the row (like the Mac) instead of leaving a gap.
@@ -236,6 +257,7 @@ struct TVGamesPane: View {
                                     TVGameCard(game: game, showLeague: nav.homeSelection == .liveNow)
                                 }
                                 .buttonStyle(.card)
+                                .focused($focusedGame, equals: game.id)
                             }
                         }
                     }
@@ -243,6 +265,8 @@ struct TVGamesPane: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { paneWidth = $0 }
+            .onChange(of: focusedGame) { if focusedGame != nil || focusedChip != nil { inPane = true } }
+            .onChange(of: focusedChip) { if focusedGame != nil || focusedChip != nil { inPane = true } }
             // Room around the cards so the focus zoom never slides under the left column or off screen.
             .padding(.vertical, 24)
             .padding(.horizontal, 24)

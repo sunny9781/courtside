@@ -61,6 +61,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.24", date: "2026-11-15", time: "17:55", title: "More room on the Apple TV", changes: [
+            Change(text: "Home and game screens use the full width of the TV, lined up with the player at the top.", apps: tv),
+            Change(text: "Home: when you move onto the games, the left column shrinks to icons and live counts, leaving more room for scores.", apps: tv)
+        ]),
         Release(version: "1.23", date: "2026-11-15", time: "17:35", title: "Smooth back from full screen", changes: [
             Change(text: "Full screen now opens within the same screen (like the Mac), so going back leaves the stream playing in the player at the top, with no black picture and no reconnect.", apps: tv),
             Change(text: "Home, game screens, EPG and Settings now line up with the player at the top and use the full width of the TV.", apps: tv)
