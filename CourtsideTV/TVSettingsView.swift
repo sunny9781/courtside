@@ -19,6 +19,8 @@ struct TVSettingsView: View {
     @State private var openSport: Sport?
     @State private var confirmSignOut = false
     @FocusState private var focusedSection: Section?
+    /// Updates open in What's new (the newest starts open).
+    @State private var openReleases: Set<String> = Set(Changelog.forThisApp.prefix(1).map(\.id))
 
     enum Section: String, CaseIterable, Identifiable {
         case account = "Account"
@@ -157,10 +159,46 @@ struct TVSettingsView: View {
                 Task { await model.refresh(force: true) }
             }
             info("Version", version)
-            Text("Your Mac installs updates automatically when it's awake and on the same Wi-Fi.")
+            Text("To update, double-click \"Update Apple TV and iPhone\" in the Courtside shortcuts folder on your Mac (at least weekly).")
                 .font(.system(size: 20))
                 .foregroundStyle(Theme.muted)
                 .padding(.top, 6)
+
+            Text("What's new")
+                .font(.system(size: 32, weight: .bold))
+                .foregroundStyle(Theme.text)
+                .padding(.top, 30)
+            ForEach(Array(Changelog.forThisApp.enumerated()), id: \.element.id) { index, release in
+                Button {
+                    if openReleases.contains(release.id) { openReleases.remove(release.id) } else { openReleases.insert(release.id) }
+                } label: {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(spacing: 16) {
+                            Image(systemName: openReleases.contains(release.id) ? "chevron.down" : "chevron.right")
+                                .font(.system(size: 20, weight: .semibold))
+                                .frame(width: 24)
+                            Text(release.title).font(.system(size: 26, weight: .semibold))
+                            Spacer()
+                            Text(index == 0 ? "Latest · \(release.dateLabel)" : release.dateLabel)
+                                .font(.system(size: 20)).opacity(0.6)
+                        }
+                        if openReleases.contains(release.id) {
+                            VStack(alignment: .leading, spacing: 10) {
+                                ForEach(release.changes, id: \.self) { change in
+                                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                                        Text("•")
+                                        Text(change.text).fixedSize(horizontal: false, vertical: true)
+                                    }
+                                    .font(.system(size: 21))
+                                    .opacity(0.85)
+                                }
+                            }
+                            .padding(.leading, 40)
+                        }
+                    }
+                }
+                .buttonStyle(TVRowButtonStyle())
+            }
         }
     }
 

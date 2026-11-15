@@ -1,0 +1,136 @@
+import Foundation
+
+/// What changed in each update, shown in Settings › Updates › What's new. Each app only lists the changes that
+/// apply to it. Newest first. Add an entry (at the top) with every release.
+enum Changelog {
+    enum App: Hashable {
+        case mac, tv, ios
+
+        static var current: App {
+            #if os(macOS)
+            return .mac
+            #elseif os(tvOS)
+            return .tv
+            #else
+            return .ios
+            #endif
+        }
+    }
+
+    struct Change: Hashable {
+        let text: String
+        let apps: Set<App>
+    }
+
+    struct Release: Identifiable, Hashable {
+        let date: String          // yyyy-MM-dd
+        let title: String
+        let changes: [Change]
+        var id: String { date + title }
+
+        /// "Sun, Nov 15"
+        var dateLabel: String {
+            let parse = DateFormatter()
+            parse.dateFormat = "yyyy-MM-dd"
+            guard let d = parse.date(from: date) else { return date }
+            return d.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+        }
+    }
+
+    private static let all: Set<App> = [.mac, .tv, .ios]
+    private static let mac: Set<App> = [.mac]
+    private static let tv: Set<App> = [.tv]
+    private static let ios: Set<App> = [.ios]
+    private static let macTV: Set<App> = [.mac, .tv]
+    private static let macIOS: Set<App> = [.mac, .ios]
+    private static let tvIOS: Set<App> = [.tv, .ios]
+
+    /// The releases with changes for this app, each holding only this app's changes.
+    static var forThisApp: [Release] {
+        let app = App.current
+        return releases.compactMap { r in
+            let mine = r.changes.filter { $0.apps.contains(app) }
+            return mine.isEmpty ? nil : Release(date: r.date, title: r.title, changes: mine)
+        }
+    }
+
+    static let releases: [Release] = [
+        Release(date: "2026-11-15", title: "What's new and smarter EPG groups", changes: [
+            Change(text: "What's new: this list of changes, in Settings › Updates.", apps: all),
+            Change(text: "Player bar: the buttons now sit right under the video: hide video (keeps the sound), full screen and stop.", apps: macIOS),
+            Change(text: "Player bar: Stop ends the stream, so it frees a connection right away. The up/down arrows and pause are gone.", apps: macIOS),
+            Change(text: "Player bar: drag the handle at the bottom to make the player bigger or smaller (it stays 16:9).", apps: macIOS),
+            Change(text: "Pop the player out to its own window (resize it, or put it full screen on another display). Closing the window puts it back.", apps: mac),
+            Change(text: "Game screen: the player and the score are combined into one panel.", apps: macTV),
+            Change(text: "Game screen: streams no longer draw over the player when you scroll. The \"All streams for this game\" heading is gone.", apps: tv),
+            Change(text: "Live Now shows only games that are live right now (no upcoming games or final scores).", apps: all),
+            Change(text: "EPG: a category can be in more than one group (\"UK | Sports\" is under both Country › UK and Sports).", apps: all),
+            Change(text: "EPG: new Movies group for any category with movies, films or cinema in its name.", apps: all),
+            Change(text: "EPG: \"Random\" is now \"Other\".", apps: all),
+            Change(text: "EPG: moving onto a group shows all of its channels; opening it and picking a category shows just that one.", apps: tv),
+            Change(text: "EPG: an open group starts with \"All … channels\" to see every channel in it at once.", apps: ios),
+            Change(text: "Streams no longer reshuffle while you tap through them.", apps: all)
+        ]),
+        Release(date: "2026-11-15", title: "Pinned player", changes: [
+            Change(text: "The player is pinned at the top of every screen while something plays, and keeps playing as you move between Home, games, EPG and Settings. It's hidden when nothing is playing.", apps: macIOS),
+            Change(text: "Closing full screen leaves the stream playing in the pinned player.", apps: macIOS),
+            Change(text: "Tapping the video in full screen brings back the resolution, frame rate and controls.", apps: tvIOS),
+            Change(text: "Streams that played sound over a black screen (some 4K channels) now switch to the VLC player automatically, and it remembers those channels.", apps: ios),
+            Change(text: "One shortcut on the Mac updates both the Apple TV and the iPhone.", apps: tvIOS)
+        ]),
+        Release(date: "2026-11-15", title: "Score cards that fit", changes: [
+            Change(text: "Score cards are sized per sport so every team name and score fits.", apps: all),
+            Change(text: "Long scores (cricket) get their own line.", apps: all),
+            Change(text: "Opening a game plays its first stream; after that, only clicking plays something else.", apps: all)
+        ]),
+        Release(date: "2026-11-15", title: "Cricket, pickleball, Chromecast and AirPlay", changes: [
+            Change(text: "New sports: cricket (current matches in major series) and pickleball (events from the TV guide).", apps: all),
+            Change(text: "Apple's player first, with automatic Picture in Picture when you swipe home, and AirPlay.", apps: ios),
+            Change(text: "Chromecast support.", apps: ios),
+            Change(text: "EPG: cleaner layout, with \"Group\" as a filter beside search.", apps: ios),
+            Change(text: "Connection count and last-updated time on the Home page.", apps: ios)
+        ]),
+        Release(date: "2026-11-15", title: "iPhone and iPad app", changes: [
+            Change(text: "Courtside for iPhone and iPad: Home, game screens, EPG, Settings and a full-screen player (swipe up/down to change stream).", apps: ios),
+            Change(text: "Picture in Picture (stops when the phone locks).", apps: ios)
+        ]),
+        Release(date: "2026-11-14", title: "Navigation and filters", changes: [
+            Change(text: "Pressing down from the top tabs starts on the left column on every page.", apps: tv),
+            Change(text: "Fixed a crash when leaving full screen.", apps: tv),
+            Change(text: "Hide adult categories (on by default) in Settings › EPG.", apps: all),
+            Change(text: "The connection count shows 1 as soon as a stream starts here, before the provider catches up.", apps: all),
+            Change(text: "Home: a sports-only menu, with league filters above the games.", apps: tv),
+            Change(text: "EPG: groups open one level at a time.", apps: tv)
+        ]),
+        Release(date: "2026-11-14", title: "Frame rates and Back everywhere", changes: [
+            Change(text: "Frame rates on every stream and in full screen.", apps: all),
+            Change(text: "Match the TV's refresh rate to the stream (Settings › Player).", apps: tv),
+            Change(text: "Click a stream to preview it, click again for full screen; scrolling no longer starts streams.", apps: tv),
+            Change(text: "The Back button on the remote works on every page.", apps: tv),
+            Change(text: "Game cards no longer slide under the left column.", apps: tv),
+            Change(text: "Fight cards: PPV streams come right after 4K.", apps: all),
+            Change(text: "No repeated \"Live Now\" heading; no icon on the Home tab.", apps: macTV),
+            Change(text: "Group similar categories toggle and a working refresh button.", apps: tv)
+        ]),
+        Release(date: "2026-11-14", title: "Apple TV redesign", changes: [
+            Change(text: "Redesigned to match the Mac: sports down the left, back buttons and better alignment.", apps: tv),
+            Change(text: "Your login is kept when the app updates.", apps: tv),
+            Change(text: "Live connection count at the top left, checked every 30 seconds and after streams start or stop.", apps: macTV)
+        ]),
+        Release(date: "2026-11-14", title: "Streams and tabs", changes: [
+            Change(text: "Each stream shows the category it comes from.", apps: macTV),
+            Change(text: "Live TV is now called EPG.", apps: macTV),
+            Change(text: "Tied scores are both green.", apps: macTV),
+            Change(text: "Home cards show a 4K badge when a 4K stream is available, instead of the network.", apps: macTV),
+            Change(text: "A game keeps playing while you look around other tabs, and Home goes back to where you were.", apps: macTV)
+        ]),
+        Release(date: "2026-11-14", title: "First Apple TV version", changes: [
+            Change(text: "Courtside for Apple TV: Home, game streams, player, Live TV and Settings.", apps: tv)
+        ]),
+        Release(date: "2026-11-14", title: "First Mac version", changes: [
+            Change(text: "Courtside for Mac, with updates installed from inside the app.", apps: mac),
+            Change(text: "Basketball app icon; built for Apple Silicon Macs.", apps: mac),
+            Change(text: "The Courtside tab is now called Home.", apps: mac)
+        ])
+    ]
+}

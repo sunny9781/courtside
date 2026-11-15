@@ -174,6 +174,9 @@ struct SettingsView: View {
                 }
             }
             AppVersionPanel()
+            panel("What's new") {
+                WhatsNewList()
+            }
         }
     }
 

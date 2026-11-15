@@ -14,6 +14,8 @@ struct IOSSettingsView: View {
     @AppStorage(Prefs.refreshHours) private var refreshHours = 6
     @AppStorage(Prefs.hideAdult) private var hideAdult = true
     @AppStorage(Prefs.guideGrouped) private var grouped = true
+    @State private var openReleases: Set<String> = []
+    @State private var closedLatest = false
     @State private var confirmSignOut = false
 
     var body: some View {
@@ -87,6 +89,31 @@ struct IOSSettingsView: View {
                 } footer: {
                     if let saved = model.savedAt {
                         Text("Channels and guide last downloaded \(saved.formatted(date: .abbreviated, time: .shortened)). Scores update every minute.")
+                    }
+                }
+
+                Section("What's new") {
+                    ForEach(Array(Changelog.forThisApp.enumerated()), id: \.element.id) { index, release in
+                        DisclosureGroup(isExpanded: Binding(
+                            get: { openReleases.contains(release.id) || (index == 0 && !closedLatest) },
+                            set: { isOpen in
+                                if index == 0 { closedLatest = !isOpen }
+                                if isOpen { openReleases.insert(release.id) } else { openReleases.remove(release.id) }
+                            })) {
+                            ForEach(release.changes, id: \.self) { change in
+                                Label {
+                                    Text(change.text).font(.subheadline).foregroundStyle(Theme.soft)
+                                } icon: {
+                                    Circle().fill(Theme.accent).frame(width: 6, height: 6)
+                                }
+                            }
+                        } label: {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(release.title).font(.subheadline.weight(.semibold))
+                                Text(index == 0 ? "Latest · \(release.dateLabel)" : release.dateLabel)
+                                    .font(.caption).foregroundStyle(Theme.muted)
+                            }
+                        }
                     }
                 }
             }
