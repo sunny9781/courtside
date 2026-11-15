@@ -67,6 +67,13 @@ struct GameDetailView: View {
         streams.first { $0.channel.id == previewID }?.channel ?? streams.first?.channel
     }
 
+    /// Coming back to this game from another tab: keep showing the stream that was playing.
+    private func adoptBackgroundStream() {
+        if let bg = model.backgroundChannel, allStreams.contains(where: { $0.channel.id == bg.id }) {
+            previewID = bg.id
+        }
+    }
+
     private func watch(_ channel: Channel) {
         previewID = channel.id
         model.play(channel, gameTitle: title, lineup: streams.map(\.channel))
@@ -152,6 +159,7 @@ struct GameDetailView: View {
         HStack(alignment: .top, spacing: 28) {
             VStack(alignment: .leading, spacing: 8) {
                 GuidePreview(channel: previewChannel, onExpand: previewChannel.map { ch -> () -> Void in { watch(ch) } })
+                    .onAppear { adoptBackgroundStream() }
                     .frame(width: 400, height: 225)
                 if let channel = previewChannel {
                     Text("\(channel.name) · double-click for full screen")

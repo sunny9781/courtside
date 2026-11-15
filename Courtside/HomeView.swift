@@ -135,10 +135,15 @@ func streamCountText(_ n: Int) -> String {
 
 /// A live game, or one starting soon (greyed out with its start time, still clickable).
 struct LiveGameCard: View {
+    @EnvironmentObject var model: AppModel
     let game: Game
     let streams: Int
     var showLeague = false
     let action: () -> Void
+
+    private var has4K: Bool {
+        model.mainStreams(game.id).contains { $0.qualityRank == 4 }
+    }
 
     private var header: String {
         let state: String
@@ -159,6 +164,15 @@ struct LiveGameCard: View {
                         .foregroundStyle(game.state == .live ? Theme.accent : Theme.soft)
                         .lineLimit(1)
                     Spacer()
+                    if has4K {
+                        Text("4K")
+                            .font(.system(size: 11, weight: .heavy))
+                            .foregroundStyle(Theme.onAccent)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Theme.accent))
+                            .help("A 4K stream is available")
+                    }
                     Text(streamCountText(streams))
                         .font(.system(size: 12))
                         .foregroundStyle(streams == 0 ? Theme.danger : Theme.muted)
@@ -171,10 +185,6 @@ struct LiveGameCard: View {
                         TeamLine(team: game.home, scoreColor: game.scoreColor(game.home))
                     }
                 }
-                Text(game.broadcasters.isEmpty ? " " : game.broadcasters.joined(separator: " · "))
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.muted)
-                    .lineLimit(1)
             }
             .padding(20)
         }

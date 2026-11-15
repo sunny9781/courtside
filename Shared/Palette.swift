@@ -44,7 +44,7 @@ extension Game {
         case .upcoming:
             return Theme.muted
         case .live:
-            if mine == theirs { return Theme.text }
+            if mine == theirs { return Theme.winning }
             return mine > theirs ? Theme.winning : Theme.losing
         case .finished:
             if mine == theirs { return Theme.text }

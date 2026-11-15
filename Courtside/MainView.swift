@@ -20,7 +20,7 @@ struct ShellView: View {
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
-                TopBar(route: $route) { openGameID = nil }
+                TopBar(route: route) { navigate(to: $0) }
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -54,12 +54,35 @@ struct ShellView: View {
         }
     }
 
+    private var onHome: Bool {
+        if case .sport = route { return true }
+        return route == .home
+    }
+
+    /// Tabs keep their place: an open game stays open, and whatever the mini player is playing keeps going
+    /// in the background. Clicking Home while already on Home goes back to the overview.
+    private func navigate(to target: Route) {
+        let goingHome = target == .home
+        if goingHome && onHome {
+            model.backgroundChannel = nil
+            openGameID = nil
+            return
+        }
+        if target == route { return }
+        let playing = PlaybackController.shared.currentURL != nil && model.nowPlaying == nil
+        model.backgroundChannel = playing ? model.previewChannel : nil
+        route = target
+    }
+
     @ViewBuilder
     private var content: some View {
         switch route {
         case .home, .sport:
             if let id = openGameID, let game = model.games.first(where: { $0.id == id }) {
-                GameDetailView(game: game) { openGameID = nil }
+                GameDetailView(game: game) {
+                    model.backgroundChannel = nil
+                    openGameID = nil
+                }
             } else {
                 DashboardView(selectedSport: $selectedSport, selectedLeague: $selectedLeague) { game in
                     openGameID = game.id
@@ -70,6 +93,8 @@ struct ShellView: View {
                 if let game = model.games.first(where: { $0.id == gameID }) {
                     selectedSport = game.league.sport
                     selectedLeague = nil
+                    let playing = PlaybackController.shared.currentURL != nil && model.nowPlaying == nil
+                    model.backgroundChannel = playing ? model.previewChannel : nil
                     route = .home
                     openGameID = gameID
                 }
@@ -85,8 +110,8 @@ struct ShellView: View {
 struct TopBar: View {
     @EnvironmentObject var model: AppModel
     @ObservedObject private var updater = AppUpdater.shared
-    @Binding var route: Route
-    let onNavigate: () -> Void
+    let route: Route
+    let onNavigate: (Route) -> Void
 
     private var onHome: Bool {
         if case .sport = route { return true }
@@ -98,7 +123,7 @@ struct TopBar: View {
             // Tabs in the middle of the bar.
             HStack(spacing: 10) {
                 TopTab(title: "Home", symbol: "basketball.fill", selected: onHome) { go(.home) }
-                TopTab(title: "Live TV", symbol: "tv", selected: route == .guide) { go(.guide) }
+                TopTab(title: "EPG", symbol: "tv", selected: route == .guide) { go(.guide) }
                 TopTab(title: "Settings", symbol: "slider.horizontal.3", selected: route == .settings) { go(.settings) }
             }
 
@@ -124,8 +149,7 @@ struct TopBar: View {
     }
 
     private func go(_ target: Route) {
-        route = target
-        onNavigate()
+        onNavigate(target)
     }
 
     /// "Updated 1:15 PM" is itself the refresh button. It shows when the channels and guide were last

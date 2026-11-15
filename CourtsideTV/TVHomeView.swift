@@ -73,7 +73,8 @@ struct TVShelf: View {
                 LazyHStack(spacing: 40) {
                     ForEach(games) { game in
                         NavigationLink(value: game.id) {
-                            TVGameCard(game: game, streams: model.streamCount(game.id))
+                            TVGameCard(game: game, streams: model.streamCount(game.id),
+                                       has4K: model.mainStreams(game.id).contains { $0.qualityRank == 4 })
                         }
                         .buttonStyle(.card)
                     }
@@ -90,6 +91,7 @@ struct TVShelf: View {
 struct TVGameCard: View {
     let game: Game
     let streams: Int
+    var has4K = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -127,9 +129,14 @@ struct TVGameCard: View {
                 teamLine(game.home)
             }
 
-            Text(streams == 0 ? "No streams found yet" : streams == 1 ? "1 stream" : "\(streams) streams")
-                .font(.system(size: 20))
-                .foregroundStyle(Theme.muted)
+            HStack(spacing: 12) {
+                Text(streams == 0 ? "No streams found yet" : streams == 1 ? "1 stream" : "\(streams) streams")
+                    .font(.system(size: 20))
+                    .foregroundStyle(Theme.muted)
+                if has4K {
+                    TVBadge(text: "4K", fill: Theme.accent, color: Theme.onAccent)
+                }
+            }
         }
         .padding(24)
         .frame(width: 470, height: 270, alignment: .topLeading)

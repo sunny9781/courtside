@@ -32,7 +32,7 @@ struct GuideView: View {
                 categoryList
 
                 VStack(alignment: .leading, spacing: 16) {
-                    infoPanel(selected, now: now)
+                    infoPanel(selected ?? model.backgroundChannel, now: now)
 
                     if let status = model.guideStatus {
                         Banner(text: status, icon: "tablecells")
@@ -54,6 +54,9 @@ struct GuideView: View {
                 .padding(.top, 18)
                 .padding(.bottom, 16)
             }
+        }
+        .onChange(of: selectedID) {
+            if selectedID != nil { model.backgroundChannel = nil }
         }
         .onAppear {
             pickDefaultCategory()
@@ -734,12 +737,14 @@ struct GuidePreview: View {
             }
             if url == controller.currentURL {
                 controller.play(url, bufferMs: bufferMs)   // already loaded: carries on, no reconnect
+                model.previewChannel = channel
                 return
             }
             // Wait a moment so scrolling through channels doesn't open every stream on the way.
             try? await Task.sleep(for: .milliseconds(700))
             guard !Task.isCancelled else { return }
             controller.play(url, bufferMs: bufferMs)
+            model.previewChannel = channel
         }
         .onChange(of: controller.resolution) {
             if showsVideo, let channel, !controller.resolution.isEmpty {
@@ -750,7 +755,8 @@ struct GuidePreview: View {
         .onAppear { model.miniPlayers += 1 }
         .onDisappear {
             model.miniPlayers -= 1
-            if model.nowPlaying == nil { controller.stop() }
+            // Switching tabs keeps it playing in the background; anything else stops it.
+            if model.nowPlaying == nil && model.backgroundChannel == nil { controller.stop() }
         }
     }
 }

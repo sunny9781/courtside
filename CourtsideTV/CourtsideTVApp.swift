@@ -42,7 +42,7 @@ struct TVShell: View {
             TVHomeView()
                 .tabItem { Label("Home", systemImage: "basketball.fill") }
             TVLiveView()
-                .tabItem { Label("Live TV", systemImage: "tv") }
+                .tabItem { Label("EPG", systemImage: "tv") }
             TVSettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }

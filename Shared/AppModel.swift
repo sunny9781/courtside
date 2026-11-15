@@ -32,6 +32,11 @@ final class AppModel: ObservableObject {
     @Published var lastPlayedChannelID: Int?
     /// How many mini players are on screen (game screen, guide).
     var miniPlayers = 0
+    /// The channel the mini player is showing right now.
+    var previewChannel: Channel?
+    /// Set when you switch tabs while a mini player is playing: it keeps playing (sound in the background),
+    /// and the next screen with a mini player picks it up instead of starting something else.
+    @Published var backgroundChannel: Channel?
     /// Real resolutions seen while playing, by channel id, so stream lists show "720p" instead of a guess.
     @Published var measuredQuality: [Int: String] = [:]
 
