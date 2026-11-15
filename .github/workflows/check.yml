@@ -1,0 +1,35 @@
+name: Check
+
+# Compiles the Mac and Apple TV apps on any branch other than main, without publishing anything.
+on:
+  push:
+    branches-ignore: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    runs-on: [self-hosted, macOS]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Mac app
+        run: |
+          set -o pipefail
+          xcodebuild -project Courtside.xcodeproj -scheme Courtside -configuration Debug \
+            -destination 'generic/platform=macOS' -derivedDataPath build \
+            ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build > mac.log 2>&1 \
+            || { grep -E "error:|warning: .*(deprecated|unavailable)" mac.log | sort -u | head -80; tail -20 mac.log; exit 1; }
+
+      - name: Apple TV app
+        if: always()
+        run: |
+          set -o pipefail
+          xcodebuild -project Courtside.xcodeproj -scheme CourtsideTV -configuration Debug \
+            -destination 'generic/platform=tvOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build > tv.log 2>&1 \
+            || { grep -E "error:" tv.log | sort -u | head -80; tail -30 tv.log; exit 1; }

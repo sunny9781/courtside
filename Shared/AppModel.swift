@@ -1,5 +1,8 @@
 import Foundation
+import Combine
+#if os(macOS)
 import AppKit
+#endif
 
 @MainActor
 final class AppModel: ObservableObject {
@@ -373,6 +376,7 @@ final class AppModel: ObservableObject {
         }
     }
 
+    #if os(macOS)
     func openExternally(_ channel: Channel, apps: [String] = ["com.colliderli.iina", "org.videolan.vlc"]) {
         guard let url = streamURL(for: channel, hls: false) else { return }
         for bundleID in apps {
@@ -385,6 +389,7 @@ final class AppModel: ObservableObject {
             ? "That player isn't installed on this Mac. Change the player in Settings."
             : "Neither IINA nor VLC is installed on this Mac."
     }
+    #endif
 
     func streamURL(for channel: Channel, hls: Bool) -> URL? {
         guard let creds = credentials else { return nil }
