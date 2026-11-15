@@ -97,7 +97,7 @@ struct TopBar: View {
         ZStack {
             // Tabs in the middle of the bar.
             HStack(spacing: 10) {
-                TopTab(title: "Courtside", symbol: "basketball.fill", selected: onHome) { go(.home) }
+                TopTab(title: "Home", symbol: "basketball.fill", selected: onHome) { go(.home) }
                 TopTab(title: "Live TV", symbol: "tv", selected: route == .guide) { go(.guide) }
                 TopTab(title: "Settings", symbol: "slider.horizontal.3", selected: route == .settings) { go(.settings) }
             }

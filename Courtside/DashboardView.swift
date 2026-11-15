@@ -38,7 +38,7 @@ struct DashboardView: View {
                 let liveTotal = model.games.filter { $0.state == .live && !Sport.hidden(hiddenSports).contains($0.league.sport) }.count
                 SportRow(symbol: "dot.radiowaves.left.and.right", name: "Live Now",
                          detail: liveTotal > 0 ? nil : "\(model.games.count) today", live: liveTotal,
-                         selected: selectedSport == nil, dimmed: false, favorite: nil) {
+                         selected: selectedSport == nil, dimmed: false, favorite: nil, alignWithHearts: true) {
                     selectedSport = nil
                     selectedLeague = nil
                     expandedSport = nil
@@ -255,8 +255,12 @@ struct SportRow: View {
     let dimmed: Bool
     let favorite: Bool?
     var onToggleFavorite: (() -> Void)? = nil
+    /// Leaves an empty heart-sized space on the right so this row's badge lines up with the sport rows below.
+    var alignWithHearts = false
     let action: () -> Void
     @State private var hovering = false
+
+    private var hasHeart: Bool { favorite != nil && onToggleFavorite != nil }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -288,7 +292,7 @@ struct SportRow: View {
                     }
                 }
                 .padding(.leading, 12)
-                .padding(.trailing, favorite == nil ? 12 : 4)
+                .padding(.trailing, hasHeart || alignWithHearts ? 4 : 12)
                 .frame(height: 44)
                 .contentShape(Rectangle())
             }
@@ -305,6 +309,8 @@ struct SportRow: View {
                 .buttonStyle(.plain)
                 .opacity(favorite || hovering ? 1 : 0)
                 .help(favorite ? "Remove from favourites" : "Favourite: keep this sport first")
+            } else if alignWithHearts {
+                Color.clear.frame(width: 28, height: 44)
             }
         }
         .background(RoundedRectangle(cornerRadius: 10)
