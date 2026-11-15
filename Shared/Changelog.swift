@@ -61,6 +61,12 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.25", date: "2026-11-15", time: "18:15", title: "Tidier player and stream cards", changes: [
+            Change(text: "Player: dragging it bigger stops at half the window, and what's beside it adapts (leaving out the venue and times, then the title) so it stays readable. The rest of the page no longer gets pushed off screen.", apps: mac),
+            Change(text: "Game screen: each stream card is as wide as its text, so more fit on a row.", apps: mac),
+            Change(text: "Game screen: no Back button (the remote's Back button goes back).", apps: tv),
+            Change(text: "4K: a stream only counts as 4K (top of the list, and the 4K badge on Home) when its name says 4K or UHD.", apps: all)
+        ]),
         Release(version: "1.24", date: "2026-11-15", time: "17:55", title: "More room on the Apple TV", changes: [
             Change(text: "Home and game screens use the full width of the TV, lined up with the player at the top.", apps: tv),
             Change(text: "Home: when you move onto the games, the left column shrinks to icons and live counts, leaving more room for scores.", apps: tv)

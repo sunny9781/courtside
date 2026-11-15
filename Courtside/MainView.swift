@@ -11,6 +11,8 @@ enum Route: Hashable {
 /// Top bar plus the selected screen, with the player covering everything when a stream is open.
 struct ShellView: View {
     @EnvironmentObject var model: AppModel
+    /// The window's size, so the player can be capped at half of it.
+    @State private var windowSize = CGSize(width: 1400, height: 900)
     /// What's typed in the top bar's filter box (EPG and game screens); cleared when you move on.
     @State private var filter = ""
     @State private var route: Route = .home
@@ -26,7 +28,8 @@ struct ShellView: View {
                        filter: showsFilter ? $filter : nil) { navigate(to: $0) }
                 // The pinned player: only while something is playing, in the same spot on every screen.
                 if let item = model.pinned {
-                    PinnedPlayerBar(item: item, hidden: model.nowPlaying != nil, game: pinnedGame)
+                    PinnedPlayerBar(item: item, hidden: model.nowPlaying != nil, game: pinnedGame,
+                                    maxVideoHeight: min(windowSize.height * 0.5, windowSize.width * 0.45 * 9 / 16))
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 content
@@ -61,6 +64,7 @@ struct ShellView: View {
         .task {
             await model.refresh()
         }
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { windowSize = $0 }
         .onChange(of: route) { filter = "" }
         .onChange(of: openGameID) { filter = "" }
         .onReceive(NotificationCenter.default.publisher(for: .openGame)) { note in

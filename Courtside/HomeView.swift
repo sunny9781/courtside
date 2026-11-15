@@ -141,7 +141,7 @@ struct LiveGameCard: View {
     let action: () -> Void
 
     private var has4K: Bool {
-        model.mainStreams(game.id).contains { $0.qualityRank == 4 }
+        model.mainStreams(game.id).contains { $0.is4K }
     }
 
     private var header: String {

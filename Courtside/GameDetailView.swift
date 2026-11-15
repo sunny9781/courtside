@@ -168,22 +168,14 @@ struct GameDetailView: View {
 
     /// Not lazy: a lazy grid guesses row heights as cards wrap, which made the page scroll on past the last
     /// stream. A game only has a few dozen streams.
+    /// Each card is as wide as its text (within limits), so more fit on a row. Not lazy: a lazy grid guesses row
+    /// heights, which made the page scroll on past the last stream.
     private func grid(_ list: [StreamMatch]) -> some View {
-        let columns = max(1, Int((listWidth + 10) / 410))
-        return Grid(horizontalSpacing: 10, verticalSpacing: 10) {
-            ForEach(Array(stride(from: 0, to: list.count, by: columns)), id: \.self) { start in
-                GridRow(alignment: .top) {
-                    ForEach(start..<min(start + columns, list.count), id: \.self) { i in
-                        let match = list[i]
-                        StreamRow(match: match, previewing: match.channel.id == previewChannel?.id,
-                                  onSelect: { preview(match.channel) },
-                                  onWatch: { watch(match.channel) })
-                            .frame(maxWidth: .infinity)
-                    }
-                    ForEach(0..<(columns - min(columns, list.count - start)), id: \.self) { _ in
-                        Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
-                    }
-                }
+        FlowLayout(spacing: 10, minItemWidth: 200, maxItemWidth: 460) {
+            ForEach(list) { match in
+                StreamRow(match: match, previewing: match.channel.id == previewChannel?.id,
+                          onSelect: { preview(match.channel) },
+                          onWatch: { watch(match.channel) })
             }
         }
     }
@@ -264,6 +256,8 @@ struct GameScorePanel: View {
     /// Below 1 in the player strip, where everything has to fit the video's height (it grows as you drag the
     /// player bigger).
     var scale: CGFloat = 1
+    /// Venue, start time and broadcasters to the right (left out when there isn't room).
+    var showsInfo = true
 
     private func z(_ size: CGFloat, min floor: CGFloat = 9) -> CGFloat { max(floor, size * scale) }
 
@@ -289,10 +283,11 @@ struct GameScorePanel: View {
             }
             .frame(minWidth: z(240, min: 180), maxWidth: 420, alignment: .topLeading)
 
-            Rectangle().fill(Theme.raised).frame(width: 1)
-
-            gameInfo
-                .frame(maxWidth: .infinity, alignment: .topLeading)
+            if showsInfo {
+                Rectangle().fill(Theme.raised).frame(width: 1)
+                gameInfo
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
         }
     }
 
@@ -423,5 +418,46 @@ struct GameScorePanel: View {
         case .upcoming: return "\(game.league.name.uppercased()) · STARTS \(game.statusText)"
         case .finished: return "\(game.league.name.uppercased()) · \(game.statusText.uppercased())"
         }
+    }
+}
+
+/// Lays items out left to right at their own width (between a minimum and maximum), wrapping onto new rows.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 10
+    var minItemWidth: CGFloat = 0
+    var maxItemWidth: CGFloat = .infinity
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? 1000
+        let frames = arrange(width: width, subviews: subviews)
+        let height = frames.map(\.maxY).max() ?? 0
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let frames = arrange(width: bounds.width, subviews: subviews)
+        for (view, frame) in zip(subviews, frames) {
+            view.place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                       proposal: ProposedViewSize(width: frame.width, height: frame.height))
+        }
+    }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> [CGRect] {
+        var frames: [CGRect] = []
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0
+        for view in subviews {
+            let ideal = view.sizeThatFits(.unspecified).width
+            let w = min(width, min(maxItemWidth, max(minItemWidth, ideal)))
+            let h = view.sizeThatFits(ProposedViewSize(width: w, height: nil)).height
+            if x > 0 && x + w > width {
+                x = 0
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            frames.append(CGRect(x: x, y: y, width: w, height: h))
+            x += w + spacing
+            rowHeight = max(rowHeight, h)
+        }
+        return frames
     }
 }

@@ -24,7 +24,13 @@ struct PinnedPlayerBar<Details: View>: View {
     var card = false
     /// One line for the slim panel (the score on a game screen); otherwise the title.
     var slimTitle: String? = nil
-    @ViewBuilder let details: () -> Details
+    /// The biggest the video may be (half the window), so the rest of the page never gets pushed off screen.
+    var maxVideoHeight: CGFloat = 620
+    /// Gets the video's height, so what's beside it can scale to match.
+    @ViewBuilder let details: (CGFloat) -> Details
+
+    /// The dragged size, kept within the limits for this window.
+    private var height: CGFloat { min(CGFloat(videoHeight), max(Self.minHeight, maxVideoHeight)) }
 
     /// Smallest size where the quality and buttons still fit on one line over the video.
     static var minHeight: Double { 165 }
@@ -43,8 +49,8 @@ struct PinnedPlayerBar<Details: View>: View {
                 HStack(alignment: .top, spacing: 22) {
                     video
                     // Never taller than the video, so the strip is the same size on every screen.
-                    details()
-                        .frame(maxWidth: .infinity, maxHeight: videoHeight, alignment: .topLeading)
+                    details(height)
+                        .frame(maxWidth: .infinity, maxHeight: height, alignment: .topLeading)
                         .clipped()
                 }
                 .padding(.horizontal, card ? 20 : 24)
@@ -74,7 +80,7 @@ struct PinnedPlayerBar<Details: View>: View {
         }
     }
 
-    private var videoWidth: CGFloat { videoHeight * 16 / 9 }
+    private var videoWidth: CGFloat { height * 16 / 9 }
 
     private var video: some View {
         ZStack {
@@ -95,7 +101,7 @@ struct PinnedPlayerBar<Details: View>: View {
                     .onTapGesture { fullScreen() }
             }
         }
-        .frame(width: videoWidth, height: videoHeight)
+        .frame(width: videoWidth, height: height)
         .overlay(alignment: .bottom) {
             if hovering { controls.transition(.opacity) }
         }
@@ -174,8 +180,9 @@ struct PinnedPlayerBar<Details: View>: View {
             .gesture(
                 DragGesture(minimumDistance: 1)
                     .onChanged { value in
-                        if dragStart == nil { dragStart = videoHeight }
-                        videoHeight = min(Self.maxHeight, max(Self.minHeight, (dragStart ?? videoHeight) + value.translation.height))
+                        if dragStart == nil { dragStart = Double(height) }
+                        videoHeight = min(Double(max(Self.minHeight, maxVideoHeight)),
+                                          max(Self.minHeight, (dragStart ?? videoHeight) + value.translation.height))
                     }
                     .onEnded { value in
                         if (dragStart ?? videoHeight) + value.translation.height < Self.minHeight - 40 {
@@ -217,29 +224,44 @@ struct PinnedPlayerBar<Details: View>: View {
 
 extension PinnedPlayerBar where Details == PinnedDetails {
     /// On a game's screen (while one of its streams plays), pass the game: its score fills the space on the right.
-    init(item: NowPlaying, hidden: Bool, game: Game? = nil) {
-        self.init(item: item, hidden: hidden, card: false, slimTitle: game.map { GameScorePanel(game: $0).slimScore }) {
-            PinnedDetails(item: item, game: game)
+    init(item: NowPlaying, hidden: Bool, game: Game? = nil, maxVideoHeight: CGFloat = 620) {
+        self.init(item: item, hidden: hidden, card: false, slimTitle: game.map { GameScorePanel(game: $0).slimScore },
+                  maxVideoHeight: maxVideoHeight) { height in
+            PinnedDetails(item: item, game: game, height: height)
         }
     }
 }
 
 /// Beside the video: what's playing, and on a game's screen the score and game info to the right of it.
 struct PinnedDetails: View {
-    @AppStorage(Prefs.pinnedVideoHeight) private var videoHeight: Double = 190
     let item: NowPlaying
     let game: Game?
+    let height: CGFloat
+
+    /// The full-size score panel needs about 245 points of height.
+    private var scale: CGFloat { min(1, max(0.6, height / 245)) }
 
     var body: some View {
+        if let game {
+            // Whatever fits beside the video: everything, then without the venue and times, then just the score.
+            ViewThatFits(in: .horizontal) {
+                row(game, info: true, showsGameInfo: true)
+                row(game, info: true, showsGameInfo: false)
+                GameScorePanel(game: game, scale: scale, showsInfo: false)
+            }
+        } else {
+            PinnedInfo(item: item)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+    }
+
+    private func row(_ game: Game, info: Bool, showsGameInfo: Bool) -> some View {
         HStack(alignment: .top, spacing: 26) {
             PinnedInfo(item: item)
-                .frame(maxWidth: game == nil ? .infinity : 300, alignment: .topLeading)
-            if let game {
-                Rectangle().fill(Theme.raised).frame(width: 1)
-                // Sized to the video: the full-size panel needs about 245 points of height.
-                GameScorePanel(game: game, scale: min(1, max(0.6, videoHeight / 245)))
-                    .frame(maxHeight: videoHeight, alignment: .top)
-            }
+                .frame(width: 260, alignment: .topLeading)
+            Rectangle().fill(Theme.raised).frame(width: 1)
+            GameScorePanel(game: game, scale: scale, showsInfo: showsGameInfo)
+                .frame(minWidth: showsGameInfo ? 560 : 260, alignment: .topLeading)
         }
     }
 }

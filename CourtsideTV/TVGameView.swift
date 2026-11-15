@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A game, laid out like the Mac: Back, then one panel with the mini player beside the score, then every stream.
+/// A game: one panel with the mini player beside the score, then every stream.
 /// Moving onto a stream plays it in the mini player; clicking it goes full screen (no reconnect).
 struct TVGameView: View {
     @EnvironmentObject var model: AppModel
@@ -52,12 +52,8 @@ struct TVGameView: View {
     }
 
     var body: some View {
+        // No Back button: the remote's Back goes back to Home.
         VStack(alignment: .leading, spacing: 30) {
-            HStack {
-                TVBackButton { if !nav.homePath.isEmpty { nav.homePath.removeLast() } }
-                Spacer()
-            }
-
             if let game {
                 // While one of this game's streams plays, the score is in the player strip at the top.
                 if !model.pinnedIsFrom(gameID: gameID) { hero(game) }

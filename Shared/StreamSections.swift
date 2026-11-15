@@ -116,7 +116,7 @@ enum StreamSections {
             sections.append(Section(name: name, streams: picked))
         }
 
-        take("4K") { $0.qualityRank == 4 }
+        take("4K") { $0.is4K }
         if league.sport == .fighting { take("PPV") { $0.isPPV } }
         take("\(league.name) channels") { isLeagueChannel($0, league: league) }
         for c in home { take(c) { country(of: $0) == c } }
@@ -130,5 +130,13 @@ enum StreamSections {
             .map { Section(name: $0, streams: byCountry[$0] ?? []) }
 
         return Result(sections: sections, foreign: foreign, extras: extras.filter(matchesSearch))
+    }
+}
+
+extension StreamMatch {
+    /// 4K only when the channel's own name says so ("4K", "UHD"): the category or a guessed quality isn't enough.
+    var is4K: Bool {
+        let words = Set(channel.name.uppercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init))
+        return words.contains("4K") || words.contains("UHD") || channel.name.uppercased().contains("4K")
     }
 }

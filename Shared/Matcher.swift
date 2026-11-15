@@ -565,7 +565,7 @@ enum Matcher {
             }
             result.matches[id] = list.sorted {
                 if $0.hidden != $1.hidden { return !$0.hidden }
-                let a4K = $0.qualityRank == 4, b4K = $1.qualityRank == 4
+                let a4K = $0.is4K, b4K = $1.is4K
                 if a4K != b4K { return a4K }
                 if $0.score != $1.score { return $0.score > $1.score }
                 if $0.recent != $1.recent { return $0.recent }

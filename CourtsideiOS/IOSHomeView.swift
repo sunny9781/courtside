@@ -303,7 +303,7 @@ struct IOSGameCard: View {
     var showLeague = false
 
     private var streams: Int { model.streamCount(game.id) }
-    private var has4K: Bool { model.mainStreams(game.id).contains { $0.qualityRank == 4 } }
+    private var has4K: Bool { model.mainStreams(game.id).contains { $0.is4K } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
