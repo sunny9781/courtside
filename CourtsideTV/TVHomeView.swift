@@ -191,12 +191,7 @@ struct TVGamesPane: View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 40) {
                 VStack(alignment: .leading, spacing: 6) {
-                    // "Live Now" is already highlighted on the left, so it isn't repeated here.
-                    if nav.homeSelection != .liveNow {
-                        Text(title)
-                            .font(.system(size: 48, weight: .bold))
-                            .foregroundStyle(Theme.text)
-                    }
+                    // The sport (or Live Now) is already highlighted on the left, so it isn't repeated here.
                     if !subtitle.isEmpty {
                         Text(subtitle)
                             .font(.system(size: 22))

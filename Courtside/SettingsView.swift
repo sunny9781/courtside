@@ -58,8 +58,8 @@ struct SettingsView: View {
             Rectangle().fill(Theme.raised).frame(width: 1)
 
             ScrollView {
+                // The section is highlighted on the left, so its name isn't repeated here.
                 VStack(alignment: .leading, spacing: 20) {
-                    ScreenHeader(title: section.rawValue, subtitle: "Changes save automatically") { EmptyView() }
                     content
                 }
                 .frame(maxWidth: 760, alignment: .leading)

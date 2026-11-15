@@ -70,14 +70,8 @@ struct TVSettingsView: View {
             .focusSection()
 
             ScrollView(.vertical) {
+                // The section is highlighted on the left, so its name isn't repeated here.
                 VStack(alignment: .leading, spacing: 14) {
-                    Text(section.rawValue)
-                        .font(.system(size: 48, weight: .bold))
-                        .foregroundStyle(Theme.text)
-                    Text("Changes save automatically")
-                        .font(.system(size: 22))
-                        .foregroundStyle(Theme.muted)
-                        .padding(.bottom, 16)
                     content
                 }
                 .padding(.vertical, 20)

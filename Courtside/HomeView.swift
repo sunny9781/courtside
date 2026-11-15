@@ -24,9 +24,6 @@ struct SportView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
-                ScreenHeader(title: league?.name ?? sport.rawValue,
-                             subtitle: "") { EmptyView() }
-
                 if let error = model.errorMessage {
                     Banner(text: error)
                 }
@@ -41,7 +38,7 @@ struct SportView: View {
                 }
             }
             .padding(.horizontal, 40)
-            .padding(.top, 24)
+            .padding(.top, 20)
             .padding(.bottom, 48)
         }
     }

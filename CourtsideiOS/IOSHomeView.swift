@@ -200,8 +200,10 @@ struct IOSGamesList: View {
             .padding(.vertical, 12)
         }
         .background(Theme.bg)
+        // The sport is already picked in the chips (iPhone) or the sidebar (iPad), so no big title repeats it.
         .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.large)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(showsSportChips ? .hidden : .automatic, for: .navigationBar)
         .refreshable { await model.refresh(force: true) }
     }
 

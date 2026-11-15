@@ -61,6 +61,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.17", date: "2026-11-15", time: "13:05", title: "Less repeated text", changes: [
+            Change(text: "Home: the sport you picked on the left (or in the chips) isn't repeated as a big title above the games.", apps: all),
+            Change(text: "Settings: the section you picked on the left isn't repeated as a title, and the \"Changes save automatically\" line is gone.", apps: macTV)
+        ]),
         Release(version: "1.16", date: "2026-11-15", time: "12:35", title: "Score stays with the player", changes: [
             Change(text: "The score stays in the player strip when you move to the EPG or Settings while a game's stream plays.", apps: mac),
             Change(text: "The connection count is gone from the top bar; Settings shows it exactly as your provider reports it.", apps: all),
