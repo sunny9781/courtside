@@ -8,6 +8,9 @@ struct IOSGameView: View {
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @AppStorage(Prefs.hideSD) private var hideSD = true
     @State private var showLocal = false
+    @AppStorage(Prefs.showForeignStreams) private var showForeign = false
+    @State private var search = ""
+    @State private var folded: Set<String> = []
     let gameID: String
 
     private var game: Game? { model.games.first { $0.id == gameID } }
@@ -17,42 +20,18 @@ struct IOSGameView: View {
         return hideSD ? all.filter { $0.quality != "SD" } : all
     }
 
-    private var mainStreams: [StreamMatch] {
+    private var extraCount: Int {
         let main = allStreams.filter { !$0.hidden }
-        return main.isEmpty ? allStreams : main
+        return main.isEmpty ? 0 : allStreams.count - main.count
     }
 
-    private var extraCount: Int { allStreams.count - mainStreams.count }
-
-    struct StreamSection: Identifiable {
-        let name: String
-        let streams: [StreamMatch]
-        var id: String { name }
+    /// 4K, PPV for fights, the league's own channels, home-country broadcasters, other countries (StreamSections).
+    private var listing: StreamSections.Result {
+        guard let game else { return StreamSections.Result(sections: [], hiddenForeign: 0, hiddenExtras: 0) }
+        return StreamSections.build(allStreams, league: game.league, showExtras: showLocal, showForeign: showForeign, search: search)
     }
 
-    private var sections: [StreamSection] {
-        let uhd = mainStreams.filter { $0.qualityRank == 4 }
-        let fight = game?.league.sport == .fighting
-        let ppv = fight ? mainStreams.filter { $0.qualityRank != 4 && $0.isPPV } : []
-        let ppvIDs = Set(ppv.map(\.id))
-        var order: [String] = []
-        var groups: [String: [StreamMatch]] = [:]
-        for match in mainStreams where match.qualityRank != 4 && !ppvIDs.contains(match.id) {
-            let name = match.country ?? "Other"
-            if groups[name] == nil { order.append(name) }
-            groups[name, default: []].append(match)
-        }
-        if let i = order.firstIndex(of: "Other"), order.count > 1 { order.append(order.remove(at: i)) }
-        var out = (uhd.isEmpty ? [] : [StreamSection(name: "4K", streams: uhd)])
-            + (ppv.isEmpty ? [] : [StreamSection(name: "PPV", streams: ppv)])
-            + order.map { StreamSection(name: $0, streams: groups[$0] ?? []) }
-        if showLocal {
-            let mainIDs = Set(mainStreams.map(\.id))
-            let extras = allStreams.filter { !mainIDs.contains($0.id) }
-            if !extras.isEmpty { out.append(StreamSection(name: "Local stations and likely channels", streams: extras)) }
-        }
-        return out
-    }
+    private var sections: [StreamSections.Section] { listing.sections }
 
     private var streams: [StreamMatch] { sections.flatMap(\.streams) }
     private var lineup: [Channel] { streams.map(\.channel) }
@@ -68,24 +47,55 @@ struct IOSGameView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     if let game { score(game) }
 
-                    HStack(alignment: .firstTextBaseline) {
-                        Text("All streams").font(.title3.bold()).foregroundStyle(Theme.text)
-                        Text("\(streams.count)").foregroundStyle(Theme.muted)
+                    HStack(spacing: 8) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "magnifyingglass").foregroundStyle(Theme.muted)
+                            TextField("Search streams", text: $search)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                            if !search.isEmpty {
+                                Button { search = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted) }
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .frame(height: 38)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
+                        IOSChip(selected: showForeign, action: { showForeign.toggle() }) {
+                            Text("Foreign")
+                        }
+                    }
+                    if listing.hiddenForeign > 0 {
+                        Button("\(listing.hiddenForeign) foreign-language streams hidden · Show") { showForeign = true }
+                            .font(.caption)
+                            .foregroundStyle(Theme.accent)
                     }
 
                     if sections.isEmpty {
-                        Text(model.channels.isEmpty ? "Channels are still loading…" : "No streams found for this game yet.")
+                        Text(model.channels.isEmpty ? "Channels are still loading…"
+                             : (search.isEmpty ? "No streams found for this game yet." : "No streams match \"\(search)\"."))
                             .foregroundStyle(Theme.muted)
                     }
 
                     ForEach(sections) { section in
                         VStack(alignment: .leading, spacing: 8) {
-                            if sections.count > 1 {
-                                HStack(spacing: 6) {
-                                    Text(section.name.uppercased()).font(.caption.bold()).foregroundStyle(Theme.muted)
-                                    Text("\(section.streams.count)").font(.caption).foregroundStyle(Theme.muted.opacity(0.7))
+                            Button {
+                                withAnimation(.easeOut(duration: 0.15)) {
+                                    if folded.contains(section.name) { folded.remove(section.name) } else { folded.insert(section.name) }
                                 }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2.bold())
+                                        .rotationEffect(.degrees(folded.contains(section.name) ? 0 : 90))
+                                    Text(section.name.uppercased()).font(.caption.bold())
+                                    Text("\(section.streams.count)").font(.caption).opacity(0.7)
+                                    Spacer()
+                                }
+                                .foregroundStyle(Theme.muted)
+                                .contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
+                            if !folded.contains(section.name) {
                             LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 10)], spacing: 10) {
                                 ForEach(section.streams) { match in
                                     IOSStreamRow(match: match,
@@ -94,6 +104,7 @@ struct IOSGameView: View {
                                                  previewing: match.channel.id == previewID)
                                         .onTapGesture { tap(match) }
                                 }
+                            }
                             }
                         }
                     }

@@ -18,7 +18,8 @@ struct IOSPinnedPlayer: View {
     @State private var dragStart: CGFloat?
     let item: NowPlaying
 
-    private var minWidth: CGFloat { min(available, 180) }
+    /// Smallest size where the quality badges and buttons still fit on one line under the video.
+    private var minWidth: CGFloat { min(available, 270) }
     private var videoWidth: CGFloat {
         let share = scale > 0 ? scale : (sizeClass == .regular ? 0.45 : 1)
         return min(available, max(minWidth, available * share))
@@ -68,8 +69,8 @@ struct IOSPinnedPlayer: View {
     /// Right under the video.
     private var buttons: some View {
         HStack(spacing: 8) {
-            if !playback.resolution.isEmpty { IOSBadge(text: playback.resolution) }
-            if playback.frameRate > 0 { IOSBadge(text: PlaybackController.fpsLabel(playback.frameRate)) }
+            if !playback.resolution.isEmpty { IOSBadge(text: playback.resolution).fixedSize() }
+            if playback.frameRate > 0 { IOSBadge(text: PlaybackController.fpsLabel(playback.frameRate)).fixedSize() }
             Spacer(minLength: 4)
             smallButton("rectangle.compress.vertical") { withAnimation(.easeOut(duration: 0.2)) { collapsed = true } }
             smallButton("arrow.up.left.and.arrow.down.right") { fullScreen() }
@@ -95,7 +96,7 @@ struct IOSPinnedPlayer: View {
                     .onEnded { value in
                         let width = (dragStart ?? videoWidth) + value.translation.height * 16 / 9
                         dragStart = nil
-                        if width < minWidth - 80 { withAnimation(.easeOut(duration: 0.2)) { collapsed = true } }
+                        if width < minWidth - 60 { withAnimation(.easeOut(duration: 0.2)) { collapsed = true } }
                     }
             )
     }

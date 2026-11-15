@@ -55,6 +55,16 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(date: "2026-11-15", title: "Game screen streams and a slimmer player", changes: [
+            Change(text: "Game screen: streams are ordered 4K, then the league's own channels (like NFL Sunday Ticket), then the official broadcasters from the league's home country (USA for the NFL and NBA, Canada then USA for the NHL, UK for the Premier League), then other countries.", apps: all),
+            Change(text: "Game screen: foreign-language streams (Latino, Spanish, French…) are hidden unless you switch them on.", apps: all),
+            Change(text: "Game screen: click a section (4K, USA, Canada…) to fold it shut or open it.", apps: all),
+            Change(text: "Game screen: search box to filter the streams.", apps: macIOS),
+            Change(text: "Back is now an arrow in the top bar, left of the connection count (or press ⌘[).", apps: mac),
+            Change(text: "Player: shrinking it now folds the whole panel, score included, into one slim bar.", apps: mac),
+            Change(text: "Player: resizing stops at the smallest size where the quality and buttons fit on one line; drag past it to shrink to the slim bar.", apps: macIOS),
+            Change(text: "Pop-out player: a separate window for the stream, like a second screen. The app's player shrinks to a slim bar, picking a stream in the app plays it in that window, and full screen puts that window full screen.", apps: mac)
+        ]),
         Release(date: "2026-11-15", title: "What's new and smarter EPG groups", changes: [
             Change(text: "What's new: this list of changes, in Settings › Updates.", apps: all),
             Change(text: "Player bar: the buttons now sit right under the video: hide video (keeps the sound), full screen and stop.", apps: macIOS),

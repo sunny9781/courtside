@@ -4,6 +4,10 @@ struct GameDetailView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.hideSD) private var hideSD = true
     @State private var showLocal = false
+    @AppStorage(Prefs.showForeignStreams) private var showForeign = false
+    @State private var search = ""
+    /// Sections folded shut (4K, USA, Other…), by name.
+    @State private var folded: Set<String> = []
     let game: Game
     let onBack: () -> Void
 
@@ -12,51 +16,13 @@ struct GameDetailView: View {
         return hideSD ? all.filter { $0.quality != "SD" } : all
     }
 
-    private var mainStreams: [StreamMatch] {
-        let main = allStreams.filter { !$0.hidden }
-        return main.isEmpty ? allStreams : main
+    /// 4K, PPV for fights, the league's own channels, home-country broadcasters, other countries (see
+    /// StreamSections), filtered by the search field and the foreign-language toggle.
+    private var listing: StreamSections.Result {
+        StreamSections.build(allStreams, league: game.league, showExtras: showLocal, showForeign: showForeign, search: search)
     }
 
-    private var localCount: Int {
-        allStreams.count - mainStreams.count
-    }
-
-    struct CountrySection: Identifiable {
-        let name: String
-        let streams: [StreamMatch]
-        var id: String { name }
-    }
-
-    /// 4K first (any country), then the rest grouped by country. The country with the best stream comes
-    /// next; unknown countries go last.
-    private var sections: [CountrySection] {
-        let all = mainStreams
-        let uhd = all.filter { $0.qualityRank == 4 }
-        // Fight cards: pay-per-view streams come right after 4K.
-        let ppv = game.league.sport == .fighting ? all.filter { $0.qualityRank != 4 && $0.isPPV } : []
-        let ppvIDs = Set(ppv.map(\.id))
-        let list = all.filter { $0.qualityRank != 4 && !ppvIDs.contains($0.id) }
-        var order: [String] = []
-        var groups: [String: [StreamMatch]] = [:]
-        for match in list {
-            let name = match.country ?? "Other"
-            if groups[name] == nil { order.append(name) }
-            groups[name, default: []].append(match)
-        }
-        if let i = order.firstIndex(of: "Other"), order.count > 1 {
-            order.append(order.remove(at: i))
-        }
-        let byCountry = order.map { CountrySection(name: $0, streams: groups[$0] ?? []) }
-        let main = (uhd.isEmpty ? [] : [CountrySection(name: "4K", streams: uhd)])
-            + (ppv.isEmpty ? [] : [CountrySection(name: "PPV", streams: ppv)]) + byCountry
-        // The extras (local stations, "usually on" guesses) get their own section at the end.
-        let mainIDs = Set(mainStreams.map(\.id))
-        let extras = allStreams.filter { !mainIDs.contains($0.id) }
-        if showLocal && !extras.isEmpty {
-            return main + [CountrySection(name: "Local stations and likely channels", streams: extras)]
-        }
-        return main
-    }
+    private var sections: [StreamSections.Section] { listing.sections }
 
     /// What's listed, in on-screen order, which is also what up/down flips through.
     private var streams: [StreamMatch] {
@@ -84,10 +50,8 @@ struct GameDetailView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Fixed at the top: back link, mini player and score. Only the streams scroll.
+            // Fixed at the top: the player and score (Back is in the top bar). Only the streams scroll.
             VStack(alignment: .leading, spacing: 16) {
-                BackButton(title: game.league.sport.rawValue, action: onBack)
-
                 hero
             }
             .padding(.horizontal, 32)
@@ -96,9 +60,16 @@ struct GameDetailView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .firstTextBaseline) {
+                    HStack(spacing: 12) {
+                        Field(placeholder: "Search streams", text: $search)
+                            .frame(width: 260)
+                        Toggle("Foreign languages", isOn: $showForeign)
+                            .toggleStyle(.switch)
+                            .controlSize(.small)
+                            .foregroundStyle(Theme.soft)
+                            .help("Show Spanish, Latino, French and other foreign-language streams")
                         Spacer()
-                        Text(mainStreams.isEmpty ? "None found" : "\(mainStreams.count) found · best match first")
+                        Text(listing.streams.isEmpty ? "None found" : "\(listing.streams.count) streams")
                             .font(.system(size: 12))
                             .foregroundStyle(Theme.muted)
                         if localCount > 0 {
@@ -109,17 +80,31 @@ struct GameDetailView: View {
                             .help("Local stations and channels that usually carry this league, kept separate at the bottom")
                         }
                     }
+                    if listing.hiddenForeign > 0 {
+                        Button("\(listing.hiddenForeign) foreign-language streams hidden · Show them") { showForeign = true }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 12))
+                            .foregroundStyle(Theme.accent)
+                    }
 
                     if streams.isEmpty {
-                        Banner(text: "No channels on your provider matched this game yet. If you know which channel has it, find it in the Guide.",
+                        Banner(text: search.isEmpty ? "No channels on your provider matched this game yet. If you know which channel has it, find it in the EPG."
+                                                    : "No streams match \"\(search)\".",
                                icon: "magnifyingglass")
                     }
 
                     VStack(alignment: .leading, spacing: 16) {
                         ForEach(sections) { section in
                             VStack(alignment: .leading, spacing: 8) {
-                                if sections.count > 1 {
+                                Button {
+                                    withAnimation(.easeOut(duration: 0.15)) {
+                                        if folded.contains(section.name) { folded.remove(section.name) } else { folded.insert(section.name) }
+                                    }
+                                } label: {
                                     HStack(spacing: 8) {
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 9, weight: .bold))
+                                            .rotationEffect(.degrees(folded.contains(section.name) ? 0 : 90))
                                         Text(section.name.uppercased())
                                             .font(.system(size: 12, weight: .bold))
                                             .foregroundStyle(Theme.soft)
@@ -127,14 +112,19 @@ struct GameDetailView: View {
                                             .font(.system(size: 12))
                                             .foregroundStyle(Theme.muted)
                                     }
+                                    .foregroundStyle(Theme.muted)
                                     .padding(.leading, 4)
+                                    .contentShape(Rectangle())
                                 }
+                                .buttonStyle(.plain)
+                                if !folded.contains(section.name) {
                                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 400), spacing: 10)], spacing: 10) {
                                     ForEach(section.streams) { match in
                                         StreamRow(match: match, previewing: match.channel.id == previewChannel?.id,
                                                   onSelect: { preview(match.channel) },
                                                   onWatch: { watch(match.channel) })
                                     }
+                                }
                                 }
                             }
                         }
@@ -160,7 +150,7 @@ struct GameDetailView: View {
     @ViewBuilder
     private var hero: some View {
         if let item = model.pinned, model.pinnedIsFrom(gameID: game.id) {
-            PinnedPlayerBar(item: item, hidden: model.nowPlaying != nil, card: true) {
+            PinnedPlayerBar(item: item, hidden: model.nowPlaying != nil, card: true, slimTitle: slimScore) {
                 scoreAndInfo
             }
         } else {
@@ -169,6 +159,13 @@ struct GameDetailView: View {
                 .padding(20)
                 .background(RoundedRectangle(cornerRadius: 20).fill(Theme.card))
         }
+    }
+
+    /// The slim player bar's one line: "TOR 78 – 81 BOS · Q3 4:12".
+    private var slimScore: String {
+        if game.isEvent && !game.hasSides { return game.eventTitle }
+        if game.state == .upcoming { return "\(game.away.abbr) at \(game.home.abbr) · \(game.statusText)" }
+        return "\(game.away.abbr) \(game.away.score) – \(game.home.score) \(game.home.abbr) · \(game.statusText)"
     }
 
     private var scoreAndInfo: some View {

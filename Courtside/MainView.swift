@@ -20,7 +20,7 @@ struct ShellView: View {
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
-                TopBar(route: route) { navigate(to: $0) }
+                TopBar(route: route, onBack: onHome && openGameID != nil ? { openGameID = nil } : nil) { navigate(to: $0) }
                 // The pinned player: only while something is playing, in the same spot on every screen.
                 // On a game's own screen it's part of the score card instead.
                 if let item = model.pinned, !showsPinnedInGame {
@@ -117,6 +117,8 @@ struct TopBar: View {
     @EnvironmentObject var model: AppModel
     @ObservedObject private var updater = AppUpdater.shared
     let route: Route
+    /// Set on a game screen: a back arrow left of the connection count.
+    var onBack: (() -> Void)? = nil
     let onNavigate: (Route) -> Void
 
     private var onHome: Bool {
@@ -135,8 +137,13 @@ struct TopBar: View {
 
             // Connections on the left (after the window buttons), refresh status on the right.
             HStack(spacing: 10) {
+                if let onBack {
+                    RoundIconButton(symbol: "chevron.left", help: "Back (⌘[)", action: onBack)
+                        .keyboardShortcut("[", modifiers: .command)
+                        .padding(.leading, 88)
+                }
                 ConnectionsPill(account: model.account)
-                    .padding(.leading, 88)
+                    .padding(.leading, onBack == nil ? 88 : 0)
                 Spacer()
                 if case .ready(let version) = updater.state {
                     UpdateReadyButton(version: version) { updater.restartToUpdate() }

@@ -468,6 +468,11 @@ final class AppModel: ObservableObject {
 
     /// The lineup is what up/down flips through while watching.
     func play(_ channel: Channel, gameTitle: String? = nil, lineup: [Channel] = []) {
+        // Mac: while the player has its own window, "watch" plays it there and leaves the app alone.
+        if poppedOut {
+            pin(channel, gameTitle: gameTitle, lineup: lineup)
+            return
+        }
         remember(channel.id)
         nowPlaying = NowPlaying(channel: channel, gameTitle: gameTitle, lineup: lineup.isEmpty ? [channel] : lineup)
     }

@@ -7,6 +7,9 @@ struct TVGameView: View {
     @EnvironmentObject var nav: TVNav
     @AppStorage(Prefs.hideSD) private var hideSD = true
     @State private var showLocal = false
+    @AppStorage(Prefs.showForeignStreams) private var showForeign = false
+    /// Sections folded shut (4K, USA, Other…), by name.
+    @State private var folded: Set<String> = []
     @State private var previewID: Int?
     @FocusState private var focusedStream: Int?
     let gameID: String
@@ -19,46 +22,18 @@ struct TVGameView: View {
         return hideSD ? all.filter { $0.quality != "SD" } : all
     }
 
-    private var mainStreams: [StreamMatch] {
+    private var extraCount: Int {
         let main = allStreams.filter { !$0.hidden }
-        return main.isEmpty ? allStreams : main
+        return main.isEmpty ? 0 : allStreams.count - main.count
     }
 
-    private var extraCount: Int { allStreams.count - mainStreams.count }
-
-    struct StreamSection: Identifiable {
-        let name: String
-        let streams: [StreamMatch]
-        var id: String { name }
+    /// 4K, PPV for fights, the league's own channels, home-country broadcasters, other countries (StreamSections).
+    private var listing: StreamSections.Result {
+        guard let game else { return StreamSections.Result(sections: [], hiddenForeign: 0, hiddenExtras: 0) }
+        return StreamSections.build(allStreams, league: game.league, showExtras: showLocal, showForeign: showForeign)
     }
 
-    /// Same order as the Mac: 4K, then countries (best first), "Other" last, then the extras when shown.
-    private var sections: [StreamSection] {
-        let uhd = mainStreams.filter { $0.qualityRank == 4 }
-        // Fight cards: pay-per-view streams come right after 4K.
-        let fight = game?.league.sport == .fighting
-        let ppv = fight ? mainStreams.filter { $0.qualityRank != 4 && $0.isPPV } : []
-        let ppvIDs = Set(ppv.map(\.id))
-        var order: [String] = []
-        var groups: [String: [StreamMatch]] = [:]
-        for match in mainStreams where match.qualityRank != 4 && !ppvIDs.contains(match.id) {
-            let name = match.country ?? "Other"
-            if groups[name] == nil { order.append(name) }
-            groups[name, default: []].append(match)
-        }
-        if let i = order.firstIndex(of: "Other"), order.count > 1 {
-            order.append(order.remove(at: i))
-        }
-        var out = (uhd.isEmpty ? [] : [StreamSection(name: "4K", streams: uhd)])
-            + (ppv.isEmpty ? [] : [StreamSection(name: "PPV", streams: ppv)])
-            + order.map { StreamSection(name: $0, streams: groups[$0] ?? []) }
-        if showLocal {
-            let mainIDs = Set(mainStreams.map(\.id))
-            let extras = allStreams.filter { !mainIDs.contains($0.id) }
-            if !extras.isEmpty { out.append(StreamSection(name: "Local stations and likely channels", streams: extras)) }
-        }
-        return out
-    }
+    private var sections: [StreamSections.Section] { listing.sections }
 
     private var streams: [StreamMatch] { sections.flatMap(\.streams) }
 
@@ -233,9 +208,22 @@ struct TVGameView: View {
                 }
                 ForEach(sections) { section in
                     VStack(alignment: .leading, spacing: 18) {
-                        if sections.count > 1 {
-                            TVSectionTitle(text: section.name, count: section.streams.count)
+                        // Click a section's name to fold it shut or open it.
+                        Button {
+                            if folded.contains(section.name) { folded.remove(section.name) } else { folded.insert(section.name) }
+                        } label: {
+                            HStack(spacing: 14) {
+                                Image(systemName: folded.contains(section.name) ? "chevron.right" : "chevron.down")
+                                    .font(.system(size: 20, weight: .bold))
+                                Text(section.name.uppercased())
+                                    .font(.system(size: 22, weight: .bold))
+                                Text("\(section.streams.count)")
+                                    .font(.system(size: 20))
+                                    .opacity(0.6)
+                            }
                         }
+                        .buttonStyle(TVPillButtonStyle())
+                        if !folded.contains(section.name) {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 520), spacing: 34, alignment: .top)],
                                   alignment: .leading, spacing: 34) {
                             ForEach(section.streams) { match in
@@ -251,7 +239,17 @@ struct TVGameView: View {
                                 .focused($focusedStream, equals: match.channel.id)
                             }
                         }
+                        }
                     }
+                }
+                HStack(spacing: 24) {
+                    Button(showForeign ? "Hide foreign-language streams"
+                                       : (listing.hiddenForeign > 0 ? "Show \(listing.hiddenForeign) foreign-language streams"
+                                                                    : "Show foreign-language streams")) {
+                        showForeign.toggle()
+                    }
+                    .buttonStyle(TVPillButtonStyle())
+                    .font(.system(size: 22, weight: .semibold))
                 }
                 if extraCount > 0 {
                     Button(showLocal ? "Hide local stations and likely channels"
