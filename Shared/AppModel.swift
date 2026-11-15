@@ -42,10 +42,13 @@ final class AppModel: ObservableObject {
 
     private var indexed: [Matcher.IndexedChannel] = []
     private var scoreTask: Task<Void, Never>?
+    private var accountTask: Task<Void, Never>?
+    private var accountCheck: Task<Void, Never>?
     private var guideTask: Task<Void, Never>?
 
     init() {
         credentials = CredentialStore.load()
+        PlaybackController.shared.onChange = { [weak self] in self?.checkConnectionsSoon() }
         let saved = UserDefaults.standard.dictionary(forKey: Prefs.measuredQuality) as? [String: String] ?? [:]
         measuredQuality = Dictionary(uniqueKeysWithValues: saved.compactMap { k, v in Int(k).map { ($0, v) } })
     }
@@ -76,6 +79,7 @@ final class AppModel: ObservableObject {
     func signOut() {
         scoreTask?.cancel()
         guideTask?.cancel()
+        accountTask?.cancel()
         CredentialStore.delete()
         try? FileManager.default.removeItem(at: Self.guideFile)
         try? FileManager.default.removeItem(at: Self.channelsFile)
@@ -209,6 +213,7 @@ final class AppModel: ObservableObject {
         let download = stale
         guideTask = Task { await loadGuide(download: download) }
         startScoreUpdates()
+        startAccountUpdates()
     }
 
     /// Live scores every minute while the app is open, for leagues that still have games to play today.
@@ -228,6 +233,35 @@ final class AppModel: ObservableObject {
                     await self.rematch()
                 }
             }
+        }
+    }
+
+    /// Connections in use change whenever any device on the account starts or stops a stream,
+    /// so the account is checked every 30 seconds while the app is open.
+    private func startAccountUpdates() {
+        accountTask?.cancel()
+        accountTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.refreshAccount()
+                try? await Task.sleep(for: .seconds(30))
+            }
+        }
+    }
+
+    func refreshAccount() async {
+        guard let creds = credentials else { return }
+        if let fresh = try? await XtreamClient(creds: creds).login() {
+            account = fresh
+        }
+    }
+
+    /// Re-checks the count a few seconds after a stream starts or stops, once the provider has noticed.
+    func checkConnectionsSoon() {
+        accountCheck?.cancel()
+        accountCheck = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+            await self?.refreshAccount()
         }
     }
 

@@ -127,8 +127,10 @@ struct TopBar: View {
                 TopTab(title: "Settings", symbol: "slider.horizontal.3", selected: route == .settings) { go(.settings) }
             }
 
-            // Refresh status on the right; the left stays clear for the window buttons.
+            // Connections on the left (after the window buttons), refresh status on the right.
             HStack(spacing: 10) {
+                ConnectionsPill(account: model.account)
+                    .padding(.leading, 88)
                 Spacer()
                 if case .ready(let version) = updater.state {
                     UpdateReadyButton(version: version) { updater.restartToUpdate() }
@@ -172,6 +174,30 @@ struct TopBar: View {
             UpdatedButton(date: saved) {
                 Task { await model.refresh(force: true) }
             }
+        }
+    }
+}
+
+/// "1/2": streams in use on the IPTV account right now, out of how many it allows. Orange at the limit.
+struct ConnectionsPill: View {
+    let account: AccountInfo?
+
+    var body: some View {
+        if let max = account?.maxConnections, max > 0 {
+            let active = account?.activeConnections ?? 0
+            let full = active >= max
+            HStack(spacing: 6) {
+                Image(systemName: "person.2.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                Text("\(active)/\(max)")
+                    .font(.system(size: 12, weight: .semibold).monospacedDigit())
+            }
+            .foregroundStyle(full ? Theme.onAccent : Theme.muted)
+            .padding(.horizontal, 10)
+            .frame(height: 26)
+            .background(Capsule().fill(full ? Theme.accent : Theme.raised))
+            .help(full ? "All \(max) connections on your account are in use"
+                       : "\(active) of \(max) connections on your account in use")
         }
     }
 }

@@ -22,6 +22,8 @@ final class PlaybackController: ObservableObject {
 
     @Published var status: Status = .idle
     @Published var resolution = ""
+    /// Called when a stream starts or stops (the app uses it to re-check connections in use).
+    var onChange: (() -> Void)?
 
     let view: PlatformView
     private var timer: Timer?
@@ -78,6 +80,7 @@ final class PlaybackController: ObservableObject {
         }
         currentURL = url
         status = .opening
+        onChange?()
         resolution = ""
         #if canImport(VLCKitSPM)
         let media = VLCMedia(url: url)
@@ -112,6 +115,7 @@ final class PlaybackController: ObservableObject {
         #endif
         currentURL = nil
         status = .idle
+        onChange?()
     }
 
     private func startPolling() {
