@@ -150,6 +150,7 @@ extension Notification.Name {
 struct TVTopBar: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var nav: TVNav
+    @FocusState private var focusedTab: TVTab?
 
     var body: some View {
         ZStack {
@@ -165,6 +166,15 @@ struct TVTopBar: View {
                         }
                     }
                     .buttonStyle(TVTabButtonStyle(selected: nav.tab == tab))
+                    .focused($focusedTab, equals: tab)
+                }
+            }
+            // Coming back up to the tabs lands on the one you're on (so it doesn't switch by accident).
+            .defaultFocus($focusedTab, nav.tab, priority: .userInitiated)
+            // Moving across Home / EPG / Settings switches straight away, no click needed.
+            .onChange(of: focusedTab) {
+                if let focusedTab, focusedTab != nav.tab {
+                    NotificationCenter.default.post(name: .tvSwitchTab, object: focusedTab)
                 }
             }
 

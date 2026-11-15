@@ -10,18 +10,19 @@ struct DashboardView: View {
     @Binding var selectedSport: Sport?
     @Binding var selectedLeague: String?
     let onOpenGame: (Game) -> Void
-    /// The sport whose leagues are showing in the left column. Clicking it again folds them away.
-    @State private var expandedSport: Sport?
 
     var body: some View {
         HStack(spacing: 0) {
             sportList
-                .onAppear { if expandedSport == nil { expandedSport = selectedSport } }
             Rectangle().fill(Theme.raised).frame(width: 1)
             Group {
                 if let sport = selectedSport {
-                    SportView(sport: sport, leagueID: selectedLeague, onOpen: onOpenGame)
-                        .id("\(sport.rawValue)|\(selectedLeague ?? "")")
+                    // Like the Apple TV: sports down the left, the sport's leagues across the top.
+                    VStack(spacing: 0) {
+                        if model.leagues(for: sport).count > 1 { leagueChips(sport) }
+                        SportView(sport: sport, leagueID: selectedLeague, onOpen: onOpenGame)
+                            .id("\(sport.rawValue)|\(selectedLeague ?? "")")
+                    }
                 } else {
                     overview
                 }
@@ -42,7 +43,6 @@ struct DashboardView: View {
                          selected: selectedSport == nil, dimmed: false, favorite: nil, alignWithHearts: true) {
                     selectedSport = nil
                     selectedLeague = nil
-                    expandedSport = nil
                 }
                 .padding(.bottom, 8)
 
@@ -51,15 +51,10 @@ struct DashboardView: View {
                     SportRow(symbol: sport.symbol, name: sport.rawValue,
                              detail: games.isEmpty ? "No games" : "\(games.count) today",
                              live: games.filter { $0.state == .live }.count, total: games.count,
-                             selected: selectedSport == sport && selectedLeague == nil,
+                             selected: selectedSport == sport,
                              dimmed: games.isEmpty && !favorites.contains(sport),
                              favorite: favorites.contains(sport),
                              onToggleFavorite: { toggleFavorite(sport) }) {
-                        if selectedSport == sport && expandedSport == sport {
-                            expandedSport = nil          // second click folds the leagues away
-                        } else {
-                            expandedSport = sport
-                        }
                         selectedSport = sport
                         selectedLeague = nil
                     }
@@ -70,26 +65,42 @@ struct DashboardView: View {
                         return true
                     }
 
-                    // The open sport shows its leagues underneath: ones with games first.
-                    if expandedSport == sport && model.leagues(for: sport).count > 1 {
-                        ForEach(orderedLeagues(sport)) { league in
-                            let leagueGames = games.filter { $0.league == league }
-                            LeagueRow(league: league,
-                                      detail: leagueGames.isEmpty ? "No games" : "\(leagueGames.count) today",
-                                      live: leagueGames.filter { $0.state == .live }.count, total: leagueGames.count,
-                                      selected: selectedLeague == league.id,
-                                      dimmed: leagueGames.isEmpty) {
-                                selectedLeague = league.id
-                            }
-                        }
-                        .padding(.bottom, 6)
-                    }
+
                 }
             }
             .padding(12)
         }
         .frame(width: 290)
         .background(Theme.sidebar)
+    }
+
+    /// The chosen sport's leagues as chips along the top ("All" first, then leagues with games).
+    private func leagueChips(_ sport: Sport) -> some View {
+        let games = model.games(for: sport)
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                Button { selectedLeague = nil } label: {
+                    Text("All")
+                }
+                .buttonStyle(ChipStyle(selected: selectedLeague == nil))
+                ForEach(orderedLeagues(sport)) { league in
+                    let count = games.filter { $0.league == league }.count
+                    Button { selectedLeague = league.id } label: {
+                        HStack(spacing: 6) {
+                            LeagueLogo(league: league, size: 16)
+                            Text(league.name)
+                            if count > 0 {
+                                Text("\(count)").foregroundStyle(selectedLeague == league.id ? Theme.bg.opacity(0.65) : Theme.muted)
+                            }
+                        }
+                        .opacity(count == 0 && selectedLeague != league.id ? 0.55 : 1)
+                    }
+                    .buttonStyle(ChipStyle(selected: selectedLeague == league.id))
+                }
+            }
+            .padding(.horizontal, 32)
+            .padding(.vertical, 12)
+        }
     }
 
     // MARK: All sports overview

@@ -92,6 +92,8 @@ struct IOSGameView: View {
         .background(Theme.bg)
         .navigationTitle(game?.league.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
+        // No back button or title bar, to save space: swipe from the left edge to go back.
+        .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             // Opening a game plays its first stream in the pinned player (unless one of its streams is already
             // playing); after that, only tapping plays something else.

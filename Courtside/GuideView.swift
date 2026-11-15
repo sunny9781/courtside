@@ -153,7 +153,7 @@ struct GuideView: View {
         let query = categorySearch.trimmingCharacters(in: .whitespaces).lowercased()
 
         return VStack(alignment: .leading, spacing: 12) {
-            Field(placeholder: "Search categories and channels", text: $categorySearch)
+            Field(placeholder: "Filter", text: $categorySearch)
 
             Toggle(isOn: $grouped) {
                 Text("Group similar categories")

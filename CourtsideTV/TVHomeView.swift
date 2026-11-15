@@ -143,6 +143,8 @@ struct TVGamesPane: View {
     @EnvironmentObject var nav: TVNav
     @AppStorage(Prefs.hiddenSports) private var hiddenSports = ""
     @AppStorage(Prefs.sportOrder) private var sportOrder = ""
+    /// Width available for the cards, so they stretch to fill the row (like the Mac) instead of leaving a gap.
+    @State private var paneWidth: CGFloat = 1300
 
     struct PaneSection: Identifiable {
         let id: String
@@ -227,7 +229,9 @@ struct TVGamesPane: View {
                                                 ?? (section.id == "finals" ? section.games
                                                     : model.games(for: Sport(rawValue: section.title) ?? .basketball)),
                                               charWidth: 15.5, fixed: 130, minimum: 360, maximum: 900)
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: width, maximum: width), spacing: 32, alignment: .top)],
+                        // As many columns as fit at the sport's card width, then stretched to fill the row.
+                        let count = max(1, Int((paneWidth + 32) / (width + 32)))
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 32, alignment: .top), count: count),
                                   alignment: .leading, spacing: 32) {
                             ForEach(section.games) { game in
                                 Button {
@@ -241,6 +245,8 @@ struct TVGamesPane: View {
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { paneWidth = $0 }
             // Room around the cards so the focus zoom never slides under the left column or off screen.
             .padding(.vertical, 24)
             .padding(.horizontal, 24)

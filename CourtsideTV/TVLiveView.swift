@@ -122,12 +122,10 @@ struct TVLiveView: View {
             .onChange(of: focusedChannel) {
                 if let focusedChannel { focusedChannelID = focusedChannel }
             }
-            .task(id: "\(search)|\(grouped)") {
-                try? await Task.sleep(for: .milliseconds(250))
-                guard !Task.isCancelled else { return }
-                hits = EPGSearch.run(search, model: model, grouped: grouped)
-                flipped = []
-            }
+            // The remote's keyboard hands the text over when you press Done, so search right away.
+            .onChange(of: search) { runSearch() }
+            .onChange(of: grouped) { runSearch() }
+            .onAppear { runSearch() }
         }
     }
 
@@ -137,8 +135,9 @@ struct TVLiveView: View {
         ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: 4) {
                 // One search for categories and channels; results show on the right.
-                TextField("Search categories and channels", text: $search)
+                TextField("Filter", text: $search)
                     .font(.system(size: 24))
+                    .onSubmit { runSearch() }
                     .padding(.bottom, 6)
                 Button {
                     grouped.toggle()
@@ -278,7 +277,7 @@ struct TVLiveView: View {
         ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 0) {
-                    Text(selected?.name ?? "")
+                    Text(searching ? "Results for \u{201C}\(search.trimmingCharacters(in: .whitespaces))\u{201D}" : (selected?.name ?? ""))
                         .frame(width: 430, alignment: .leading)
                     Text("NOW").frame(maxWidth: .infinity, alignment: .leading)
                     Text("NEXT").frame(width: 360, alignment: .leading)
@@ -307,6 +306,13 @@ struct TVLiveView: View {
             }
             .padding(.vertical, 10)
         }
+    }
+
+    private var searching: Bool { search.trimmingCharacters(in: .whitespaces).count >= 2 }
+
+    private func runSearch() {
+        hits = searching ? EPGSearch.run(search, model: model, grouped: grouped) : []
+        flipped = []
     }
 
     private func isOpen(_ hit: EPGSearch.Hit) -> Bool {

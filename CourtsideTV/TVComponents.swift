@@ -289,8 +289,17 @@ struct TVVideoSurface: UIViewRepresentable {
     let view: UIView
 
     func makeUIView(context: Context) -> UIView {
+        // In a container of its own: when the video moves (full screen and back to the player strip) the place
+        // it left can't pull it back out, which left the strip black after closing full screen.
+        let container = UIView()
+        container.backgroundColor = .black
+        container.isUserInteractionEnabled = false
         view.isUserInteractionEnabled = false   // clicks go to the player, which shows the info bar
-        return view
+        view.removeFromSuperview()
+        view.frame = container.bounds
+        view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        container.addSubview(view)
+        return container
     }
     func updateUIView(_ uiView: UIView, context: Context) {}
 }

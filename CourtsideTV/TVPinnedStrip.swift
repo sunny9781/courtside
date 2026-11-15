@@ -17,7 +17,6 @@ struct TVPinnedStrip: View {
                 Color.black
                 if model.nowPlaying == nil && !DemoData.isOn {
                     TVVideoSurface(view: controller.view)
-                    if controller.status == .opening || controller.status == .buffering { ProgressView() }
                 }
             }
             .frame(width: 400, height: 225)

@@ -149,8 +149,8 @@ struct IOSGamesList: View {
 
     var body: some View {
         ScrollView {
+            // "Updated" lives in Settings; pull down to refresh.
             VStack(alignment: .leading, spacing: 22) {
-                statusRow
                 if showsSportChips { sportChips }
                 if let sport = nav.selectedSport, model.leagues(for: sport).count > 1 { leagueChips(sport) }
 
@@ -236,22 +236,28 @@ struct IOSGamesList: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 let live = model.games.filter { $0.state == .live && sports.contains($0.league.sport) }.count
+                // Icons and counts only (live games in orange, otherwise today's games), to fit more sports.
                 IOSChip(selected: nav.homeSelection == .liveNow, action: { nav.homeSelection = .liveNow }) {
                     HStack(spacing: 6) {
-                        Text("Live Now")
+                        Image(systemName: "dot.radiowaves.left.and.right")
                         if live > 0 { IOSBadge(text: "\(live)", fill: Theme.accent, color: Theme.onAccent) }
                     }
                 }
+                .accessibilityLabel("Live Now")
                 ForEach(sports) { sport in
                     let games = model.games(for: sport)
                     let liveCount = games.filter { $0.state == .live }.count
                     IOSChip(selected: nav.selectedSport == sport, action: { nav.homeSelection = .sport(sport) }) {
                         HStack(spacing: 6) {
                             Image(systemName: sport.symbol)
-                            Text(sport.rawValue)
-                            if liveCount > 0 { IOSBadge(text: "\(liveCount)", fill: Theme.accent, color: Theme.onAccent) }
+                            if liveCount > 0 {
+                                IOSBadge(text: "\(liveCount)", fill: Theme.accent, color: Theme.onAccent)
+                            } else if !games.isEmpty {
+                                Text("\(games.count)").font(.caption.weight(.semibold)).opacity(0.6)
+                            }
                         }
                     }
+                    .accessibilityLabel(sport.rawValue)
                     .opacity(games.isEmpty ? 0.5 : 1)
                 }
             }

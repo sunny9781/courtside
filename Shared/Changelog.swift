@@ -61,6 +61,19 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.20", date: "2026-11-15", time: "16:30", title: "Filters, tabs and a tidier iPhone", changes: [
+            Change(text: "The search boxes are now called Filter.", apps: all),
+            Change(text: "Game screen: the filter sits in the middle of the first line, and only appears when there are more streams than fit on screen.", apps: mac),
+            Change(text: "Home: sports down the left, and the sport's leagues as chips across the top (like the Apple TV).", apps: mac),
+            Change(text: "EPG: the filter works as soon as you press Done on the keyboard, with a \"Results for…\" heading.", apps: tv),
+            Change(text: "Closing full screen no longer leaves the player at the top black.", apps: tvIOS),
+            Change(text: "Home, EPG and Settings switch as you move across them, no click needed.", apps: tv),
+            Change(text: "Home: game cards stretch to fill the width of the screen.", apps: tv),
+            Change(text: "The spinning \"buffering\" sign only shows before a stream first appears (it used to flicker on while streams played fine).", apps: tvIOS),
+            Change(text: "Home: the \"Updated\" line is gone (it's in Settings; pull down to refresh), and sports show as icons with counts.", apps: ios),
+            Change(text: "Game screen: no back button or title bar (swipe from the left edge to go back).", apps: ios),
+            Change(text: "Player: the score and channel are on one line, and tapping the video shows the quality and buttons over it.", apps: ios)
+        ]),
         Release(version: "1.19", date: "2026-11-15", time: "15:35", title: "Updates from one place", changes: [
             Change(text: "Updates now come from the main Courtside page on GitHub.", apps: mac),
             Change(text: "If an update has downloaded and you just quit, it installs on the way out, so the next launch is the new version.", apps: mac)

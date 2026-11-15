@@ -13,6 +13,8 @@ struct IOSPinnedPlayer: View {
     @ObservedObject private var playback = IOSPlayback.shared
     @ObservedObject private var cast = CastManager.shared
     @State private var available: CGFloat = 360
+    @State private var showControls = false
+    @State private var hideTask: Task<Void, Never>?
     let item: NowPlaying
     /// The game the stream belongs to: its score replaces the title, so the game screen doesn't need its own.
     var game: Game? = nil
@@ -34,7 +36,6 @@ struct IOSPinnedPlayer: View {
                 HStack(alignment: .top, spacing: 14) {
                     VStack(alignment: .leading, spacing: 8) {
                         video
-                        buttons
                         if !titleBeside { titles }
                     }
                     .frame(width: videoWidth)
@@ -58,15 +59,18 @@ struct IOSPinnedPlayer: View {
         .onChange(of: playback.frameRate) { model.recordFrameRate(item.channel.id, playback.frameRate) }
     }
 
+    /// One line: the score (or title), then the channel.
     private var titles: some View {
-        VStack(alignment: .leading, spacing: 3) {
+        HStack(spacing: 6) {
             if let game {
                 scoreLine(game)
             } else {
-                Text(model.playerTitle(item)).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text).lineLimit(2)
+                Text(model.playerTitle(item)).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
             }
-            Text(item.channel.name).font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
+            Text("· \(item.channel.name)").font(.caption).foregroundStyle(Theme.muted)
+                .layoutPriority(-1)
         }
+        .lineLimit(1)
     }
 
     /// "🏀 TOR 78  81 BOS 🏀 · Q3 4:12", or the event's name.
@@ -97,8 +101,9 @@ struct IOSPinnedPlayer: View {
         }
     }
 
-    /// Right under the video.
-    private var buttons: some View {
+    /// Over the bottom of the video after a tap: quality on the left, buttons on the right. Hides after a few
+    /// seconds.
+    private var overlayControls: some View {
         HStack(spacing: 8) {
             if !playback.resolution.isEmpty { IOSBadge(text: playback.resolution).fixedSize() }
             if playback.frameRate > 0 { IOSBadge(text: PlaybackController.fpsLabel(playback.frameRate)).fixedSize() }
@@ -106,6 +111,21 @@ struct IOSPinnedPlayer: View {
             smallButton("rectangle.compress.vertical") { withAnimation(.easeOut(duration: 0.2)) { collapsed = true } }
             smallButton("arrow.up.left.and.arrow.down.right") { fullScreen() }
             smallButton("stop.fill") { stop() }
+        }
+        .padding(.horizontal, 10)
+        .padding(.bottom, 10)
+        .padding(.top, 26)
+        .background(LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .top, endPoint: .bottom))
+    }
+
+    private func toggleControls() {
+        withAnimation(.easeOut(duration: 0.15)) { showControls.toggle() }
+        hideTask?.cancel()
+        guard showControls else { return }
+        hideTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.3)) { showControls = false }
         }
     }
 
@@ -144,7 +164,9 @@ struct IOSPinnedPlayer: View {
                     Label("Playing in picture in picture", systemImage: "pip").font(.footnote).foregroundStyle(Theme.muted)
                 } else {
                     switch playback.status {
-                    case .opening, .buffering: ProgressView()
+                    // Only before the first picture ("buffering" flickers on while streams play fine).
+                    case .opening where playback.resolution.isEmpty, .buffering where playback.resolution.isEmpty:
+                        ProgressView()
                     case .failed: Text("This stream couldn't be opened").font(.footnote).foregroundStyle(Theme.muted)
                     default: EmptyView()
                     }
@@ -152,9 +174,12 @@ struct IOSPinnedPlayer: View {
             }
         }
         .frame(width: videoWidth, height: videoWidth * 9 / 16)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
         .contentShape(Rectangle())
-        .onTapGesture { fullScreen() }
+        .onTapGesture { toggleControls() }
+        .overlay(alignment: .bottom) {
+            if showControls { overlayControls.transition(.opacity) }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     private var collapsedBar: some View {
@@ -183,9 +208,9 @@ struct IOSPinnedPlayer: View {
         Button(action: action) {
             Image(systemName: symbol)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Theme.soft)
+                .foregroundStyle(.white)
                 .frame(width: 34, height: 34)
-                .background(Circle().fill(Theme.raised))
+                .background(Circle().fill(.white.opacity(0.2)))
         }
         .buttonStyle(.plain)
     }

@@ -172,10 +172,12 @@ struct TVPlayerView: View {
     @ViewBuilder
     private var statusOverlay: some View {
         switch controller.status {
-        case .opening, .buffering, .idle:
+        // Only before the first picture: "buffering" flickers on while streams play fine, so it isn't shown.
+        case .opening where controller.resolution.isEmpty, .buffering where controller.resolution.isEmpty,
+             .idle where controller.resolution.isEmpty:
             VStack(spacing: 20) {
                 ProgressView()
-                Text(controller.status == .buffering ? "Buffering…" : "Opening \(item.channel.name)…")
+                Text("Opening \(item.channel.name)…")
                     .font(.system(size: 28))
                     .foregroundStyle(Theme.soft)
             }
