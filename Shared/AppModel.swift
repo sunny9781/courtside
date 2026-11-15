@@ -337,6 +337,7 @@ final class AppModel: ObservableObject {
     }
 
     func rematch() async {
+        guard !DemoData.isOn else { return }   // sample data comes with its own matches
         let idx = indexed
         // Guide-built events (pickleball) are rebuilt below, so they're left out of the normal matching.
         let gs = games.filter { !$0.id.hasPrefix("guide-") }
@@ -459,9 +460,10 @@ final class AppModel: ObservableObject {
         set { UserDefaults.standard.set(Array(newValue.prefix(50)), forKey: Prefs.recentChannels) }
     }
 
+    /// Recently watched channels rank higher next time the streams are matched. The list isn't re-sorted
+    /// straight away, so streams don't jump around while you tap through them.
     private func remember(_ id: Int) {
         recentChannelIDs = [id] + recentChannelIDs.filter { $0 != id }
-        Task { await rematch() }
     }
 
     /// The lineup is what up/down flips through while watching.
