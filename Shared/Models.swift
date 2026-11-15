@@ -50,6 +50,8 @@ enum Sport: String, CaseIterable, Identifiable {
     case rugby = "Rugby"
     case aussieRules = "Aussie Rules"
     case lacrosse = "Lacrosse"
+    case cricket = "Cricket"
+    case pickleball = "Pickleball"
 
     var id: String { rawValue }
 
@@ -67,6 +69,8 @@ enum Sport: String, CaseIterable, Identifiable {
         case .rugby: return "figure.rugby"
         case .aussieRules: return "figure.australian.football"
         case .lacrosse: return "figure.lacrosse"
+        case .cricket: return "cricket.ball"
+        case .pickleball: return "figure.pickleball"
         }
     }
 
@@ -150,7 +154,11 @@ struct League: Identifiable, Hashable {
         League(id: "top14", name: "Top 14", sport: .rugby, path: "rugby/270559", keywords: ["rugby", "top"]),
         League(id: "afl", name: "AFL", sport: .aussieRules, path: "australian-football/afl", keywords: ["afl"]),
         League(id: "nll", name: "NLL", sport: .lacrosse, path: "lacrosse/nll", keywords: ["nll", "lacrosse"]),
-        League(id: "pll", name: "PLL", sport: .lacrosse, path: "lacrosse/pll", keywords: ["pll", "lacrosse"])
+        League(id: "pll", name: "PLL", sport: .lacrosse, path: "lacrosse/pll", keywords: ["pll", "lacrosse"]),
+        // Cricket comes from ESPN's list of current matches (series change constantly); see ScheduleClient.
+        League(id: "cricket", name: "Cricket", sport: .cricket, path: "cricket", keywords: ["cricket", "ipl", "bbl", "t20", "psl"]),
+        // No free schedule exists for pickleball, so its events are built from the TV guide (empty path).
+        League(id: "pickleball", name: "Pickleball", sport: .pickleball, path: "", keywords: ["pickleball", "ppa"])
     ]
 }
 

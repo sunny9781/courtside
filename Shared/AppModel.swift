@@ -328,7 +328,8 @@ final class AppModel: ObservableObject {
 
     func rematch() async {
         let idx = indexed
-        let gs = games
+        // Guide-built events (pickleball) are rebuilt below, so they're left out of the normal matching.
+        let gs = games.filter { !$0.id.hasPrefix("guide-") }
         let gd = guide
         let extras = extraBroadcasts
         let measured = measuredQuality
@@ -337,7 +338,23 @@ final class AppModel: ObservableObject {
         let result = await Task.detached(priority: .userInitiated) {
             Matcher.matchAll(games: gs, channels: idx, guide: gd, extras: extras, measured: measured, recent: recent, now: now)
         }.value
-        matches = result.matches
+        var allMatches = result.matches
+
+        // Sports with no schedule feed: events from the guide.
+        let hiddenLeagues = League.hiddenSaved
+        var guideGames: [Game] = []
+        for league in League.all where league.path.isEmpty && !hiddenLeagues.contains(league.id) {
+            let found = await Task.detached(priority: .utility) {
+                Matcher.guideEvents(league: league, words: [league.name.lowercased()], channels: idx, guide: gd,
+                                    measured: measured, now: now)
+            }.value
+            guideGames += found.games
+            allMatches.merge(found.matches) { _, new in new }
+        }
+        if !guideGames.isEmpty || games.contains(where: { $0.id.hasPrefix("guide-") }) {
+            games = (gs + guideGames).sorted { ($0.start ?? .distantFuture) < ($1.start ?? .distantFuture) }
+        }
+        matches = allMatches
         guideLinks = result.links
     }
 

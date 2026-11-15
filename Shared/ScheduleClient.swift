@@ -46,6 +46,8 @@ struct ScheduleClient {
     }
 
     private func leagueSchedule(_ league: League, now: Date) async throws -> (games: [Game], logo: URL?) {
+        if league.path.isEmpty { return ([], nil) }          // guide-only sports (pickleball)
+        if league.id == "cricket" { return try await cricketSchedule(league, now: now) }
         // Treat the "sports day" as ending at 5 AM Eastern, so late West Coast games still show after midnight.
         let day = DateFormatter()
         day.locale = Locale(identifier: "en_US_POSIX")
@@ -67,6 +69,59 @@ struct ScheduleClient {
         let dark = logos.first { (($0["rel"] as? [String]) ?? []).contains("dark") }
         let logo = ((dark ?? logos.first)?["href"] as? String).flatMap(URL.init(string:))
         return (events.compactMap { parse($0, league: league) }, logo)
+    }
+
+    /// Series names worth showing: internationals ("India tour of New Zealand") and the big T20 leagues.
+    private static let majorCricket = try! NSRegularExpression(
+        pattern: "tour of|world cup|champions trophy|premier league|big bash|super league|the hundred|sa20|caribbean|ilt20|major league cricket|test championship|asia cup|super smash",
+        options: [.caseInsensitive])
+
+    /// Cricket: ESPN's live list of current matches across every series, keeping the major ones.
+    private func cricketSchedule(_ league: League, now: Date) async throws -> (games: [Game], logo: URL?) {
+        guard let url = URL(string: "https://site.api.espn.com/apis/personalized/v2/scoreboard/header?sport=cricket") else {
+            throw ScheduleError.badResponse
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 20
+        let (data, _) = try await URLSession.shared.data(for: request)
+        guard let root = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let sports = root["sports"] as? [[String: Any]], let sport = sports.first else {
+            throw ScheduleError.badResponse
+        }
+        let logo = ((sport["logos"] as? [[String: Any]])?.first?["href"] as? String).flatMap(URL.init(string:))
+        var games: [Game] = []
+        for series in (sport["leagues"] as? [[String: Any]]) ?? [] {
+            let seriesName = (series["name"] as? String) ?? ""
+            let range = NSRange(seriesName.startIndex..., in: seriesName)
+            guard Self.majorCricket.firstMatch(in: seriesName, range: range) != nil else { continue }
+            for event in (series["events"] as? [[String: Any]]) ?? [] {
+                let competitors = (event["competitors"] as? [[String: Any]]) ?? []
+                func side(_ which: String) -> Team? {
+                    guard let c = competitors.first(where: { ($0["homeAway"] as? String) == which }) else { return nil }
+                    let name = (c["displayName"] as? String) ?? (c["name"] as? String) ?? ""
+                    guard !name.isEmpty else { return nil }
+                    return Team(name: name, nickname: name, shortName: name, location: (c["location"] as? String) ?? "",
+                                abbr: (c["abbreviation"] as? String) ?? "", score: Flex.string(c["score"]) ?? "",
+                                logo: (c["logo"] as? String).flatMap(URL.init(string:)))
+                }
+                guard let home = side("home"), let away = side("away") else { continue }
+                let type = ((event["fullStatus"] as? [String: Any])?["type"] as? [String: Any]) ?? [:]
+                let raw = (type["state"] as? String) ?? "pre"
+                let detail = (type["shortDetail"] as? String) ?? (type["description"] as? String) ?? ""
+                let start = parseDate(event["date"] as? String)
+                let state: Game.State = raw == "in" ? .live : (raw == "post" ? .finished : .upcoming)
+                // Today only: live matches, ones starting within a day, and ones that finished in the last 12 hours.
+                if state == .upcoming, let start, start.timeIntervalSince(now) > 24 * 3600 { continue }
+                if state == .finished, let end = parseDate(event["endDate"] as? String) ?? start,
+                   now.timeIntervalSince(end) > 12 * 3600 { continue }
+                var game = Game(id: "cricket-\(Flex.string(event["id"]) ?? UUID().uuidString)", league: league, start: start,
+                                state: state, statusText: detail.isEmpty ? (state == .live ? "Live" : "") : detail,
+                                away: away, home: home, broadcasters: [])
+                game.venue = seriesName
+                games.append(game)
+            }
+        }
+        return (games, logo)
     }
 
     private func parse(_ event: [String: Any], league: League) -> Game? {

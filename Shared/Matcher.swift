@@ -420,6 +420,45 @@ enum Matcher {
         var links: [String: String] = [:]
     }
 
+    /// Sports with no schedule feed (pickleball): events built from what the guide says is on now or in the next
+    /// six hours, with the channels showing them as the streams.
+    static func guideEvents(league: League, words: [String], channels: [IndexedChannel], guide: [String: [Programme]],
+                            measured: [Int: String], now: Date) -> (games: [Game], matches: [String: [StreamMatch]]) {
+        struct Found { var title: String; var start: Date; var end: Date; var channels: [IndexedChannel] }
+        var found: [String: Found] = [:]
+        for c in channels where !c.channel.epgID.isEmpty {
+            for p in guide[c.channel.epgID] ?? [] where p.end > now && p.start < now.addingTimeInterval(6 * 3600) {
+                let lower = p.title.lowercased()
+                guard words.contains(where: { lower.contains($0) }) else { continue }
+                let slot = Int(p.start.timeIntervalSince1970 / 900)
+                let key = lower.filter { $0.isLetter || $0.isNumber } + "-\(slot)"
+                found[key, default: Found(title: p.title, start: p.start, end: p.end, channels: [])].channels.append(c)
+            }
+        }
+        var games: [Game] = []
+        var matches: [String: [StreamMatch]] = [:]
+        for (key, f) in found {
+            let live = f.start <= now
+            let id = "guide-\(league.id)-\(key)"
+            var game = Game(id: id, league: league, start: f.start, state: live ? .live : .upcoming,
+                            statusText: live ? "Live" : f.start.formatted(date: .omitted, time: .shortened),
+                            away: .none, home: .none, broadcasters: [])
+            game.isEvent = true
+            game.eventTitle = f.title
+            game.eventDetail = f.channels.count == 1 ? "On \(f.channels[0].channel.name)" : "On \(f.channels.count) channels"
+            games.append(game)
+            matches[id] = f.channels.map { c in
+                var q = quality(c.tokenSet)
+                if let real = measured[c.channel.id] {
+                    q = (real, real == "4K" ? 4 : (real == "1080p" ? 3 : (real == "720p" ? 2 : 1)))
+                }
+                return StreamMatch(channel: c.channel, reason: "In the guide", score: 3, quality: q.label, qualityRank: q.rank,
+                                   recent: false, local: false, likelyOnly: false, country: country(of: c.channel))
+            }.sorted { $0.qualityRank > $1.qualityRank }
+        }
+        return (games.sorted { ($0.start ?? .distantFuture) < ($1.start ?? .distantFuture) }, matches)
+    }
+
     static func matchAll(games: [Game], channels: [IndexedChannel], guide: [String: [Programme]],
                          extras: [String: [Broadcast]] = [:], measured: [Int: String] = [:],
                          recent: Set<Int>, now: Date) -> Result {
