@@ -63,11 +63,31 @@ echo "Apple TV: $DEVICE (UDID $UDID)"
 # Building for this exact Apple TV is what registers it with the free team the first time.
 if [ -n "$UDID" ]; then DEST="platform=tvOS,id=$UDID"; else DEST="generic/platform=tvOS"; fi
 
-# 3. Throw away old signing profiles for this app so the build gets a fresh 7-day one.
-for dir in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" "$HOME/Library/MobileDevice/Provisioning Profiles"; do
-  [ -d "$dir" ] || continue
-  grep -l "$BUNDLE_ID" "$dir"/*.mobileprovision 2>/dev/null | while read -r f; do rm -f "$f"; done || true
-done
+# 3. Skip the work when nothing changed and the signature has more than 3 days left.
+APP="build-tv/Build/Products/Release-appletvos/CourtsideTV.app"
+COMMIT=$(git rev-parse HEAD 2>/dev/null || echo unknown)
+days_left() {
+  [ -f "$APP/embedded.mobileprovision" ] || { echo 0; return; }
+  security cms -D -i "$APP/embedded.mobileprovision" 2>/dev/null | /usr/bin/python3 -c '
+import plistlib, sys, datetime
+p = plistlib.loads(sys.stdin.buffer.read())
+left = p["ExpirationDate"].replace(tzinfo=datetime.timezone.utc) - datetime.datetime.now(datetime.timezone.utc)
+print(max(int(left.total_seconds() // 86400), 0))' 2>/dev/null || echo 0
+}
+DAYS=$(days_left)
+if [ -f build-tv/.installed ] && [ "$(cat build-tv/.installed)" = "$COMMIT" ] && [ "$DAYS" -gt 3 ]; then
+  echo "Already up to date on the Apple TV. Its signature is good for $DAYS more days."
+  exit 0
+fi
+
+# Renew the 7-day signature only when it's close to running out (asking Apple adds a few seconds).
+if [ "$DAYS" -le 3 ]; then
+  echo "Renewing the signature…"
+  for dir in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" "$HOME/Library/MobileDevice/Provisioning Profiles"; do
+    [ -d "$dir" ] || continue
+    grep -l "$BUNDLE_ID" "$dir"/*.mobileprovision 2>/dev/null | while read -r f; do rm -f "$f"; done || true
+  done
+fi
 
 # The build cache remembers where this folder was; if it has moved, start the cache fresh.
 if [ -f build-tv/.location ] && [ "$(cat build-tv/.location)" != "$PWD" ]; then
@@ -96,9 +116,9 @@ xcodebuild \
   build > tv-build.log 2>&1 || { grep -E "error:" tv-build.log | sort -u | head -40; tail -30 tv-build.log; exit 1; }
 
 echo "$PWD" > build-tv/.location
-APP="build-tv/Build/Products/Release-appletvos/CourtsideTV.app"
 test -d "$APP"
 
 # 5. Install over Wi-Fi.
 xcrun devicectl device install app --device "$DEVICE" "$APP"
-echo "Installed Courtside 1.0.$BUILD on the Apple TV."
+echo "$COMMIT" > build-tv/.installed
+echo "Installed Courtside 1.0.$BUILD on the Apple TV (signature good for $(days_left) days)."
