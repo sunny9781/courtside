@@ -42,8 +42,10 @@ struct PinnedPlayerBar<Details: View>: View {
             } else {
                 HStack(alignment: .top, spacing: 22) {
                     video
+                    // Never taller than the video, so the strip is the same size on every screen.
                     details()
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .frame(maxWidth: .infinity, maxHeight: videoHeight, alignment: .topLeading)
+                        .clipped()
                 }
                 .padding(.horizontal, card ? 20 : 24)
                 .padding(.top, card ? 20 : 12)
@@ -224,6 +226,7 @@ extension PinnedPlayerBar where Details == PinnedDetails {
 
 /// Beside the video: what's playing, and on a game's screen the score and game info to the right of it.
 struct PinnedDetails: View {
+    @AppStorage(Prefs.pinnedVideoHeight) private var videoHeight: Double = 190
     let item: NowPlaying
     let game: Game?
 
@@ -233,7 +236,9 @@ struct PinnedDetails: View {
                 .frame(maxWidth: game == nil ? .infinity : 300, alignment: .topLeading)
             if let game {
                 Rectangle().fill(Theme.raised).frame(width: 1)
-                GameScorePanel(game: game)
+                // Sized to the video: the full-size panel needs about 245 points of height.
+                GameScorePanel(game: game, scale: min(1, max(0.6, videoHeight / 245)))
+                    .frame(maxHeight: videoHeight, alignment: .top)
             }
         }
     }

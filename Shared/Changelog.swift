@@ -57,7 +57,8 @@ enum Changelog {
     static let releases: [Release] = [
         Release(date: "2026-11-15", title: "Score in the player", changes: [
             Change(text: "Game screen: the score and game info sit in the player strip, to the right of the video, while one of the game's streams plays.", apps: mac),
-            Change(text: "Player: resolution and frame rate are under the channel name instead of on the video.", apps: mac)
+            Change(text: "Player: resolution and frame rate are under the channel name instead of on the video.", apps: mac),
+            Change(text: "The player strip is the same size on every screen; on game screens the score shrinks to fit (and grows when you drag the player bigger).", apps: mac)
         ]),
         Release(date: "2026-11-15", title: "Player strip everywhere and better updates", changes: [
             Change(text: "The player is the strip under the top bar on every screen, game screens included.", apps: mac),

@@ -258,6 +258,11 @@ struct StreamRow: View {
 struct GameScorePanel: View {
     @EnvironmentObject var model: AppModel
     let game: Game
+    /// Below 1 in the player strip, where everything has to fit the video's height (it grows as you drag the
+    /// player bigger).
+    var scale: CGFloat = 1
+
+    private func z(_ size: CGFloat, min floor: CGFloat = 9) -> CGFloat { max(floor, size * scale) }
 
     /// The slim player bar's one line: "TOR 78 – 81 BOS · Q3 4:12".
     var slimScore: String {
@@ -267,10 +272,10 @@ struct GameScorePanel: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 28) {
-            VStack(alignment: .leading, spacing: 14) {
+        HStack(alignment: .top, spacing: z(28)) {
+            VStack(alignment: .leading, spacing: z(14, min: 4)) {
                 Text(statusLine)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: z(12, min: 10), weight: .semibold))
                     .foregroundStyle(game.state == .live ? Theme.accent : Theme.muted)
                 if game.isEvent {
                     EventLines(game: game, big: true)
@@ -279,7 +284,7 @@ struct GameScorePanel: View {
                     scoreLine(game.home)
                 }
             }
-            .frame(minWidth: 240, maxWidth: 420, alignment: .topLeading)
+            .frame(minWidth: z(240, min: 180), maxWidth: 420, alignment: .topLeading)
 
             Rectangle().fill(Theme.raised).frame(width: 1)
 
@@ -289,30 +294,30 @@ struct GameScorePanel: View {
     }
 
     private func scoreLine(_ team: Team) -> some View {
-        HStack(spacing: 12) {
-            TeamBadge(abbr: team.abbr, logo: team.logo, size: 50)
+        HStack(spacing: z(12, min: 6)) {
+            TeamBadge(abbr: team.abbr, logo: team.logo, size: z(50, min: 26))
             VStack(alignment: .leading, spacing: 2) {
                 Text(team.shortName)
-                    .font(Theme.display(28))
+                    .font(Theme.display(z(28, min: 15)))
                     .foregroundStyle(Theme.text)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(scale < 1 ? 1 : 2)
+                    .minimumScaleFactor(0.7)
                 if team.hasLongScore {
                     Text(team.score)
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: z(20, min: 12), weight: .bold))
                         .monospacedDigit()
                         .foregroundStyle(game.scoreColor(team))
                 }
                 if !team.record.isEmpty {
                     Text(team.record)
-                        .font(.system(size: 12))
+                        .font(.system(size: z(12, min: 10)))
                         .foregroundStyle(Theme.muted)
                 }
             }
             Spacer(minLength: 12)
             if !team.hasLongScore {
                 Text(team.score)
-                    .font(Theme.display(30))
+                    .font(Theme.display(z(30, min: 16)))
                     .monospacedDigit()
                     .foregroundStyle(game.scoreColor(team))
             }
@@ -321,10 +326,10 @@ struct GameScorePanel: View {
 
     /// Box score by period, venue and broadcasters: what fills the space beside the score.
     private var gameInfo: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: z(14, min: 5)) {
             let periods = max(game.away.linescores.count, game.home.linescores.count)
             if !game.isEvent && periods > 0 {
-                Grid(alignment: .trailing, horizontalSpacing: 14, verticalSpacing: 8) {
+                Grid(alignment: .trailing, horizontalSpacing: z(14, min: 8), verticalSpacing: z(8, min: 3)) {
                     GridRow {
                         Text("").gridColumnAlignment(.leading)
                         ForEach(0..<periods, id: \.self) { i in
@@ -332,12 +337,12 @@ struct GameScorePanel: View {
                         }
                         Text("T")
                     }
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: z(11, min: 9), weight: .semibold))
                     .foregroundStyle(Theme.muted)
                     ForEach([game.away, game.home], id: \.self) { team in
                         GridRow {
                             Text(team.abbr)
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.system(size: z(13, min: 10), weight: .semibold))
                                 .foregroundStyle(Theme.soft)
                                 .gridColumnAlignment(.leading)
                             ForEach(0..<periods, id: \.self) { i in
@@ -347,31 +352,31 @@ struct GameScorePanel: View {
                                 .fontWeight(.bold)
                                 .foregroundStyle(Theme.text)
                         }
-                        .font(.system(size: 14))
+                        .font(.system(size: z(14, min: 11)))
                         .monospacedDigit()
                         .foregroundStyle(Theme.soft)
                     }
                 }
-                .padding(14)
+                .padding(z(14, min: 7))
                 .background(RoundedRectangle(cornerRadius: 12).fill(Theme.raised.opacity(0.5)))
             }
 
             if !game.venue.isEmpty {
                 Label(game.venue, systemImage: "mappin.and.ellipse")
-                    .font(.system(size: 12))
+                    .font(.system(size: z(12, min: 10)))
                     .foregroundStyle(Theme.soft)
-                    .lineLimit(2)
+                    .lineLimit(scale < 1 ? 1 : 2)
             }
             if let start = game.start {
                 Label(start.formatted(date: .abbreviated, time: .shortened), systemImage: "clock")
-                    .font(.system(size: 12))
+                    .font(.system(size: z(12, min: 10)))
                     .foregroundStyle(Theme.soft)
             }
             if !broadcasterLine.isEmpty {
                 Label(broadcasterLine.replacingOccurrences(of: "Broadcasters: ", with: ""), systemImage: "tv")
-                    .font(.system(size: 12))
+                    .font(.system(size: z(12, min: 10)))
                     .foregroundStyle(Theme.soft)
-                    .lineLimit(3)
+                    .lineLimit(scale < 1 ? 1 : 3)
             }
         }
     }
