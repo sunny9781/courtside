@@ -47,7 +47,7 @@ for d in data.get("result", {}).get("devices", []):
     name = props.get("name", "")
     ident = d.get("identifier", "")
     if not wanted or wanted in (name.lower(), ident.lower(), hw.get("udid", "").lower()):
-        print(ident)
+        print(ident, hw.get("udid", ""))
         break
 PY
 )
@@ -55,7 +55,10 @@ if [ -z "$DEVICE" ]; then
   echo "::error::No paired Apple TV found. Pair it in Xcode › Window › Devices and Simulators, and make sure it's on and on the same Wi-Fi."
   exit 1
 fi
-echo "Apple TV: $DEVICE"
+read -r DEVICE UDID <<< "$DEVICE"
+echo "Apple TV: $DEVICE (UDID $UDID)"
+# Building for this exact Apple TV is what registers it with the free team the first time.
+if [ -n "$UDID" ]; then DEST="platform=tvOS,id=$UDID"; else DEST="generic/platform=tvOS"; fi
 
 # 3. Throw away old signing profiles for this app so the build gets a fresh 7-day one.
 for dir in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" "$HOME/Library/MobileDevice/Provisioning Profiles"; do
@@ -70,7 +73,7 @@ xcodebuild \
   -project Courtside.xcodeproj \
   -scheme CourtsideTV \
   -configuration Release \
-  -destination 'generic/platform=tvOS' \
+  -destination "$DEST" \
   -derivedDataPath build-tv \
   -allowProvisioningUpdates \
   -allowProvisioningDeviceRegistration \
