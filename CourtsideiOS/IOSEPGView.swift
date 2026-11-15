@@ -9,6 +9,10 @@ struct IOSEPGView: View {
     @State private var search = ""
     /// Opened groups (node ids), then possibly a category ("cat:<id>") at the end.
     @State private var path: [String] = []
+    /// Search results, worked out a moment after you stop typing.
+    @State private var hits: [EPGSearch.Hit] = []
+    /// Result groups opened or closed by hand (otherwise they follow Hit.startsOpen).
+    @State private var flipped: Set<String> = []
 
     // MARK: Data
 
@@ -42,8 +46,7 @@ struct IOSEPGView: View {
 
     private var channels: [Channel] {
         guard let open = openCategory else { return [] }
-        let list = open.categories.flatMap { model.channelsByCategory[$0.id] ?? [] }
-        return search.isEmpty ? list : list.filter { $0.name.localizedCaseInsensitiveContains(search) }
+        return open.categories.flatMap { model.channelsByCategory[$0.id] ?? [] }
     }
 
     /// What's in the pinned player.
@@ -56,7 +59,7 @@ struct IOSEPGView: View {
             HStack(spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass").foregroundStyle(Theme.muted)
-                    TextField(openCategory == nil ? "Search categories" : "Search channels", text: $search)
+                    TextField("Search categories and channels", text: $search)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                     if !search.isEmpty {
@@ -100,19 +103,15 @@ struct IOSEPGView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 0) {
-                        if openCategory != nil {
+                        if search.trimmingCharacters(in: .whitespaces).count >= 2 {
+                            searchResults
+                        } else if openCategory != nil {
                             ForEach(channels) { channel in
                                 Button { tap(channel) } label: {
                                     IOSChannelRow(channel: channel, playing: channel.id == playing?.id)
                                 }
                                 .buttonStyle(.plain)
                                 Divider().overlay(Theme.raised).padding(.leading, 62)
-                            }
-                        } else if !search.isEmpty {
-                            ForEach(allCategories.filter { $0.name.localizedCaseInsensitiveContains(search) }) { cat in
-                                categoryRow(cat.name, count: model.channelsByCategory[cat.id]?.count ?? 0, group: false) {
-                                    open("cat:" + cat.id)
-                                }
                             }
                         } else if grouped {
                             if let group = openNodes.last {
@@ -140,6 +139,13 @@ struct IOSEPGView: View {
             }
         }
         .background(Theme.bg)
+        .task(id: "\(search)|\(grouped)") {
+            // A moment after typing stops, search every category and channel.
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            hits = EPGSearch.run(search, model: model, grouped: grouped)
+            flipped = []
+        }
     }
 
     private var breadcrumb: String {
@@ -155,6 +161,56 @@ struct IOSEPGView: View {
     private func open(_ id: String) {
         path.append(id)
         search = ""
+    }
+
+    private func isOpen(_ hit: EPGSearch.Hit) -> Bool {
+        hit.startsOpen(totalHits: hits.count) != flipped.contains(hit.id)
+    }
+
+    /// Search results: one foldable group per category, channel hits first.
+    @ViewBuilder
+    private var searchResults: some View {
+        if hits.isEmpty {
+            Text("Nothing matches \"\(search)\".").foregroundStyle(Theme.muted).padding(.top, 30)
+        }
+        ForEach(hits) { hit in
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    if flipped.contains(hit.id) { flipped.remove(hit.id) } else { flipped.insert(hit.id) }
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption.bold())
+                        .foregroundStyle(Theme.muted)
+                        .rotationEffect(.degrees(isOpen(hit) ? 90 : 0))
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(hit.category.name).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text).lineLimit(1)
+                        if !hit.path.isEmpty {
+                            Text(hit.path).font(.caption2).foregroundStyle(Theme.muted).lineLimit(1)
+                        }
+                    }
+                    Spacer()
+                    Text("\(hit.channels.count)").font(.caption).foregroundStyle(Theme.muted)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 10)
+                .background(Theme.card.opacity(0.6))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if isOpen(hit) {
+                ForEach(hit.channels) { channel in
+                    Button {
+                        if channel.id == playing?.id { fullScreen(channel) } else { model.pin(channel, lineup: hit.channels) }
+                    } label: {
+                        IOSChannelRow(channel: channel, playing: channel.id == playing?.id)
+                    }
+                    .buttonStyle(.plain)
+                    Divider().overlay(Theme.raised).padding(.leading, 62)
+                }
+            }
+        }
     }
 
     /// Tap once to play it in the pinned player at the top, tap again for full screen.

@@ -134,9 +134,11 @@ struct ScreenHeader<Trailing: View>: View {
                 Text(title)
                     .font(Theme.display(38))
                     .foregroundStyle(Theme.text)
-                Text(subtitle)
-                    .font(.system(size: 14))
-                    .foregroundStyle(Theme.muted)
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 14))
+                        .foregroundStyle(Theme.muted)
+                }
             }
             Spacer()
             trailing

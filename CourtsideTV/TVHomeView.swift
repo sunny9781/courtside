@@ -69,13 +69,14 @@ struct TVSportList: View {
             VStack(alignment: .leading, spacing: 6) {
                 let live = model.games.filter { $0.state == .live && sports.contains($0.league.sport) }.count
                 row(.liveNow, symbol: "dot.radiowaves.left.and.right", name: "Live Now",
-                    live: live, detail: "\(model.games.count) today")
+                    live: live, total: model.games.filter { sports.contains($0.league.sport) }.count,
+                    detail: "\(model.games.count) today")
                     .padding(.bottom, 14)
 
                 ForEach(sports) { sport in
                     let games = model.games(for: sport)
                     row(.sport(sport), symbol: sport.symbol, name: sport.rawValue,
-                        live: games.filter { $0.state == .live }.count,
+                        live: games.filter { $0.state == .live }.count, total: games.count,
                         detail: games.isEmpty ? "No games" : "\(games.count) today",
                         favorite: favorites.contains(sport))
                         .opacity(games.isEmpty ? 0.5 : 1)
@@ -96,7 +97,8 @@ struct TVSportList: View {
         Set(favoriteSports.split(separator: ",").compactMap { Sport(rawValue: String($0)) })
     }
 
-    private func row(_ selection: TVNav.HomeSelection, symbol: String, name: String, live: Int, detail: String,
+    /// "2/5 LIVE": live games out of today's games for that sport.
+    private func row(_ selection: TVNav.HomeSelection, symbol: String, name: String, live: Int, total: Int, detail: String,
                      favorite: Bool = false) -> some View {
         Button {
             nav.homeSelection = selection
@@ -115,7 +117,7 @@ struct TVSportList: View {
                 }
                 Spacer(minLength: 8)
                 if live > 0 {
-                    TVBadge(text: "\(live) LIVE", fill: Theme.accent, color: Theme.onAccent)
+                    TVBadge(text: "\(live)/\(total) LIVE", fill: Theme.accent, color: Theme.onAccent)
                 } else {
                     Text(detail)
                         .font(.system(size: 21))
@@ -195,9 +197,11 @@ struct TVGamesPane: View {
                             .font(.system(size: 48, weight: .bold))
                             .foregroundStyle(Theme.text)
                     }
-                    Text(subtitle)
-                        .font(.system(size: 22))
-                        .foregroundStyle(Theme.muted)
+                    if !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.system(size: 22))
+                            .foregroundStyle(Theme.muted)
+                    }
                 }
 
                 if let sport = filterSport, model.leagues(for: sport).count > 1 {
@@ -306,9 +310,8 @@ struct TVGamesPane: View {
     }
 
     private var subtitle: String {
-        let date = Date().formatted(.dateTime.weekday(.wide).month(.wide).day())
         let live = sections.flatMap(\.games).filter { $0.state == .live }.count
-        return live > 0 ? "\(date) · \(live) live" : date
+        return live > 0 ? "\(live) live" : ""
     }
 
     private var emptyMessage: String {

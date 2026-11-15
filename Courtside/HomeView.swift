@@ -25,7 +25,7 @@ struct SportView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 32) {
                 ScreenHeader(title: league?.name ?? sport.rawValue,
-                             subtitle: Date().formatted(.dateTime.weekday(.wide).month(.wide).day())) { EmptyView() }
+                             subtitle: "") { EmptyView() }
 
                 if let error = model.errorMessage {
                     Banner(text: error)

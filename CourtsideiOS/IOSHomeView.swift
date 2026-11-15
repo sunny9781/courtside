@@ -45,12 +45,13 @@ struct IOSSportSidebar: View {
         List {
             row(.liveNow, symbol: "dot.radiowaves.left.and.right", name: "Live Now",
                 live: model.games.filter { $0.state == .live && sports.contains($0.league.sport) }.count,
+                total: model.games.filter { sports.contains($0.league.sport) }.count,
                 detail: "\(model.games.count) today")
             Section("Sports") {
                 ForEach(sports) { sport in
                     let games = model.games(for: sport)
                     row(.sport(sport), symbol: sport.symbol, name: sport.rawValue,
-                        live: games.filter { $0.state == .live }.count,
+                        live: games.filter { $0.state == .live }.count, total: games.count,
                         detail: games.isEmpty ? "No games" : "\(games.count) today")
                         .opacity(games.isEmpty ? 0.5 : 1)
                 }
@@ -60,7 +61,8 @@ struct IOSSportSidebar: View {
         .refreshable { await model.refresh(force: true) }
     }
 
-    private func row(_ selection: IOSNav.HomeSelection, symbol: String, name: String, live: Int, detail: String) -> some View {
+    /// "2/5 LIVE": live games out of today's games for that sport.
+    private func row(_ selection: IOSNav.HomeSelection, symbol: String, name: String, live: Int, total: Int, detail: String) -> some View {
         let selected: Bool = {
             if case .sport(let s) = selection { return nav.selectedSport == s }
             return nav.homeSelection == selection
@@ -77,7 +79,7 @@ struct IOSSportSidebar: View {
                     .foregroundStyle(Theme.text)
                 Spacer()
                 if live > 0 {
-                    IOSBadge(text: "\(live) LIVE", fill: Theme.accent, color: Theme.onAccent)
+                    IOSBadge(text: "\(live)/\(total) LIVE", fill: Theme.accent, color: Theme.onAccent)
                 } else {
                     Text(detail).font(.caption).foregroundStyle(Theme.muted)
                 }
@@ -138,7 +140,7 @@ struct IOSGamesList: View {
     private var title: String {
         switch nav.homeSelection {
         // On iPad "Live Now" is already highlighted in the sidebar, so the title is today's date instead.
-        case .liveNow: return showsSportChips ? "Live Now" : Date().formatted(.dateTime.weekday(.wide).month(.wide).day())
+        case .liveNow: return "Live Now"
         case .sport(let s): return s.rawValue
         case .league(let id): return League.all.first { $0.id == id }?.sport.rawValue ?? ""
         }

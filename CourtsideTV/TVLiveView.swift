@@ -13,6 +13,10 @@ struct TVLiveView: View {
     /// The channel playing in the mini player: only one you clicked.
     @State private var playingID: Int?
     @FocusState private var focusedCategory: String?
+    @State private var search = ""
+    @State private var hits: [EPGSearch.Hit] = []
+    /// Result groups opened or closed by hand (otherwise they follow Hit.startsOpen).
+    @State private var flipped: Set<String> = []
     @FocusState private var focusedChannel: Int?
 
     struct Entry: Identifiable, Hashable {
@@ -122,6 +126,12 @@ struct TVLiveView: View {
             .onChange(of: focusedChannel) {
                 if let focusedChannel { focusedChannelID = focusedChannel }
             }
+            .task(id: "\(search)|\(grouped)") {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
+                hits = EPGSearch.run(search, model: model, grouped: grouped)
+                flipped = []
+            }
         }
     }
 
@@ -130,6 +140,10 @@ struct TVLiveView: View {
     private var categoryList: some View {
         ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: 4) {
+                // One search for categories and channels; results show on the right.
+                TextField("Search categories and channels", text: $search)
+                    .font(.system(size: 24))
+                    .padding(.bottom, 6)
                 Button {
                     grouped.toggle()
                     path = []
@@ -291,7 +305,10 @@ struct TVLiveView: View {
                 .padding(.horizontal, 22)
                 .padding(.bottom, 6)
 
-                ForEach(channels) { channel in
+                if search.trimmingCharacters(in: .whitespaces).count >= 2 {
+                    searchResults
+                }
+                ForEach(search.trimmingCharacters(in: .whitespaces).count >= 2 ? [] : channels) { channel in
                     Button {
                         if channel.id == playingChannel?.id {
                             model.play(channel, lineup: channels)
@@ -307,6 +324,57 @@ struct TVLiveView: View {
                 }
             }
             .padding(.vertical, 10)
+        }
+    }
+
+    private func isOpen(_ hit: EPGSearch.Hit) -> Bool {
+        hit.startsOpen(totalHits: hits.count) != flipped.contains(hit.id)
+    }
+
+    /// Search results: a header per category (click to fold it), then its matching channels.
+    @ViewBuilder
+    private var searchResults: some View {
+        if hits.isEmpty {
+            Text("Nothing matches \"\(search)\".")
+                .font(.system(size: 24))
+                .foregroundStyle(Theme.muted)
+                .padding(22)
+        }
+        ForEach(hits) { hit in
+            Button {
+                if flipped.contains(hit.id) { flipped.remove(hit.id) } else { flipped.insert(hit.id) }
+            } label: {
+                HStack(spacing: 16) {
+                    Image(systemName: isOpen(hit) ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 20, weight: .bold))
+                        .frame(width: 26)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(hit.category.name).font(.system(size: 24, weight: .bold)).lineLimit(1)
+                        if !hit.path.isEmpty {
+                            Text(hit.path).font(.system(size: 18)).opacity(0.6).lineLimit(1)
+                        }
+                    }
+                    Spacer()
+                    Text("\(hit.channels.count)").font(.system(size: 20)).opacity(0.6)
+                }
+            }
+            .buttonStyle(TVRowButtonStyle())
+            if isOpen(hit) {
+                ForEach(hit.channels) { channel in
+                    Button {
+                        if channel.id == playingChannel?.id {
+                            model.play(channel, lineup: hit.channels)
+                        } else {
+                            playingID = channel.id
+                            model.backgroundChannel = nil
+                        }
+                    } label: {
+                        TVChannelRow(channel: channel, playing: channel.id == playingChannel?.id)
+                    }
+                    .buttonStyle(TVRowButtonStyle())
+                    .focused($focusedChannel, equals: channel.id)
+                }
+            }
         }
     }
 

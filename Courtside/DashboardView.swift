@@ -38,6 +38,7 @@ struct DashboardView: View {
                 let liveTotal = model.games.filter { $0.state == .live && !Sport.hidden(hiddenSports).contains($0.league.sport) }.count
                 SportRow(symbol: "dot.radiowaves.left.and.right", name: "Live Now",
                          detail: liveTotal > 0 ? nil : "\(model.games.count) today", live: liveTotal,
+                         total: model.games.filter { !Sport.hidden(hiddenSports).contains($0.league.sport) }.count,
                          selected: selectedSport == nil, dimmed: false, favorite: nil, alignWithHearts: true) {
                     selectedSport = nil
                     selectedLeague = nil
@@ -49,7 +50,7 @@ struct DashboardView: View {
                     let games = model.games(for: sport)
                     SportRow(symbol: sport.symbol, name: sport.rawValue,
                              detail: games.isEmpty ? "No games" : "\(games.count) today",
-                             live: games.filter { $0.state == .live }.count,
+                             live: games.filter { $0.state == .live }.count, total: games.count,
                              selected: selectedSport == sport && selectedLeague == nil,
                              dimmed: games.isEmpty && !favorites.contains(sport),
                              favorite: favorites.contains(sport),
@@ -75,7 +76,7 @@ struct DashboardView: View {
                             let leagueGames = games.filter { $0.league == league }
                             LeagueRow(league: league,
                                       detail: leagueGames.isEmpty ? "No games" : "\(leagueGames.count) today",
-                                      live: leagueGames.filter { $0.state == .live }.count,
+                                      live: leagueGames.filter { $0.state == .live }.count, total: leagueGames.count,
                                       selected: selectedLeague == league.id,
                                       dimmed: leagueGames.isEmpty) {
                                 selectedLeague = league.id
@@ -225,10 +226,9 @@ struct DashboardView: View {
     }
 
     private func subtitle(_ now: Date, live: Int) -> String {
-        let date = now.formatted(.dateTime.weekday(.wide).month(.wide).day())
         let today = model.games.filter { $0.state != .finished }.count
-        if model.games.isEmpty { return model.isLoading ? "\(date) · loading today's games…" : date }
-        return "\(date) · \(live) live · \(today) still to play today"
+        if model.games.isEmpty { return model.isLoading ? "Loading today's games…" : "" }
+        return "\(live) live · \(today) still to play today"
     }
 
     private func nextUpText(_ game: Game?) -> String {
@@ -245,6 +245,8 @@ struct SportRow: View {
     let name: String
     let detail: String?
     let live: Int
+    /// Today's games: the badge reads "2/5 LIVE".
+    var total = 0
     let selected: Bool
     let dimmed: Bool
     let favorite: Bool?
@@ -271,7 +273,7 @@ struct SportRow: View {
                         .layoutPriority(1)
                     Spacer(minLength: 4)
                     if live > 0 {
-                        Text("\(live) LIVE")
+                        Text(total > 0 ? "\(live)/\(total) LIVE" : "\(live) LIVE")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(Theme.onAccent)
                             .fixedSize()
@@ -319,6 +321,7 @@ struct LeagueRow: View {
     let league: League
     let detail: String
     let live: Int
+    var total = 0
     let selected: Bool
     let dimmed: Bool
     let action: () -> Void
@@ -335,7 +338,7 @@ struct LeagueRow: View {
                     .layoutPriority(1)
                 Spacer(minLength: 4)
                 if live > 0 {
-                    Text("\(live) LIVE")
+                    Text(total > 0 ? "\(live)/\(total) LIVE" : "\(live) LIVE")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(Theme.onAccent)
                         .fixedSize()

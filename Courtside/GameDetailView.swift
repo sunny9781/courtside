@@ -6,6 +6,7 @@ struct GameDetailView: View {
     @State private var showLocal = false
     @AppStorage(Prefs.showForeignStreams) private var showForeign = false
     @State private var search = ""
+    @State private var listWidth: CGFloat = 800
     /// Sections folded shut (4K, USA, Other…), by name.
     @State private var folded: Set<String> = []
     let game: Game
@@ -23,6 +24,11 @@ struct GameDetailView: View {
     }
 
     private var sections: [StreamSections.Section] { listing.sections }
+
+    private var localCount: Int {
+        let main = allStreams.filter { !$0.hidden }
+        return main.isEmpty ? 0 : allStreams.count - main.count
+    }
 
     /// What's listed, in on-screen order, which is also what up/down flips through.
     private var streams: [StreamMatch] {
@@ -60,6 +66,9 @@ struct GameDetailView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
+                    Color.clear.frame(height: 0)
+                        .frame(maxWidth: .infinity)
+                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { listWidth = $0 }
                     HStack(spacing: 12) {
                         Field(placeholder: "Search streams", text: $search)
                             .frame(width: 260)
@@ -118,11 +127,23 @@ struct GameDetailView: View {
                                 }
                                 .buttonStyle(.plain)
                                 if !folded.contains(section.name) {
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 400), spacing: 10)], spacing: 10) {
-                                    ForEach(section.streams) { match in
-                                        StreamRow(match: match, previewing: match.channel.id == previewChannel?.id,
-                                                  onSelect: { preview(match.channel) },
-                                                  onWatch: { watch(match.channel) })
+                                // Not lazy: a lazy grid guesses row heights as cards wrap, which made the page scroll
+                                // on past the last stream. A game only has a few dozen streams.
+                                let columns = max(1, Int((listWidth + 10) / 410))
+                                Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+                                    ForEach(Array(stride(from: 0, to: section.streams.count, by: columns)), id: \.self) { start in
+                                        GridRow(alignment: .top) {
+                                            ForEach(start..<min(start + columns, section.streams.count), id: \.self) { i in
+                                                let match = section.streams[i]
+                                                StreamRow(match: match, previewing: match.channel.id == previewChannel?.id,
+                                                          onSelect: { preview(match.channel) },
+                                                          onWatch: { watch(match.channel) })
+                                                    .frame(maxWidth: .infinity)
+                                            }
+                                            ForEach(0..<(columns - min(columns, section.streams.count - start)), id: \.self) { _ in
+                                                Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+                                            }
+                                        }
                                     }
                                 }
                                 }

@@ -63,6 +63,9 @@ enum Changelog {
             Change(text: "Back is now an arrow in the top bar, left of the connection count (or press ⌘[).", apps: mac),
             Change(text: "Player: shrinking it now folds the whole panel, score included, into one slim bar.", apps: mac),
             Change(text: "Player: resizing stops at the smallest size where the quality and buttons fit on one line; drag past it to shrink to the slim bar.", apps: macIOS),
+            Change(text: "Fixed the game screen scrolling on past the last stream.", apps: mac),
+            Change(text: "EPG: one search box for categories and channels. \"NFL\" finds every NFL category and channel; \"Lions\" finds just the channels (or games on now) with the Lions, grouped by category. Click a group to fold it.", apps: all),
+            Change(text: "Home: live badges show live out of today's games (\"2/5 LIVE\"), and the date is gone.", apps: all),
             Change(text: "Pop-out player: a separate window for the stream, like a second screen. The app's player shrinks to a slim bar, picking a stream in the app plays it in that window, and full screen puts that window full screen.", apps: mac)
         ]),
         Release(date: "2026-11-15", title: "What's new and smarter EPG groups", changes: [

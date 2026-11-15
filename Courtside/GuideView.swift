@@ -10,6 +10,10 @@ struct GuideView: View {
     @AppStorage(Prefs.guideGrouped) private var grouped = true
     @State private var categorySearch = ""
     @State private var channelSearch = ""
+    /// Results of the one search box (categories and channels), worked out a moment after typing stops.
+    @State private var hits: [EPGSearch.Hit] = []
+    /// Result groups opened or closed by hand (otherwise they follow Hit.startsOpen).
+    @State private var flipped: Set<String> = []
     @State private var expanded: Set<String> = []
     @State private var selectedID: Int?
     @State private var offset = 0          // in half hours from the default start
@@ -67,6 +71,12 @@ struct GuideView: View {
         .onChange(of: model.lastPlayedChannelID) {
             if let id = model.lastPlayedChannelID, rows.contains(where: { $0.id == id }) { selectedID = id }
         }
+        .task(id: "\(categorySearch)|\(grouped)") {
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            hits = EPGSearch.run(categorySearch, model: model, grouped: grouped)
+            flipped = []
+        }
         .onChange(of: categoryID) {
             selectedID = nil
             offset = 0
@@ -99,7 +109,10 @@ struct GuideView: View {
         cats.reduce(0) { $0 + (model.channelsByCategory[$1.id]?.count ?? 0) }
     }
 
+    private var searching: Bool { categorySearch.trimmingCharacters(in: .whitespaces).count >= 2 }
+
     private var currentTitle: String {
+        if searching { return "Results for \u{201C}\(categorySearch.trimmingCharacters(in: .whitespaces))\u{201D}" }
         switch categoryID {
         case Self.allID: return "All channels"
         case Self.recentID: return "Recently watched"
@@ -142,7 +155,7 @@ struct GuideView: View {
         let query = categorySearch.trimmingCharacters(in: .whitespaces).lowercased()
 
         return VStack(alignment: .leading, spacing: 12) {
-            Field(placeholder: "Search categories", text: $categorySearch)
+            Field(placeholder: "Search categories and channels", text: $categorySearch)
 
             Toggle(isOn: $grouped) {
                 Text("Group similar categories")
@@ -157,17 +170,7 @@ struct GuideView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
                     if !query.isEmpty {
-                        let found = model.categories.filter { $0.name.lowercased().contains(query) }
-                        if found.isEmpty {
-                            Text("No categories match.")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Theme.muted)
-                                .padding(12)
-                        }
-                        ForEach(found) { cat in
-                            CategoryRow(name: cat.name, count: model.channelsByCategory[cat.id]?.count ?? 0,
-                                        selected: categoryID == cat.id) { choose(cat.id) }
-                        }
+                        searchResults
                     } else if grouped {
                         ForEach(visibleNodes(model.categoryTree)) { item in
                             let node = item.node
@@ -201,8 +204,58 @@ struct GuideView: View {
         .background(Color(hex: 0x11151B))
     }
 
+    private func isOpen(_ hit: EPGSearch.Hit) -> Bool {
+        hit.startsOpen(totalHits: hits.count) != flipped.contains(hit.id)
+    }
+
+    /// Search results in the left column: a foldable row per category, with its matching channels under it.
+    /// The grid on the right shows every channel found.
+    @ViewBuilder
+    private var searchResults: some View {
+        if hits.isEmpty {
+            Text("Nothing matches.")
+                .font(.system(size: 12))
+                .foregroundStyle(Theme.muted)
+                .padding(12)
+        }
+        ForEach(hits) { hit in
+            CategoryRow(name: hit.category.name, count: hit.channels.count, selected: false,
+                        expanded: isOpen(hit),
+                        onToggle: { if flipped.contains(hit.id) { flipped.remove(hit.id) } else { flipped.insert(hit.id) } }) {
+                // Clicking the name opens that category's guide.
+                categorySearch = ""
+                choose(hit.category.id)
+            }
+            .help(hit.path.isEmpty ? hit.category.name : "\(hit.path) › \(hit.category.name)")
+            if isOpen(hit) {
+                ForEach(hit.channels.prefix(60)) { channel in
+                    Button {
+                        select(channel)
+                    } label: {
+                        Text(channel.name)
+                            .font(.system(size: 12, weight: channel.id == selectedID ? .semibold : .regular))
+                            .foregroundStyle(channel.id == selectedID ? Theme.accent : Theme.soft)
+                            .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.leading, 34)
+                            .padding(.vertical, 5)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                if hit.channels.count > 60 {
+                    Text("+ \(hit.channels.count - 60) more in the grid")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.muted)
+                        .padding(.leading, 34)
+                }
+            }
+        }
+    }
+
     /// The chosen category (or group) in the provider's order, narrowed by the channel search.
     private var rows: [Channel] {
+        if searching { return EPGSearch.channels(hits) }
         let base: [Channel]
         switch categoryID {
         case Self.allID:
@@ -230,8 +283,6 @@ struct GuideView: View {
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.muted)
             Spacer()
-            Field(placeholder: "Search channels in \(currentTitle)", text: $channelSearch)
-                .frame(width: 280)
         }
     }
 
