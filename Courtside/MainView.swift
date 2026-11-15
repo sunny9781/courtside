@@ -28,7 +28,8 @@ struct ShellView: View {
                        filter: showsFilter ? $filter : nil) { navigate(to: $0) }
                 // The pinned player: only while something is playing, in the same spot on every screen.
                 if let item = model.pinned {
-                    PinnedPlayerBar(item: item, hidden: model.nowPlaying != nil, game: pinnedGame,
+                    // No score beside the video: the broadcast already shows it.
+                    PinnedPlayerBar(item: item, hidden: model.nowPlaying != nil, game: nil,
                                     maxVideoHeight: min(windowSize.height * 0.5, windowSize.width * 0.45 * 9 / 16))
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }

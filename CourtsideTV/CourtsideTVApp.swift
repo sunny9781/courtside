@@ -106,7 +106,8 @@ struct TVShell: View {
                 .focusSection()
             // The player, in the same spot on every screen while something plays (never takes focus).
             if let item = model.pinned {
-                TVPinnedStrip(item: item, game: pinnedGame)
+                // No score beside the video: the broadcast already shows it.
+                TVPinnedStrip(item: item, game: nil)
                     .focusSection()
                     .transition(.move(edge: .top).combined(with: .opacity))
             }

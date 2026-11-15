@@ -61,6 +61,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.28", date: "2026-11-15", time: "18:55", title: "No repeated score", changes: [
+            Change(text: "The score is no longer shown beside the video or on the game screen while one of the game's streams plays: the broadcast already shows it. The game screen still shows the score when nothing from that game is playing.", apps: all)
+        ]),
         Release(version: "1.27", date: "2026-11-15", time: "18:35", title: "Picture in Picture and swiping", changes: [
             Change(text: "Closing the Picture in Picture window no longer ends everything: open the app again and the stream carries on in the player at the top.", apps: ios),
             Change(text: "Full screen: swiping goes back to the player at the top instead of changing stream (the arrows still switch streams).", apps: ios),

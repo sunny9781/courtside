@@ -87,7 +87,7 @@ struct IOSShell: View {
             // above the tabs; on iPad it sits inside each tab's content (see pinnedPlayerSlot), so it doesn't push
             // the sidebar down.
             if sizeClass != .regular, let item = model.pinned, model.nowPlaying == nil {
-                IOSPinnedPlayer(item: item, game: model.pinnedGame)
+                IOSPinnedPlayer(item: item)   // no score: the broadcast already shows it
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
             tabs
@@ -188,7 +188,7 @@ private struct PinnedPlayerSlot: ViewModifier {
     func body(content: Content) -> some View {
         content.safeAreaInset(edge: .top, spacing: 0) {
             if sizeClass == .regular, nav.tab == tab, let item = model.pinned, model.nowPlaying == nil {
-                IOSPinnedPlayer(item: item, game: model.pinnedGame)
+                IOSPinnedPlayer(item: item)   // no score: the broadcast already shows it
                     .transition(.opacity)
             }
         }
