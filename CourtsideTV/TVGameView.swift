@@ -83,6 +83,7 @@ struct TVGameView: View {
         }
         .padding(.horizontal, TVLayout.margin)
         .padding(.top, 10)
+        .defaultFocus($focusedStream, previewChannel?.id ?? streams.first?.channel.id)
         .onAppear {
             // Coming back from another tab: keep showing the stream that was playing.
             if let bg = model.backgroundChannel, allStreams.contains(where: { $0.channel.id == bg.id }) {
@@ -248,7 +249,6 @@ struct TVGameView: View {
             }
             .padding(.vertical, 20)
         }
-        .defaultFocus($focusedStream, streams.first?.channel.id)
     }
 }
 
