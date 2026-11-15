@@ -513,8 +513,8 @@ final class AppModel: ObservableObject {
         lastPlayedChannelID = nowPlaying?.channel.id
         let closing = nowPlaying
         nowPlaying = nil
-        // With the pinned player showing, the stream you were last on carries on there.
-        if pinned != nil, let closing {
+        // The stream you were last on carries on in the pinned player.
+        if let closing {
             pinned = closing
             return
         }

@@ -61,8 +61,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
-        Release(version: "1.17", date: "2026-11-15", time: "13:05", title: "Less repeated text", changes: [
+        Release(version: "1.17", date: "2026-11-15", time: "13:05", title: "Apple TV player strip and less repeated text", changes: [
             Change(text: "Home: the sport you picked on the left (or in the chips) isn't repeated as a big title above the games.", apps: all),
+            Change(text: "One player strip under the top bar on every screen, like the Mac and iPhone: it keeps playing as you move around, shows the score beside the video for games, and never gets in the way of moving with the remote. Click the playing stream again for full screen; Play/Pause stops it.", apps: tv),
+            Change(text: "Closing full screen always leaves the stream playing in the player at the top.", apps: all),
+            Change(text: "Player: no more dragging to resize; the hide/show button stays.", apps: ios),
             Change(text: "Settings: the section you picked on the left isn't repeated as a title, and the \"Changes save automatically\" line is gone.", apps: macTV)
         ]),
         Release(version: "1.16", date: "2026-11-15", time: "12:35", title: "Score stays with the player", changes: [

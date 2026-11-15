@@ -85,6 +85,11 @@ struct TVShell: View {
         VStack(spacing: 0) {
             TVTopBar()
                 .focusSection()
+            // The player, in the same spot on every screen while something plays (never takes focus).
+            if let item = model.pinned {
+                TVPinnedStrip(item: item, game: pinnedGame)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
             Group {
                 switch nav.tab {
                 case .home: TVHomeView()
@@ -98,6 +103,14 @@ struct TVShell: View {
         // Back on EPG or Settings goes to Home. On Home it's left alone, so a game screen goes back to the
         // list and the Home list leaves the app, as usual on Apple TV.
         .onExitCommand(perform: nav.tab != .home ? { switchTab(.home) } : nil)
+        // Play/Pause on the remote stops the player at the top (and frees the connection).
+        .onPlayPauseCommand {
+            guard model.nowPlaying == nil, model.pinned != nil else { return }
+            PlaybackController.shared.stop()
+            model.pinned = nil
+            model.checkConnectionsSoon()
+        }
+        .animation(.easeOut(duration: 0.25), value: model.pinned == nil)
         .task { await model.refresh() }
         .onChange(of: scenePhase) {
             if scenePhase == .active { Task { await model.refresh() } }
@@ -116,12 +129,16 @@ struct TVShell: View {
         }
     }
 
-    /// Like the Mac: whatever the mini player is showing keeps playing while you look at another tab.
+    /// The player at the top keeps playing while you look at another tab.
     private func switchTab(_ tab: TVTab) {
         guard tab != nav.tab else { return }
-        let playing = PlaybackController.shared.currentURL != nil && model.nowPlaying == nil
-        model.backgroundChannel = playing ? model.previewChannel : nil
         nav.tab = tab
+    }
+
+    /// The game the player's stream was started from, so its score shows beside the video on every tab.
+    private var pinnedGame: Game? {
+        guard let item = model.pinned, let title = item.gameTitle else { return nil }
+        return model.games.first { $0.title == title && model.pinnedIsFrom(gameID: $0.id) }
     }
 }
 

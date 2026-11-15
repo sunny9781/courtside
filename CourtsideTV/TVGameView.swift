@@ -10,7 +10,6 @@ struct TVGameView: View {
     @AppStorage(Prefs.showForeignStreams) private var showForeign = false
     /// Sections folded shut (4K, USA, Other…), by name.
     @State private var folded: Set<String> = []
-    @State private var previewID: Int?
     @FocusState private var focusedStream: Int?
     let gameID: String
 
@@ -37,17 +36,18 @@ struct TVGameView: View {
     /// On-screen order, which is also what swiping up and down flips through while watching.
     private var lineup: [Channel] { streams.map(\.channel) }
 
-    /// The stream playing in the mini player: only one you clicked (nothing plays just by moving around).
+    /// The stream in the player at the top, if it's one of this game's.
     private var previewChannel: Channel? {
-        streams.first { $0.channel.id == previewID }?.channel
+        guard let pinned = model.pinned?.channel, model.pinnedIsFrom(gameID: gameID) else { return nil }
+        return pinned
     }
 
-    /// Click once to play in the mini player, click the same stream again for full screen.
+    /// Click once to play in the player at the top, click the same stream again for full screen.
     private func select(_ match: StreamMatch, game: Game) {
-        if previewID == match.channel.id {
+        if previewChannel?.id == match.channel.id {
             model.play(match.channel, gameTitle: game.title, lineup: lineup)
         } else {
-            previewID = match.channel.id
+            model.pin(match.channel, gameTitle: game.title, lineup: lineup)
         }
     }
 
@@ -59,7 +59,8 @@ struct TVGameView: View {
             }
 
             if let game {
-                hero(game)
+                // While one of this game's streams plays, the score is in the player strip at the top.
+                if !model.pinnedIsFrom(gameID: gameID) { hero(game) }
                 streamList(game)
             } else {
                 Text("This game is no longer on today's schedule.")
@@ -70,16 +71,13 @@ struct TVGameView: View {
         }
         .padding(.horizontal, TVLayout.margin)
         .padding(.top, 10)
-        .defaultFocus($focusedStream, previewID ?? streams.first?.channel.id)
+        .defaultFocus($focusedStream, previewChannel?.id ?? streams.first?.channel.id)
         .onAppear {
-            // Coming back from another tab: keep showing the stream that was playing. Otherwise opening a game
-            // plays its first stream; after that, only clicking plays something else.
-            if let bg = model.backgroundChannel, allStreams.contains(where: { $0.channel.id == bg.id }) {
-                previewID = bg.id
-            } else if previewID == nil {
-                previewID = streams.first?.channel.id
+            // Opening a game plays its first stream in the player at the top (unless one of its streams already
+            // is); after that, only clicking plays something else.
+            if previewChannel == nil, let first = streams.first, let game {
+                model.pin(first.channel, gameTitle: game.title, lineup: lineup)
             }
-            model.backgroundChannel = nil
         }
         .onExitCommand { if !nav.homePath.isEmpty { nav.homePath.removeLast() } }
     }
@@ -88,9 +86,6 @@ struct TVGameView: View {
 
     private func hero(_ game: Game) -> some View {
         HStack(alignment: .top, spacing: 44) {
-            TVPreview(channel: previewChannel, placeholder: "Click a stream to play it here.\nClick it again for full screen.")
-                .frame(width: 560, height: 315)
-
             VStack(alignment: .leading, spacing: 18) {
                 HStack(spacing: 14) {
                     TVLeagueLogo(league: game.league, size: 40)
@@ -123,7 +118,7 @@ struct TVGameView: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(height: 315, alignment: .top)
+        .frame(height: 230, alignment: .top)
         .padding(24)
         .background(RoundedRectangle(cornerRadius: TVLayout.corner).fill(Theme.card))
     }

@@ -3,25 +3,22 @@ import SwiftUI
 /// The player pinned above the tabs. Appears only while something is playing, in the same spot on every screen,
 /// and keeps playing as you move between tabs, sports and games.
 /// Under the video: resolution and frame rate, then hide video (keeps the sound), full screen and stop (ends the
-/// stream, so it stops using a connection). Drag the handle at the bottom to resize it (it stays 16:9); drag it
-/// all the way up to hide the video.
+/// stream, so it stops using a connection).
 struct IOSPinnedPlayer: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
     /// Width as a share of the screen; 0 means the default (full width on iPhone, under half on iPad).
-    @AppStorage(Prefs.pinnedVideoScale) private var scale: Double = 0
     @AppStorage(Prefs.pinnedCollapsed) private var collapsed = false
     @Environment(\.horizontalSizeClass) private var sizeClass
     @ObservedObject private var playback = IOSPlayback.shared
     @ObservedObject private var cast = CastManager.shared
     @State private var available: CGFloat = 360
-    @State private var dragStart: CGFloat?
     let item: NowPlaying
 
     /// Smallest size where the quality badges and buttons still fit on one line under the video.
     private var minWidth: CGFloat { min(available, 270) }
     private var videoWidth: CGFloat {
-        let share = scale > 0 ? scale : (sizeClass == .regular ? 0.45 : 1)
+        let share: CGFloat = sizeClass == .regular ? 0.45 : 1   // full width on iPhone, under half on iPad
         return min(available, max(minWidth, available * share))
     }
     /// Title beside the video when there's room, under it otherwise.
@@ -44,7 +41,7 @@ struct IOSPinnedPlayer: View {
                         Spacer(minLength: 0)
                     }
                 }
-                handle
+                Color.clear.frame(height: 8)
             }
         }
         .padding(.horizontal)
@@ -76,29 +73,6 @@ struct IOSPinnedPlayer: View {
             smallButton("arrow.up.left.and.arrow.down.right") { fullScreen() }
             smallButton("stop.fill") { stop() }
         }
-    }
-
-    /// Drag down for a bigger player, up for a smaller one; past the smallest size it hides the video.
-    private var handle: some View {
-        Capsule()
-            .fill(Theme.muted.opacity(dragStart == nil ? 0.45 : 0.9))
-            .frame(width: 44, height: 5)
-            .frame(maxWidth: .infinity)
-            .frame(height: 22)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 2)
-                    .onChanged { value in
-                        if dragStart == nil { dragStart = videoWidth }
-                        let width = (dragStart ?? videoWidth) + value.translation.height * 16 / 9
-                        scale = Double(min(available, max(minWidth, width)) / available)
-                    }
-                    .onEnded { value in
-                        let width = (dragStart ?? videoWidth) + value.translation.height * 16 / 9
-                        dragStart = nil
-                        if width < minWidth - 60 { withAnimation(.easeOut(duration: 0.2)) { collapsed = true } }
-                    }
-            )
     }
 
     private func start() {
@@ -167,9 +141,7 @@ struct IOSPinnedPlayer: View {
         .padding(.bottom, 8)
         .contentShape(Rectangle())
         .onTapGesture { withAnimation(.easeOut(duration: 0.2)) { collapsed = false } }
-        .gesture(DragGesture(minimumDistance: 12).onEnded { value in
-            if value.translation.height > 20 { withAnimation(.easeOut(duration: 0.2)) { collapsed = false } }
-        })
+
     }
 
     private func smallButton(_ symbol: String, action: @escaping () -> Void) -> some View {

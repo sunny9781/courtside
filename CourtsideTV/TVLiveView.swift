@@ -11,7 +11,6 @@ struct TVLiveView: View {
     @State private var path: [String] = []
     @State private var focusedChannelID: Int?
     /// The channel playing in the mini player: only one you clicked.
-    @State private var playingID: Int?
     @FocusState private var focusedCategory: String?
     @State private var search = ""
     @State private var hits: [EPGSearch.Hit] = []
@@ -88,10 +87,7 @@ struct TVLiveView: View {
     }
 
     /// What the mini player plays: the channel you clicked, or what's still playing from Home.
-    private var playingChannel: Channel? {
-        if let id = playingID { return model.channelByID[id] }
-        return model.backgroundChannel
-    }
+    private var playingChannel: Channel? { model.pinned?.channel }
 
     var body: some View {
         if model.channels.isEmpty {
@@ -239,10 +235,6 @@ struct TVLiveView: View {
 
     private var infoPanel: some View {
         HStack(alignment: .top, spacing: 36) {
-            TVPreview(channel: playingChannel, placeholder: "Click a channel to play it here.\nClick it again for full screen.",
-                      showing: infoChannel)
-                .frame(width: 480, height: 270)
-
             VStack(alignment: .leading, spacing: 12) {
                 if let channel = infoChannel {
                     Text(channel.name)
@@ -270,23 +262,21 @@ struct TVLiveView: View {
                             .font(.system(size: 26))
                             .foregroundStyle(Theme.muted)
                     }
-                    Text(model.backgroundChannel != nil && playingID == nil
-                         ? "Still playing from Home. Click a channel to change it."
-                         : (channel.id == playingChannel?.id ? "Click again for full screen." : "Click to play it in the mini player."))
+                    Text(channel.id == playingChannel?.id ? "Click again for full screen." : "Click to play it in the player at the top.")
                         .font(.system(size: 19))
                         .foregroundStyle(Theme.muted.opacity(0.8))
                 } else {
                     Text("Pick a channel")
                         .font(.system(size: 38, weight: .bold))
                         .foregroundStyle(Theme.text)
-                    Text("Click a channel to play it here. Click it again for full screen.")
+                    Text("Click a channel to play it in the player at the top. Click it again for full screen.")
                         .font(.system(size: 22))
                         .foregroundStyle(Theme.muted)
                 }
             }
             Spacer(minLength: 0)
         }
-        .frame(height: 270)
+        .frame(height: 200, alignment: .top)
     }
 
     // MARK: Channels
@@ -313,8 +303,7 @@ struct TVLiveView: View {
                         if channel.id == playingChannel?.id {
                             model.play(channel, lineup: channels)
                         } else {
-                            playingID = channel.id
-                            model.backgroundChannel = nil
+                            model.pin(channel, lineup: channels)
                         }
                     } label: {
                         TVChannelRow(channel: channel, playing: channel.id == playingChannel?.id)
@@ -365,8 +354,7 @@ struct TVLiveView: View {
                         if channel.id == playingChannel?.id {
                             model.play(channel, lineup: hit.channels)
                         } else {
-                            playingID = channel.id
-                            model.backgroundChannel = nil
+                            model.pin(channel, lineup: hit.channels)
                         }
                     } label: {
                         TVChannelRow(channel: channel, playing: channel.id == playingChannel?.id)
