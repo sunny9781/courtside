@@ -1,6 +1,16 @@
 import SwiftUI
 
-/// A list row that turns white when focused, the usual Apple TV look.
+enum TVLayout {
+    /// Left and right margin on every screen (TVs crop the edges).
+    static let margin: CGFloat = 80
+    /// Width of the left column on Home, EPG and Settings.
+    static let sidebar: CGFloat = 470
+    static let corner: CGFloat = 20
+}
+
+// MARK: Buttons
+
+/// A list row that turns white when focused, the usual Apple TV look. `selected` keeps a grey fill.
 struct TVRowButtonStyle: ButtonStyle {
     var selected = false
 
@@ -15,16 +25,96 @@ struct TVRowButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .padding(.horizontal, 24)
-                .padding(.vertical, 16)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 22)
+                .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
                 .foregroundStyle(focused ? Theme.bg : Theme.text)
                 .background(
-                    RoundedRectangle(cornerRadius: 14)
+                    RoundedRectangle(cornerRadius: 16)
                         .fill(focused ? Theme.text : (selected ? Theme.raised : Color.clear))
                 )
                 .scaleEffect(focused ? 1.03 : (configuration.isPressed ? 0.98 : 1))
                 .animation(.easeOut(duration: 0.15), value: focused)
+        }
+    }
+}
+
+/// The big Home / EPG / Settings pills in the top bar.
+struct TVTabButtonStyle: ButtonStyle {
+    let selected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        Pill(configuration: configuration, selected: selected)
+    }
+
+    private struct Pill: View {
+        let configuration: ButtonStyleConfiguration
+        let selected: Bool
+        @Environment(\.isFocused) private var focused
+
+        var body: some View {
+            configuration.label
+                .font(.system(size: 28, weight: .semibold))
+                .padding(.horizontal, 34)
+                .frame(height: 70)
+                .foregroundStyle(focused ? Theme.bg : (selected ? Theme.text : Theme.muted))
+                .background(Capsule().fill(focused ? Theme.text : (selected ? Theme.raised : Color.clear)))
+                .scaleEffect(focused ? 1.06 : 1)
+                .animation(.easeOut(duration: 0.15), value: focused)
+        }
+    }
+}
+
+/// "‹ Back" in the top-left of a screen. The remote's Back button does the same.
+struct TVBackButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Label("Back", systemImage: "chevron.left")
+                .font(.system(size: 24, weight: .semibold))
+        }
+        .buttonStyle(TVPillButtonStyle())
+    }
+}
+
+/// A compact pill button (Back, Show more…).
+struct TVPillButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Pill(configuration: configuration)
+    }
+
+    private struct Pill: View {
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.isFocused) private var focused
+
+        var body: some View {
+            configuration.label
+                .padding(.horizontal, 28)
+                .frame(height: 60)
+                .foregroundStyle(focused ? Theme.bg : Theme.text)
+                .background(Capsule().fill(focused ? Theme.text : Theme.raised))
+                .scaleEffect(focused ? 1.06 : 1)
+                .animation(.easeOut(duration: 0.15), value: focused)
+        }
+    }
+}
+
+// MARK: Small pieces
+
+/// "1/2" connections in use on the IPTV account. Orange at the limit.
+struct TVConnectionsPill: View {
+    let account: AccountInfo?
+
+    var body: some View {
+        if let max = account?.maxConnections, max > 0 {
+            let active = account?.activeConnections ?? 0
+            let full = active >= max
+            Label("\(active)/\(max)", systemImage: "person.2.fill")
+                .font(.system(size: 22, weight: .semibold).monospacedDigit())
+                .foregroundStyle(full ? Theme.onAccent : Theme.muted)
+                .padding(.horizontal, 18)
+                .frame(height: 44)
+                .background(Capsule().fill(full ? Theme.accent : Theme.raised))
         }
     }
 }
@@ -58,6 +148,29 @@ struct TVTeamLogo: View {
     }
 }
 
+/// League logo (from the schedule feed), or the league name in a pill.
+struct TVLeagueLogo: View {
+    @EnvironmentObject var model: AppModel
+    let league: League
+    var size: CGFloat = 40
+
+    var body: some View {
+        if let url = model.leagueLogos[league.id] {
+            AsyncImage(url: url) { image in
+                image.resizable().scaledToFit()
+            } placeholder: {
+                Color.clear
+            }
+            .frame(width: size, height: size)
+        } else {
+            Image(systemName: league.sport.symbol)
+                .font(.system(size: size * 0.55))
+                .foregroundStyle(Theme.accent)
+                .frame(width: size, height: size)
+        }
+    }
+}
+
 /// Small rounded label: "LIVE", "1080p", "4K".
 struct TVBadge: View {
     let text: String
@@ -66,11 +179,12 @@ struct TVBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 20, weight: .bold))
+            .font(.system(size: 19, weight: .bold))
             .foregroundStyle(color)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 4)
             .background(Capsule().fill(fill))
+            .fixedSize()
     }
 }
 
@@ -101,20 +215,126 @@ struct TVChannelIcon: View {
     }
 }
 
-extension Game {
-    /// "LIVE · Q3 4:12", "7:30 PM" or "Final".
-    var tvStatus: String {
-        switch state {
-        case .upcoming:
-            if let start {
-                return Calendar.current.isDateInToday(start)
-                    ? start.formatted(date: .omitted, time: .shortened)
-                    : start.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+/// Section heading: "CANADA  3".
+struct TVSectionTitle: View {
+    let text: String
+    var count: Int? = nil
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(text.uppercased())
+                .font(.system(size: 21, weight: .bold))
+                .foregroundStyle(Theme.muted)
+                .kerning(1)
+            if let count {
+                Text("\(count)")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(Theme.muted.opacity(0.7))
             }
-            return statusText
-        case .live, .finished:
-            return statusText
         }
+    }
+}
+
+// MARK: Mini player
+
+struct TVVideoSurface: UIViewRepresentable {
+    let view: UIView
+
+    func makeUIView(context: Context) -> UIView { view }
+    func updateUIView(_ uiView: UIView, context: Context) {}
+}
+
+/// The mini player on the game and EPG screens, like the Mac's: plays the stream you're on after a short
+/// pause (so moving through a list doesn't open every stream), and hands over to full screen without
+/// reconnecting.
+struct TVPreview: View {
+    @EnvironmentObject var model: AppModel
+    @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
+    @AppStorage(Prefs.guidePreview) private var enabled = true
+    @ObservedObject private var controller = PlaybackController.shared
+    let channel: Channel?
+
+    private var url: URL? {
+        channel.flatMap { model.streamURL(for: $0, hls: !PlaybackController.usesVLC) }
+    }
+
+    private var showsVideo: Bool { enabled && channel != nil && model.nowPlaying == nil && !DemoData.isOn }
+
+    var body: some View {
+        ZStack {
+            Color.black
+            if showsVideo {
+                TVVideoSurface(view: controller.view)
+                switch controller.status {
+                case .opening, .buffering:
+                    ProgressView()
+                case .failed:
+                    Text("Preview unavailable")
+                        .font(.system(size: 22))
+                        .foregroundStyle(Theme.muted)
+                default:
+                    EmptyView()
+                }
+            } else {
+                VStack(spacing: 14) {
+                    TVChannelIcon(url: channel?.icon, size: 90)
+                    if let channel {
+                        Text(channel.name)
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(Theme.soft)
+                            .lineLimit(1)
+                            .padding(.horizontal, 20)
+                    }
+                }
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: TVLayout.corner))
+        .task(id: "\(channel?.id ?? 0)|\(model.nowPlaying == nil)|\(enabled)") {
+            guard model.nowPlaying == nil, !DemoData.isOn else { return }
+            guard enabled, channel != nil, let url else {
+                controller.stop()
+                return
+            }
+            if url == controller.currentURL {
+                controller.play(url, bufferMs: bufferMs)
+                model.previewChannel = channel
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(900))
+            guard !Task.isCancelled else { return }
+            controller.play(url, bufferMs: bufferMs)
+            model.previewChannel = channel
+        }
+        .onChange(of: controller.resolution) {
+            if showsVideo, let channel, !controller.resolution.isEmpty {
+                model.recordQuality(channel.id, controller.resolution)
+            }
+        }
+        .onAppear { model.miniPlayers += 1 }
+        .onDisappear {
+            model.miniPlayers -= 1
+            if model.nowPlaying == nil && model.backgroundChannel == nil { controller.stop() }
+        }
+    }
+}
+
+// MARK: Helpers
+
+extension Game {
+    /// "LIVE · Q3 4:12", "STARTS 7:30 PM" or "FINAL", like the Mac cards.
+    var tvHeader: String {
+        switch state {
+        case .live: return "LIVE · \(statusText)"
+        case .upcoming: return "STARTS \(tvStart)"
+        case .finished: return statusText.uppercased()
+        }
+    }
+
+    var tvStart: String {
+        guard let start else { return statusText }
+        return Calendar.current.isDateInToday(start)
+            ? start.formatted(date: .omitted, time: .shortened)
+            : start.formatted(.dateTime.weekday(.abbreviated).hour().minute())
     }
 }
 

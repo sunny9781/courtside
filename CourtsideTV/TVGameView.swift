@@ -1,10 +1,14 @@
 import SwiftUI
 
-/// A game: the score at the top, then every stream for it, 4K first and then by country.
+/// A game, laid out like the Mac: Back, then the mini player beside the score, then every stream.
+/// Moving onto a stream plays it in the mini player; clicking it goes full screen (no reconnect).
 struct TVGameView: View {
     @EnvironmentObject var model: AppModel
+    @EnvironmentObject var nav: TVNav
     @AppStorage(Prefs.hideSD) private var hideSD = true
     @State private var showLocal = false
+    @State private var previewID: Int?
+    @FocusState private var focusedStream: Int?
     let gameID: String
 
     /// Looked up each time so the score stays live.
@@ -51,161 +55,228 @@ struct TVGameView: View {
         return out
     }
 
+    private var streams: [StreamMatch] { sections.flatMap(\.streams) }
+
     /// On-screen order, which is also what swiping up and down flips through while watching.
-    private var lineup: [Channel] { sections.flatMap(\.streams).map(\.channel) }
+    private var lineup: [Channel] { streams.map(\.channel) }
+
+    private var previewChannel: Channel? {
+        streams.first { $0.channel.id == previewID }?.channel ?? streams.first?.channel
+    }
 
     var body: some View {
-        ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 44) {
-                if let game {
-                    hero(game)
-                    streamList(game)
-                } else {
-                    Text("This game is no longer on today's schedule.")
-                        .font(.system(size: 28))
-                        .foregroundStyle(Theme.muted)
-                }
+        VStack(alignment: .leading, spacing: 30) {
+            HStack {
+                TVBackButton { if !nav.homePath.isEmpty { nav.homePath.removeLast() } }
+                Spacer()
             }
-            .padding(.horizontal, 80)
-            .padding(.vertical, 40)
+
+            if let game {
+                hero(game)
+                streamList(game)
+            } else {
+                Text("This game is no longer on today's schedule.")
+                    .font(.system(size: 28))
+                    .foregroundStyle(Theme.muted)
+                Spacer()
+            }
+        }
+        .padding(.horizontal, TVLayout.margin)
+        .padding(.top, 10)
+        .onAppear {
+            // Coming back from another tab: keep showing the stream that was playing.
+            if let bg = model.backgroundChannel, allStreams.contains(where: { $0.channel.id == bg.id }) {
+                previewID = bg.id
+            }
+            model.backgroundChannel = nil
+        }
+        .onChange(of: focusedStream) {
+            if let focusedStream { previewID = focusedStream }
         }
     }
 
-    // MARK: Score
+    // MARK: Top: mini player, score, details
 
     private func hero(_ game: Game) -> some View {
-        VStack(alignment: .leading, spacing: 24) {
-            HStack(spacing: 14) {
-                if game.state == .live {
-                    TVBadge(text: "LIVE", fill: Theme.accent, color: Theme.onAccent)
-                }
-                Text("\(game.league.name) · \(game.tvStatus)")
-                    .font(.system(size: 26, weight: .semibold))
-                    .foregroundStyle(Theme.soft)
-            }
+        HStack(alignment: .top, spacing: 44) {
+            TVPreview(channel: previewChannel)
+                .frame(width: 560, height: 315)
 
-            if game.isEvent && !game.hasSides {
-                Text(game.eventTitle)
-                    .font(.system(size: 52, weight: .bold))
-                    .foregroundStyle(Theme.text)
-                if !game.eventDetail.isEmpty {
-                    Text(game.eventDetail)
-                        .font(.system(size: 30))
-                        .foregroundStyle(Theme.soft)
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 14) {
+                    TVLeagueLogo(league: game.league, size: 40)
+                    Text(game.tvHeader)
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(game.state == .live ? Theme.accent : Theme.soft)
                 }
-            } else {
-                HStack(alignment: .center, spacing: 48) {
-                    teamBlock(game.away, game: game)
-                    Text(game.state == .upcoming ? "at" : "–")
-                        .font(.system(size: 40, weight: .semibold))
-                        .foregroundStyle(Theme.muted)
-                    teamBlock(game.home, game: game)
-                }
-            }
 
-            let info = [game.venue, game.broadcasters.isEmpty ? "" : "On " + game.broadcasters.joined(separator: ", ")]
-                .filter { !$0.isEmpty }
-            if !info.isEmpty {
-                Text(info.joined(separator: "  ·  "))
-                    .font(.system(size: 22))
-                    .foregroundStyle(Theme.muted)
-                    .lineLimit(2)
+                if game.isEvent && !game.hasSides {
+                    Text(game.eventTitle)
+                        .font(.system(size: 44, weight: .bold))
+                        .foregroundStyle(Theme.text)
+                        .lineLimit(2)
+                    if !game.eventDetail.isEmpty {
+                        Text(game.eventDetail)
+                            .font(.system(size: 26))
+                            .foregroundStyle(Theme.soft)
+                    }
+                } else {
+                    teamLine(game.away, game: game)
+                    teamLine(game.home, game: game)
+                }
+
+                details(game)
             }
+            .frame(maxWidth: 700, alignment: .leading)
+
+            if !game.isEvent, !game.away.linescores.isEmpty {
+                boxScore(game)
+            }
+            Spacer(minLength: 0)
         }
-        .padding(36)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 24).fill(Theme.card))
+        .frame(height: 315, alignment: .top)
     }
 
-    private func teamBlock(_ team: Team, game: Game) -> some View {
-        HStack(spacing: 24) {
-            TVTeamLogo(team: team, size: 110)
-            VStack(alignment: .leading, spacing: 6) {
+    private func teamLine(_ team: Team, game: Game) -> some View {
+        HStack(spacing: 20) {
+            TVTeamLogo(team: team, size: 64)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(team.name)
                     .font(.system(size: 32, weight: .semibold))
                     .foregroundStyle(Theme.text)
                     .lineLimit(1)
                 if !team.record.isEmpty {
                     Text(team.record)
-                        .font(.system(size: 22))
+                        .font(.system(size: 20))
                         .foregroundStyle(Theme.muted)
                 }
             }
+            Spacer(minLength: 16)
             if game.state != .upcoming {
                 Text(team.score)
-                    .font(.system(size: 72, weight: .bold).monospacedDigit())
+                    .font(.system(size: 52, weight: .bold).monospacedDigit())
                     .foregroundStyle(game.scoreColor(team))
             }
         }
+    }
+
+    private func details(_ game: Game) -> some View {
+        var lines: [String] = []
+        if game.state == .upcoming { lines.append("Starts \(game.tvStart)") }
+        if !game.venue.isEmpty { lines.append(game.venue) }
+        if !game.broadcasters.isEmpty { lines.append("On " + game.broadcasters.joined(separator: ", ")) }
+        return Text(lines.joined(separator: "  ·  "))
+            .font(.system(size: 21))
+            .foregroundStyle(Theme.muted)
+            .lineLimit(2)
+    }
+
+    private func boxScore(_ game: Game) -> some View {
+        let periods = max(game.away.linescores.count, game.home.linescores.count)
+        return Grid(alignment: .trailing, horizontalSpacing: 22, verticalSpacing: 12) {
+            GridRow {
+                Text("")
+                ForEach(0..<periods, id: \.self) { i in
+                    Text("\(i + 1)").foregroundStyle(Theme.muted)
+                }
+                Text("T").foregroundStyle(Theme.muted)
+            }
+            ForEach([game.away, game.home], id: \.abbr) { team in
+                GridRow {
+                    Text(team.abbr).foregroundStyle(Theme.soft).gridColumnAlignment(.leading)
+                    ForEach(0..<periods, id: \.self) { i in
+                        Text(i < team.linescores.count ? team.linescores[i] : "–").foregroundStyle(Theme.text)
+                    }
+                    Text(team.score).bold().foregroundStyle(game.scoreColor(team))
+                }
+            }
+        }
+        .font(.system(size: 22).monospacedDigit())
+        .padding(24)
+        .background(RoundedRectangle(cornerRadius: TVLayout.corner).fill(Theme.card))
     }
 
     // MARK: Streams
 
     @ViewBuilder
     private func streamList(_ game: Game) -> some View {
-        if sections.isEmpty {
-            VStack(alignment: .leading, spacing: 20) {
-                Text(model.channels.isEmpty ? "Channels are still loading…" : "No streams found for this game yet.")
-                    .font(.system(size: 28))
-                    .foregroundStyle(Theme.muted)
-                if extraCount > 0 { extrasButton }
-            }
-        } else {
-            ForEach(sections) { section in
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("\(section.name.uppercased())  \(section.streams.count)")
-                        .font(.system(size: 22, weight: .bold))
+        HStack(alignment: .firstTextBaseline) {
+            Text("All streams for this game")
+                .font(.system(size: 30, weight: .bold))
+                .foregroundStyle(Theme.text)
+            Text("\(streams.count)")
+                .font(.system(size: 24))
+                .foregroundStyle(Theme.muted)
+            Spacer()
+        }
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 34) {
+                if sections.isEmpty {
+                    Text(model.channels.isEmpty ? "Channels are still loading…" : "No streams found for this game yet.")
+                        .font(.system(size: 26))
                         .foregroundStyle(Theme.muted)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 540), spacing: 40)], alignment: .leading, spacing: 40) {
-                        ForEach(section.streams) { match in
-                            Button {
-                                model.play(match.channel, gameTitle: game.title, lineup: lineup)
-                            } label: {
-                                TVStreamCell(match: match, quality: model.measuredQuality[match.channel.id] ?? match.quality)
+                }
+                ForEach(sections) { section in
+                    VStack(alignment: .leading, spacing: 18) {
+                        if sections.count > 1 {
+                            TVSectionTitle(text: section.name, count: section.streams.count)
+                        }
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 520), spacing: 34, alignment: .top)],
+                                  alignment: .leading, spacing: 34) {
+                            ForEach(section.streams) { match in
+                                Button {
+                                    model.play(match.channel, gameTitle: game.title, lineup: lineup)
+                                } label: {
+                                    TVStreamCell(match: match,
+                                                 quality: model.measuredQuality[match.channel.id] ?? match.quality,
+                                                 previewing: match.channel.id == previewChannel?.id)
+                                }
+                                .buttonStyle(.card)
+                                .focused($focusedStream, equals: match.channel.id)
                             }
-                            .buttonStyle(.card)
                         }
                     }
                 }
+                if extraCount > 0 {
+                    Button(showLocal ? "Hide local stations and likely channels"
+                                     : "Show \(extraCount) local stations and likely channels") {
+                        showLocal.toggle()
+                    }
+                    .buttonStyle(TVPillButtonStyle())
+                    .font(.system(size: 22, weight: .semibold))
+                }
             }
-            if extraCount > 0 { extrasButton }
+            .padding(.vertical, 20)
         }
-    }
-
-    private var extrasButton: some View {
-        Button(showLocal ? "Hide local stations and likely channels"
-                         : "Show \(extraCount) local stations and likely channels") {
-            showLocal.toggle()
-        }
+        .defaultFocus($focusedStream, streams.first?.channel.id)
     }
 }
 
-/// One stream: channel logo, name, what's on now, and its quality.
+/// One stream, like the Mac panel: name, its category, why it matched, and its quality.
 struct TVStreamCell: View {
     @EnvironmentObject var model: AppModel
     let match: StreamMatch
     let quality: String
+    var previewing = false
 
     var body: some View {
-        HStack(spacing: 20) {
-            TVChannelIcon(url: match.channel.icon, size: 72)
+        HStack(alignment: .center, spacing: 20) {
+            TVChannelIcon(url: match.channel.icon, size: 60)
             VStack(alignment: .leading, spacing: 6) {
                 Text(match.channel.name)
                     .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(Theme.text)
+                    .foregroundStyle(previewing ? Theme.accent : Theme.text)
                     .lineLimit(2)
                 if !match.channel.categoryName.isEmpty {
                     Label(match.channel.categoryName, systemImage: "folder")
-                        .font(.system(size: 20, weight: .medium))
+                        .font(.system(size: 19, weight: .medium))
                         .foregroundStyle(Theme.soft)
                         .lineLimit(1)
                 }
-                if let now = model.currentProgramme(match.channel), !now.title.isEmpty {
-                    Text(now.title)
-                        .font(.system(size: 20))
-                        .foregroundStyle(Theme.muted)
-                        .lineLimit(1)
-                }
+                Text(match.reason)
+                    .font(.system(size: 18))
+                    .foregroundStyle(Theme.muted)
+                    .lineLimit(1)
             }
             Spacer(minLength: 8)
             if !quality.isEmpty {
@@ -213,8 +284,9 @@ struct TVStreamCell: View {
                         color: quality == "4K" ? Theme.onAccent : Theme.soft)
             }
         }
-        .padding(22)
-        .frame(width: 540, height: 150, alignment: .leading)
+        .padding(.horizontal, 24)
+        .frame(maxWidth: .infinity, minHeight: 140, maxHeight: 140, alignment: .leading)
         .background(Theme.card)
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(previewing ? Theme.accent : Color.clear, lineWidth: 3))
     }
 }

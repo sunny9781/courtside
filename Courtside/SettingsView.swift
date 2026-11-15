@@ -20,7 +20,7 @@ struct SettingsView: View {
         case playback = "Playback"
         case sports = "Sports"
         case games = "Games"
-        case guide = "Live TV"
+        case guide = "EPG"
         case updates = "Updates"
 
         var id: String { rawValue }
@@ -100,7 +100,7 @@ struct SettingsView: View {
                     .frame(width: 260)
                 }
                 toggle("Switch to the next stream when one stalls (USA and Canada first)", $autoSwitch)
-                toggle("Mini player previews (Live TV and game screens)", $guidePreview)
+                toggle("Mini player previews (EPG and game screens)", $guidePreview)
                 engineNote
             }
 
@@ -130,7 +130,7 @@ struct SettingsView: View {
             }
 
         case .guide:
-            panel("Live TV guide") {
+            panel("EPG") {
                 setting("Hours to show", "How far ahead the guide goes. Takes effect on the next refresh.") {
                     Picker("", selection: $guideHours) {
                         Text("4").tag(4)

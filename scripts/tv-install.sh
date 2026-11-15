@@ -2,6 +2,7 @@
 # Builds CourtsideTV, signs it with the free "Personal Team" in Xcode, and installs it on the Apple TV.
 # Optional: TEAM_ID (otherwise found automatically), TV_DEVICE (name or id; otherwise the first Apple TV).
 set -euo pipefail
+trap 'echo "::error::Stopped at line $LINENO"; [ -f tv-build.log ] && tail -40 tv-build.log' ERR
 
 BUNDLE_ID="ca.sunny9781.courtside.tv"
 

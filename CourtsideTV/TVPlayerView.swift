@@ -1,13 +1,6 @@
 import SwiftUI
 import UIKit
 
-struct TVVideoSurface: UIViewRepresentable {
-    let view: UIView
-
-    func makeUIView(context: Context) -> UIView { view }
-    func updateUIView(_ uiView: UIView, context: Context) {}
-}
-
 /// Full-screen player.
 /// - Swipe or press up/down: previous/next stream for this game (or channel in this category).
 /// - Click or swipe left/right: show the info bar.

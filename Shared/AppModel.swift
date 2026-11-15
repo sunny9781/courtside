@@ -49,8 +49,28 @@ final class AppModel: ObservableObject {
     init() {
         credentials = CredentialStore.load()
         PlaybackController.shared.onChange = { [weak self] in self?.checkConnectionsSoon() }
+        if DemoData.isOn { loadDemo() }
         let saved = UserDefaults.standard.dictionary(forKey: Prefs.measuredQuality) as? [String: String] ?? [:]
         measuredQuality = Dictionary(uniqueKeysWithValues: saved.compactMap { k, v in Int(k).map { ($0, v) } })
+    }
+
+    /// Sample data for screenshots (`-demo`), with no network and no real login.
+    private func loadDemo() {
+        let d = DemoData.build()
+        credentials = XtreamCredentials(server: "demo", username: "demo", password: "")
+        account = AccountInfo(status: "Active", expires: Date().addingTimeInterval(86400 * 120), maxConnections: 2, activeConnections: 1)
+        categories = d.categories
+        categoryTree = CategoryGrouping.build(d.categories)
+        channels = d.channels
+        channelsByCategory = Dictionary(grouping: d.channels, by: \.categoryID)
+        channelByID = Dictionary(uniqueKeysWithValues: d.channels.map { ($0.id, $0) })
+        allGames = d.games
+        games = d.games
+        leagueLogos = d.logos
+        matches = d.matches
+        guide = d.guide
+        savedAt = Date()
+        lastRefresh = Date()
     }
 
     func recordQuality(_ channelID: Int, _ label: String) {
@@ -142,6 +162,7 @@ final class AppModel: ObservableObject {
     /// Opening the app: channels and the guide come from the saved copy when it's recent enough
     /// (6 hours by default); scores are always fetched. `force` downloads everything now.
     func refresh(force: Bool = false) async {
+        if DemoData.isOn { return }
         guard let creds = credentials, !isLoading else { return }
         isLoading = true
         errorMessage = nil
@@ -249,7 +270,7 @@ final class AppModel: ObservableObject {
     }
 
     func refreshAccount() async {
-        guard let creds = credentials else { return }
+        guard !DemoData.isOn, let creds = credentials else { return }
         if let fresh = try? await XtreamClient(creds: creds).login() {
             account = fresh
         }
