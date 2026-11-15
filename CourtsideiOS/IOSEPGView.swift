@@ -32,6 +32,7 @@ struct IOSEPGView: View {
         guard let last = path.last, last.hasPrefix("cat:") else { return nil }
         let id = String(last.dropFirst(4))
         if grouped {
+            if let group = openNodes.last, group.id == id { return (group.name, group.categories) }
             let level = openNodes.last?.children ?? model.categoryTree
             if let node = level.first(where: { $0.id == id }) { return (node.name, node.categories) }
         }
@@ -114,6 +115,11 @@ struct IOSEPGView: View {
                                 }
                             }
                         } else if grouped {
+                            if let group = openNodes.last {
+                                categoryRow("All \(group.name) channels", count: count(group.categories), group: false) {
+                                    open("cat:" + group.id)
+                                }
+                            }
                             ForEach(openNodes.last?.children ?? model.categoryTree) { node in
                                 if node.isGroup {
                                     categoryRow(node.name, count: node.categories.count, group: true) { open(node.id) }
@@ -138,7 +144,7 @@ struct IOSEPGView: View {
 
     private var breadcrumb: String {
         var names = openNodes.map(\.name)
-        if let open = openCategory { names.append(open.name) }
+        if let open = openCategory, open.name != names.last { names.append(open.name) }
         return names.joined(separator: " › ")
     }
 

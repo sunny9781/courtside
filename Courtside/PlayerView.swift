@@ -5,10 +5,21 @@ import AVFoundation
 import VLCKitSPM
 #endif
 
+/// Shows the one video view. It sits inside a container of its own, so when the video moves somewhere else
+/// (full screen, the pinned player, the pop-out window) the place it left can't pull it back out.
 struct VideoSurface: NSViewRepresentable {
     let view: NSView
 
-    func makeNSView(context: Context) -> NSView { view }
+    func makeNSView(context: Context) -> NSView {
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.backgroundColor = NSColor.black.cgColor
+        view.removeFromSuperview()
+        view.frame = container.bounds
+        view.autoresizingMask = [.width, .height]
+        container.addSubview(view)
+        return container
+    }
     func updateNSView(_ nsView: NSView, context: Context) {}
 }
 

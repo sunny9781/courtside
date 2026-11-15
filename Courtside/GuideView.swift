@@ -80,15 +80,16 @@ struct GuideView: View {
     struct VisibleNode: Identifiable {
         let node: CategoryGrouping.Node
         let depth: Int
-        var id: String { node.id }
+        let parent: String
+        var id: String { parent + ">" + node.id }
     }
 
-    private func visibleNodes(_ nodes: [CategoryGrouping.Node], depth: Int = 0) -> [VisibleNode] {
+    private func visibleNodes(_ nodes: [CategoryGrouping.Node], depth: Int = 0, parent: String = "") -> [VisibleNode] {
         var out: [VisibleNode] = []
         for node in nodes {
-            out.append(VisibleNode(node: node, depth: depth))
+            out.append(VisibleNode(node: node, depth: depth, parent: parent))
             if node.isGroup && expanded.contains(node.id) {
-                out += visibleNodes(node.children, depth: depth + 1)
+                out += visibleNodes(node.children, depth: depth + 1, parent: node.id)
             }
         }
         return out

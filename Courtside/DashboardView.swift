@@ -98,12 +98,9 @@ struct DashboardView: View {
             let now = context.date
             let shown = model.games.filter { !Sport.hidden(hiddenSports).contains($0.league.sport) }
             let live = shown.filter { $0.state == .live }
-            let soon = shown.filter {
-                $0.state == .upcoming && ($0.start ?? .distantFuture) < now.addingTimeInterval(4 * 3600)
-            }
-            let finals = shown.filter {
-                $0.state == .finished && ($0.start ?? .distantPast) > now.addingTimeInterval(-6 * 3600)
-            }
+            // Live Now shows only games that are live right now: nothing upcoming, nothing final.
+            let soon: [Game] = []
+            let finals: [Game] = []
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 32) {

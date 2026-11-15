@@ -154,20 +154,14 @@ struct TVGamesPane: View {
         _ = (hiddenSports, sportOrder)
         switch nav.homeSelection {
         case .liveNow:
-            // Live and starting-soon games by sport (upcoming dimmed), then today's final scores.
+            // Only games that are live right now, by sport.
             var out: [PaneSection] = []
             for sport in orderedSports(model: model) {
-                let games = model.games(for: sport).filter { $0.state != .finished }
+                let games = model.games(for: sport).filter { $0.state == .live }
                 if !games.isEmpty {
                     out.append(PaneSection(id: sport.id, title: sport.rawValue, symbol: sport.symbol, league: nil,
                                        games: sortedGames(games)))
                 }
-            }
-            let shown = Set(orderedSports(model: model))
-            let finals = model.games.filter { $0.state == .finished && shown.contains($0.league.sport) }
-            if !finals.isEmpty {
-                out.append(PaneSection(id: "finals", title: "Final scores", symbol: "checkmark.circle", league: nil,
-                                   games: finals.sorted { ($0.start ?? .distantPast) > ($1.start ?? .distantPast) }))
             }
             return out
         case .sport(let sport):

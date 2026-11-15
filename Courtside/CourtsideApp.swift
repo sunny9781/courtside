@@ -18,6 +18,14 @@ struct CourtsideApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1320, height: 860)
+
+        // The pinned player popped out into its own window.
+        Window("Player", id: PopOutPlayer.windowID) {
+            PopOutPlayer()
+                .environmentObject(model)
+                .preferredColorScheme(.dark)
+        }
+        .defaultSize(width: 960, height: 540)
     }
 }
 

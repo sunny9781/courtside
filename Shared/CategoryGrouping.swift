@@ -4,8 +4,10 @@ import Foundation
 /// so it keeps up when the provider renames or adds categories.
 ///
 /// Everything A to Z (names starting with a number first):
-/// 24/7 · Country (Canada, UK, USA…, and Foreign › Brazil, Mexico…) · Sports (4K, leagues, countries, streaming services)
-/// · other shared prefixes (like a provider's own brand) · Random (categories that fit nowhere else).
+/// 24/7 · Country (Canada, UK, USA…, and Foreign › Brazil, Mexico…) · Movies · Sports (4K, leagues, countries,
+/// streaming services) · other shared prefixes (like a provider's own brand) · Other (categories that fit nowhere else).
+/// A category can sit in more than one group: "UK | Sports" is under both Country › UK and Sports, and
+/// "FR | Films" under both Country › Foreign › France and Movies.
 enum CategoryGrouping {
     struct Node: Identifiable, Hashable {
         let id: String
@@ -20,7 +22,8 @@ enum CategoryGrouping {
     static let sportsGroup = "Sports"
     static let countryGroup = "Country"
     static let foreignGroup = "Foreign"
-    static let randomGroup = "Random"
+    static let otherGroup = "Other"
+    static let moviesGroup = "Movies"
     static let allDayGroup = "24/7"
     static let nodePrefix = "__node:"
     static let servicesGroup = "Streaming services"
@@ -28,38 +31,56 @@ enum CategoryGrouping {
     // MARK: Building
 
     static func build(_ categories: [ChannelCategory]) -> [Node] {
-        // 1. Where each category would go. Sports and 24/7 are final; country and prefix groups
-        //    only count when at least two categories land in them.
-        var final: [String: [String]] = [:]
+        // 1. Every group each category belongs in. Country and prefix groups are "candidates": they only count
+        //    when at least two categories land in them.
+        var final: [String: [[String]]] = [:]
         var candidate: [String: [String]] = [:]
         var counts: [String: Int] = [:]
         for cat in categories {
             let name = cat.name
-            if isAllDay(name) {
-                final[cat.id] = [allDayGroup]
-            } else if let country = foreignCountry(name) {
+            let prefix = split(name).prefix
+            var paths: [[String]] = []
+            if isAllDay(name) { paths.append([allDayGroup]) }
+            if let country = foreignCountry(name) {
                 // Always kept, even a country with one category (it then sits directly under Foreign).
-                final[cat.id] = [countryGroup, foreignGroup, country]
-            } else if isUHD(name) {
-                final[cat.id] = [sportsGroup, "4K"]
+                paths.append([countryGroup, foreignGroup, country])
+            }
+            if isUHD(name) {
+                paths.append([sportsGroup, "4K"])
             } else if isSports(name) {
-                final[cat.id] = sportsPath(name)
-            } else if let p = split(name).prefix {
-                candidate[cat.id] = ownCountry(p).map { [countryGroup, $0] } ?? [p]
-            } else {
-                final[cat.id] = [randomGroup]
+                paths.append(sportsPath(name))
+            }
+            if isMovies(name) { paths.append([moviesGroup]) }
+            final[cat.id] = paths
+            // Its own country ("UK | Sports" is also under Country › UK) or a shared prefix (a provider's brand).
+            if let prefix, foreignCountry(name) == nil, !isAllDay(name) {
+                if let own = ownCountry(prefix) {
+                    candidate[cat.id] = [countryGroup, own]
+                } else if paths.isEmpty {
+                    candidate[cat.id] = [prefix]
+                }
             }
             if let c = candidate[cat.id] { counts[c.joined(separator: "/"), default: 0] += 1 }
         }
 
-        // 2. A country or prefix with a single category goes to Random instead.
-        let items: [(ChannelCategory, [String])] = categories.map { cat in
-            if let path = final[cat.id] { return (cat, path) }
-            if let c = candidate[cat.id], (counts[c.joined(separator: "/")] ?? 0) > 1 { return (cat, c) }
-            return (cat, [randomGroup])
+        // 2. A country or prefix with a single category doesn't make a group; anything with no group goes to Other.
+        var items: [(ChannelCategory, [String])] = []
+        for cat in categories {
+            var paths = final[cat.id] ?? []
+            if let c = candidate[cat.id], (counts[c.joined(separator: "/")] ?? 0) > 1 { paths.append(c) }
+            if paths.isEmpty { paths = [[otherGroup]] }
+            for path in paths { items.append((cat, path)) }
         }
 
         return sorted(makeNodes(items, parentPath: [], depth: 0))
+    }
+
+    private static let movieWords: Set<String> = ["movie", "movies", "film", "films", "cinema", "cine", "kino",
+                                                  "peliculas", "filmes", "vod", "boxoffice"]
+
+    static func isMovies(_ name: String) -> Bool {
+        let lower = name.lowercased()
+        return !Set(words(name)).isDisjoint(with: movieWords) || lower.contains("box office")
     }
 
     /// A to Z at every level, with names starting with a number first.
@@ -98,10 +119,12 @@ enum CategoryGrouping {
             case .bucket(let key):
                 let members = buckets[key] ?? []
                 if members.count == 1 { return leaf(members[0].0, group: parentPath.last) }
+                var seen = Set<String>()
+                let unique = members.map(\.0).filter { seen.insert($0.id).inserted }
                 let path = parentPath + [key]
                 return Node(id: nodePrefix + path.joined(separator: "/"), name: key,
                             children: makeNodes(members, parentPath: path, depth: depth + 1),
-                            categories: members.map(\.0))
+                            categories: unique)
             }
         }
     }
@@ -127,13 +150,14 @@ enum CategoryGrouping {
     // MARK: Reading names
 
     /// "UK | Sky Sports" → ("UK", "Sky Sports"). Also splits on ":".
-    static func split(_ name: String) -> (prefix: String?, rest: String) {
+    static func split(_ raw: String) -> (prefix: String?, rest: String) {
+        let name = raw.trimmingCharacters(in: CharacterSet(charactersIn: "|: ").union(.whitespaces))
         for separator in ["|", ":"] {
             if let range = name.range(of: separator) {
                 let head = name[..<range.lowerBound].trimmingCharacters(in: .whitespaces)
                 let tail = name[range.upperBound...].trimmingCharacters(in: .whitespaces)
                 if !head.isEmpty && head.count <= 24 {
-                    return (head, tail.isEmpty ? name : tail)
+                    return (head, tail.isEmpty ? name : tail.trimmingCharacters(in: CharacterSet(charactersIn: "|: ")))
                 }
             }
         }

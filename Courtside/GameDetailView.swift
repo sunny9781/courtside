@@ -97,7 +97,6 @@ struct GameDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .firstTextBaseline) {
-                        SectionTitle(text: "All streams for this game")
                         Spacer()
                         Text(mainStreams.isEmpty ? "None found" : "\(mainStreams.count) found · best match first")
                             .font(.system(size: 12))
@@ -157,7 +156,22 @@ struct GameDetailView: View {
         }
     }
 
+    /// The score and game info, combined with the pinned player when it's playing one of this game's streams.
+    @ViewBuilder
     private var hero: some View {
+        if let item = model.pinned, model.pinnedIsFrom(gameID: game.id) {
+            PinnedPlayerBar(item: item, hidden: model.nowPlaying != nil, card: true) {
+                scoreAndInfo
+            }
+        } else {
+            scoreAndInfo
+                .frame(height: 245)
+                .padding(20)
+                .background(RoundedRectangle(cornerRadius: 20).fill(Theme.card))
+        }
+    }
+
+    private var scoreAndInfo: some View {
         HStack(alignment: .top, spacing: 28) {
             VStack(alignment: .leading, spacing: 14) {
                 Text(statusLine)
@@ -170,16 +184,13 @@ struct GameDetailView: View {
                     scoreLine(game.home)
                 }
             }
-            .frame(minWidth: 300, maxWidth: 420, alignment: .topLeading)
+            .frame(minWidth: 240, maxWidth: 420, alignment: .topLeading)
 
             Rectangle().fill(Theme.raised).frame(width: 1)
 
             gameInfo
                 .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .frame(height: 245)
-        .padding(20)
-        .background(RoundedRectangle(cornerRadius: 20).fill(Theme.card))
     }
 
     private func scoreLine(_ team: Team) -> some View {

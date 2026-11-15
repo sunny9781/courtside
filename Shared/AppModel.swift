@@ -29,6 +29,14 @@ final class AppModel: ObservableObject {
     @Published var nowPlaying: NowPlaying?
     /// What the pinned player at the top is playing (iPhone/iPad and Mac). Nil hides it.
     @Published var pinned: NowPlaying?
+    /// Mac: the pinned player is showing in its own window.
+    @Published var poppedOut = false
+
+    /// Whether the pinned player is playing one of this game's streams.
+    func pinnedIsFrom(gameID: String) -> Bool {
+        guard let id = pinned?.channel.id else { return false }
+        return (matches[gameID] ?? []).contains { $0.channel.id == id }
+    }
     @Published var notice: String?
     /// The channel that was playing when full screen closed, so the mini player can pick it up.
     @Published var lastPlayedChannelID: Int?

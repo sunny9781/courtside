@@ -115,17 +115,11 @@ struct IOSGamesList: View {
         case .liveNow:
             var out: [GameSection] = []
             for sport in sports {
-                let games = model.games(for: sport).filter { $0.state != .finished }
+                let games = model.games(for: sport).filter { $0.state == .live }
                 if !games.isEmpty {
                     out.append(GameSection(id: sport.id, title: sport.rawValue, symbol: sport.symbol, league: nil,
                                            games: sortedGames(games)))
                 }
-            }
-            let shown = Set(sports)
-            let finals = model.games.filter { $0.state == .finished && shown.contains($0.league.sport) }
-            if !finals.isEmpty {
-                out.append(GameSection(id: "finals", title: "Final scores", symbol: "checkmark.circle", league: nil,
-                                       games: finals.sorted { ($0.start ?? .distantPast) > ($1.start ?? .distantPast) }))
             }
             return out
         case .sport(let sport):

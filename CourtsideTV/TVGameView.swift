@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A game, laid out like the Mac: Back, then the mini player beside the score, then every stream.
+/// A game, laid out like the Mac: Back, then one panel with the mini player beside the score, then every stream.
 /// Moving onto a stream plays it in the mini player; clicking it goes full screen (no reconnect).
 struct TVGameView: View {
     @EnvironmentObject var model: AppModel
@@ -152,6 +152,8 @@ struct TVGameView: View {
             Spacer(minLength: 0)
         }
         .frame(height: 315, alignment: .top)
+        .padding(24)
+        .background(RoundedRectangle(cornerRadius: TVLayout.corner).fill(Theme.card))
     }
 
     private func teamLine(_ team: Team, game: Game) -> some View {
@@ -215,22 +217,13 @@ struct TVGameView: View {
         }
         .font(.system(size: 22).monospacedDigit())
         .padding(24)
-        .background(RoundedRectangle(cornerRadius: TVLayout.corner).fill(Theme.card))
+        .background(RoundedRectangle(cornerRadius: TVLayout.corner).fill(Theme.raised.opacity(0.5)))
     }
 
     // MARK: Streams
 
     @ViewBuilder
     private func streamList(_ game: Game) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text("All streams for this game")
-                .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(Theme.text)
-            Text("\(streams.count)")
-                .font(.system(size: 24))
-                .foregroundStyle(Theme.muted)
-            Spacer()
-        }
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 34) {
                 if sections.isEmpty {
@@ -272,7 +265,8 @@ struct TVGameView: View {
             .padding(.vertical, 24)
             .padding(.horizontal, 36)
         }
-        .scrollClipDisabled()
+        // Clipped, so streams scrolling up disappear under the edge instead of drawing over the player and score.
+        // The padding inside leaves room for a focused stream to grow.
         .padding(.horizontal, -36)
     }
 }

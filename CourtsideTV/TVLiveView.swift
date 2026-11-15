@@ -53,14 +53,17 @@ struct TVLiveView: View {
     }
 
     private var selected: Entry? {
-        allEntries.first { $0.id == selectedID } ?? allEntries.first
+        if selectedID.hasPrefix("g:"), let node = CategoryGrouping.find(String(selectedID.dropFirst(2)), in: model.categoryTree) {
+            return Entry(id: selectedID, name: node.name, categories: node.categories)
+        }
+        return allEntries.first { $0.id == selectedID } ?? allEntries.first
     }
 
     /// The row to land on when coming down from the tabs: the selected category if it's showing, otherwise the
     /// first row of the list.
     private var categoryTarget: String? {
         guard grouped else { return selected?.id }
-        if let id = selected?.id, levelNodes.contains(where: { !$0.isGroup && $0.id == id }) { return id }
+        if let id = selected?.id, levelNodes.contains(where: { ($0.isGroup ? "g:" + $0.id : $0.id) == id }) { return id }
         guard let first = levelNodes.first else { return nil }
         return first.isGroup ? "g:" + first.id : first.id
     }
@@ -110,8 +113,9 @@ struct TVLiveView: View {
             // Pressing down from Home / EPG / Settings starts on the category list.
             .defaultFocus($focusedCategory, categoryTarget, priority: .userInitiated)
             .onChange(of: focusedCategory) {
-                // Moving onto a category shows its channels; group rows ("g:" ids) only open when clicked.
-                if let focusedCategory, !focusedCategory.hasPrefix("g:"), focusedCategory != selectedID {
+                // Moving onto a category shows its channels; moving onto a group ("g:" ids) shows all of the group's
+                // channels, and clicking it opens it.
+                if let focusedCategory, focusedCategory != selectedID {
                     selectedID = focusedCategory
                 }
             }
@@ -182,7 +186,7 @@ struct TVLiveView: View {
                                         .opacity(0.6)
                                 }
                             }
-                            .buttonStyle(TVRowButtonStyle())
+                            .buttonStyle(TVRowButtonStyle(selected: selected?.id == "g:" + node.id))
                             .focused($focusedCategory, equals: "g:" + node.id)
                         } else {
                             categoryRow(Entry(id: node.id, name: node.name, categories: node.categories))
