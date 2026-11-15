@@ -52,7 +52,7 @@ struct TVSportList: View {
 
     private var sports: [Sport] {
         _ = (sportOrder, hiddenSports, favoriteSports)
-        return tvSportOrder(model: model)
+        return sportOrder(model: model)
     }
 
     /// The sport highlighted on the left: the one selected, or the one a selected league belongs to.
@@ -156,14 +156,14 @@ struct TVGamesPane: View {
         case .liveNow:
             // Live and starting-soon games by sport (upcoming dimmed), then today's final scores.
             var out: [PaneSection] = []
-            for sport in tvSportOrder(model: model) {
+            for sport in sportOrder(model: model) {
                 let games = model.games(for: sport).filter { $0.state != .finished }
                 if !games.isEmpty {
                     out.append(PaneSection(id: sport.id, title: sport.rawValue, symbol: sport.symbol, league: nil,
-                                       games: tvSorted(games)))
+                                       games: sortedGames(games)))
                 }
             }
-            let shown = Set(tvSportOrder(model: model))
+            let shown = Set(sportOrder(model: model))
             let finals = model.games.filter { $0.state == .finished && shown.contains($0.league.sport) }
             if !finals.isEmpty {
                 out.append(PaneSection(id: "finals", title: "Final scores", symbol: "checkmark.circle", league: nil,
@@ -174,12 +174,12 @@ struct TVGamesPane: View {
             return model.leagues(for: sport).compactMap { league in
                 let games = model.games.filter { $0.league.id == league.id }
                 return games.isEmpty ? nil
-                    : PaneSection(id: league.id, title: league.name, symbol: nil, league: league, games: tvSorted(games))
+                    : PaneSection(id: league.id, title: league.name, symbol: nil, league: league, games: sortedGames(games))
             }
         case .league(let id):
             guard let league = League.all.first(where: { $0.id == id }) else { return [] }
             let games = model.games.filter { $0.league.id == id }
-            return [PaneSection(id: id, title: league.name, symbol: nil, league: league, games: tvSorted(games))]
+            return [PaneSection(id: id, title: league.name, symbol: nil, league: league, games: sortedGames(games))]
         }
     }
 
@@ -332,7 +332,7 @@ struct TVGameCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 10) {
-                Text(showLeague ? "\(game.league.name) · \(game.tvHeader)" : game.tvHeader)
+                Text(showLeague ? "\(game.league.name) · \(game.headerText)" : game.headerText)
                     .font(.system(size: 19, weight: .bold))
                     .foregroundStyle(game.state == .live ? Theme.accent : Theme.soft)
                     .lineLimit(1)

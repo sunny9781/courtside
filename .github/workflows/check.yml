@@ -31,3 +31,12 @@ jobs:
             -destination 'generic/platform=tvOS' -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO build > tv.log 2>&1 \
             || { grep -E "error:" tv.log | sort -u | head -80; tail -30 tv.log; exit 1; }
+
+      - name: iPhone and iPad app
+        if: always()
+        run: |
+          set -o pipefail
+          xcodebuild -project Courtside.xcodeproj -scheme CourtsideiOS -configuration Debug \
+            -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO build > ios.log 2>&1 \
+            || { grep -E "error:" ios.log | sort -u | head -80; tail -30 ios.log; exit 1; }
