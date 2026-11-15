@@ -57,9 +57,6 @@ struct IOSSportSidebar: View {
             }
         }
         .navigationTitle("Courtside")
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) { IOSConnectionsPill(account: model.account) }
-        }
         .refreshable { await model.refresh(force: true) }
     }
 
@@ -156,6 +153,7 @@ struct IOSGamesList: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
+                statusRow
                 if showsSportChips { sportChips }
                 if let sport = nav.selectedSport, model.leagues(for: sport).count > 1 { leagueChips(sport) }
 
@@ -201,28 +199,32 @@ struct IOSGamesList: View {
         .background(Theme.bg)
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.large)
-        .toolbar {
-            if showsSportChips {
-                ToolbarItem(placement: .topBarLeading) { IOSConnectionsPill(account: model.account) }
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                if model.downloadingChannels {
-                    ProgressView()
-                } else if let saved = model.savedAt {
-                    Button {
-                        Task { await model.refresh(force: true) }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.clockwise")
-                            Text(saved.formatted(date: .omitted, time: .shortened))
-                        }
-                        .font(.footnote)
-                    }
-                    .tint(Theme.muted)
+        .refreshable { await model.refresh(force: true) }
+    }
+
+    /// Connections in use on the left, when channels were last downloaded (tap to refresh) on the right.
+    private var statusRow: some View {
+        HStack {
+            IOSConnectionsPill(account: model.account)
+            Spacer()
+            if model.downloadingChannels {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Downloading channels…")
+                }
+                .font(.caption)
+                .foregroundStyle(Theme.muted)
+            } else if let saved = model.savedAt {
+                Button {
+                    Task { await model.refresh(force: true) }
+                } label: {
+                    Label("Updated \(saved.formatted(date: .omitted, time: .shortened))", systemImage: "arrow.clockwise")
+                        .font(.caption)
+                        .foregroundStyle(Theme.muted)
                 }
             }
         }
-        .refreshable { await model.refresh(force: true) }
+        .padding(.horizontal)
     }
 
     private var sportChips: some View {
