@@ -103,7 +103,10 @@ struct IOSConnectionsPill: View {
         if let max = account?.maxConnections, max > 0 {
             let active = account?.activeConnections ?? 0
             let full = active >= max
-            Label("\(active)/\(max)", systemImage: "person.2.fill")
+            HStack(spacing: 5) {
+                Image(systemName: "person.2.fill")
+                Text("\(active)/\(max)")
+            }
                 .font(.system(size: 13, weight: .semibold).monospacedDigit())
                 .foregroundStyle(full ? Theme.onAccent : Theme.muted)
                 .padding(.horizontal, 10)

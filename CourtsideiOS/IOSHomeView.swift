@@ -146,7 +146,8 @@ struct IOSGamesList: View {
 
     private var title: String {
         switch nav.homeSelection {
-        case .liveNow: return "Live Now"
+        // On iPad "Live Now" is already highlighted in the sidebar, so the title is today's date instead.
+        case .liveNow: return showsSportChips ? "Live Now" : Date().formatted(.dateTime.weekday(.wide).month(.wide).day())
         case .sport(let s): return s.rawValue
         case .league(let id): return League.all.first { $0.id == id }?.sport.rawValue ?? ""
         }
@@ -211,9 +212,11 @@ struct IOSGamesList: View {
                     Button {
                         Task { await model.refresh(force: true) }
                     } label: {
-                        Label(saved.formatted(date: .omitted, time: .shortened), systemImage: "arrow.clockwise")
-                            .labelStyle(.titleAndIcon)
-                            .font(.footnote)
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.clockwise")
+                            Text(saved.formatted(date: .omitted, time: .shortened))
+                        }
+                        .font(.footnote)
                     }
                     .tint(Theme.muted)
                 }
