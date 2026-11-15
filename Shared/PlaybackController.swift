@@ -24,6 +24,8 @@ final class PlaybackController: ObservableObject {
     @Published var resolution = ""
     /// Frames per second of the current stream (0 until known), e.g. 59.94.
     @Published var frameRate: Double = 0
+    /// Half-second ticks the current stream has been playing (to time the frame-rate check).
+    private var playingPolls = 0
     /// Called when a stream starts or stops (the app uses it to re-check connections in use).
     var onChange: (() -> Void)?
 
@@ -85,6 +87,7 @@ final class PlaybackController: ObservableObject {
         onChange?()
         resolution = ""
         frameRate = 0
+        playingPolls = 0
         #if canImport(VLCKitSPM)
         let media = VLCMedia(url: url)
         media.addOption(":network-caching=\(bufferMs)")
@@ -150,7 +153,12 @@ final class PlaybackController: ObservableObject {
         }
         let size = player.videoSize
         if size.height > 0 { resolution = Self.label(size.height) }
-        if frameRate == 0, let fps = Self.videoFrameRate(player.media) { frameRate = fps }
+        // Frame rate: asked once per stream, after it has been playing for 2 seconds (asking VLC for track
+        // details while a stream is still starting up can crash).
+        if status == .playing {
+            playingPolls += 1
+            if playingPolls == 4 && frameRate == 0, let fps = Self.videoFrameRate(player.media) { frameRate = fps }
+        }
         #else
         guard let item = player.currentItem else { return }
         switch item.status {
