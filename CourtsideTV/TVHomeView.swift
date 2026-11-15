@@ -43,7 +43,7 @@ struct TVSportList: View {
         return tvSportOrder(model: model)
     }
 
-    /// The sport whose leagues are open: the one selected, or the one a selected league belongs to.
+    /// The sport highlighted on the left: the one selected, or the one a selected league belongs to.
     private var openSport: Sport? {
         switch nav.homeSelection {
         case .sport(let s): return s
@@ -67,40 +67,22 @@ struct TVSportList: View {
                         detail: games.isEmpty ? "No games" : "\(games.count) today",
                         favorite: favorites.contains(sport))
                         .opacity(games.isEmpty ? 0.5 : 1)
-
-                    if openSport == sport {
-                        let leagues = model.leagues(for: sport)
-                        if leagues.count > 1 {
-                            ForEach(orderedLeagues(leagues)) { league in
-                                leagueRow(league)
-                            }
-                        }
-                    }
                 }
             }
             .padding(.vertical, 20)
         }
-        .defaultFocus($focused, nav.homeSelection)
+        .defaultFocus($focused, openSport.map { TVNav.HomeSelection.sport($0) } ?? .liveNow)
         .onChange(of: focused) {
-            // Moving onto a row shows its games, the usual Apple TV sidebar behaviour.
-            if let focused, focused != nav.homeSelection { nav.homeSelection = focused }
+            // Moving onto a row shows its games, the usual Apple TV sidebar behaviour. Coming back to the sport
+            // whose league you picked on the right keeps that league.
+            guard let focused, focused != nav.homeSelection else { return }
+            if case .sport(let s) = focused, openSport == s { return }
+            nav.homeSelection = focused
         }
     }
 
     private var favorites: Set<Sport> {
         Set(favoriteSports.split(separator: ",").compactMap { Sport(rawValue: String($0)) })
-    }
-
-    /// Leagues with games first (live ones before others), then the rest.
-    private func orderedLeagues(_ leagues: [League]) -> [League] {
-        let ranks: [String: Int] = Dictionary(uniqueKeysWithValues: leagues.map { league in
-            let games = model.games.filter { $0.league.id == league.id }
-            let rank = games.contains(where: { $0.state == .live }) ? 0 : (games.isEmpty ? 2 : 1)
-            return (league.id, rank)
-        })
-        return leagues.enumerated()
-            .sorted { ((ranks[$0.element.id] ?? 2), $0.offset) < ((ranks[$1.element.id] ?? 2), $1.offset) }
-            .map(\.element)
     }
 
     private func row(_ selection: TVNav.HomeSelection, symbol: String, name: String, live: Int, detail: String,
@@ -131,37 +113,13 @@ struct TVSportList: View {
                 }
             }
         }
-        .buttonStyle(TVRowButtonStyle(selected: nav.homeSelection == selection))
+        .buttonStyle(TVRowButtonStyle(selected: isSelected(selection)))
         .focused($focused, equals: selection)
     }
 
-    private func leagueRow(_ league: League) -> some View {
-        let games = model.games.filter { $0.league.id == league.id }
-        let live = games.filter { $0.state == .live }.count
-        let selection = TVNav.HomeSelection.league(league.id)
-        return Button {
-            nav.homeSelection = selection
-        } label: {
-            HStack(spacing: 16) {
-                TVLeagueLogo(league: league, size: 38)
-                Text(league.name)
-                    .font(.system(size: 24, weight: .medium))
-                    .lineLimit(1)
-                Spacer(minLength: 8)
-                if live > 0 {
-                    TVBadge(text: "\(live) LIVE", fill: Theme.accent, color: Theme.onAccent)
-                } else {
-                    Text(games.isEmpty ? "No games" : "\(games.count)")
-                        .font(.system(size: 20))
-                        .opacity(0.6)
-                        .fixedSize()
-                }
-            }
-            .padding(.leading, 40)
-        }
-        .buttonStyle(TVRowButtonStyle(selected: nav.homeSelection == selection))
-        .focused($focused, equals: selection)
-        .opacity(games.isEmpty ? 0.5 : 1)
+    private func isSelected(_ selection: TVNav.HomeSelection) -> Bool {
+        if case .sport(let s) = selection { return openSport == s }
+        return nav.homeSelection == selection
     }
 }
 
@@ -218,7 +176,7 @@ struct TVGamesPane: View {
         switch nav.homeSelection {
         case .liveNow: return "Live Now"
         case .sport(let s): return s.rawValue
-        case .league(let id): return League.all.first { $0.id == id }?.name ?? ""
+        case .league(let id): return League.all.first { $0.id == id }?.sport.rawValue ?? ""
         }
     }
 
@@ -235,6 +193,10 @@ struct TVGamesPane: View {
                     Text(subtitle)
                         .font(.system(size: 22))
                         .foregroundStyle(Theme.muted)
+                }
+
+                if let sport = filterSport, model.leagues(for: sport).count > 1 {
+                    leagueFilters(sport)
                 }
 
                 if sections.isEmpty {
@@ -276,6 +238,62 @@ struct TVGamesPane: View {
             .padding(.horizontal, 24)
         }
         .scrollClipDisabled()
+    }
+
+    /// The sport whose league filters show above the games.
+    private var filterSport: Sport? {
+        switch nav.homeSelection {
+        case .sport(let s): return s
+        case .league(let id): return League.all.first { $0.id == id }?.sport
+        case .liveNow: return nil
+        }
+    }
+
+    /// "All · NBA · WNBA · NCAA Men…" — leagues with games first.
+    private func leagueFilters(_ sport: Sport) -> some View {
+        let leagues = model.leagues(for: sport)
+        let ranks: [String: Int] = Dictionary(uniqueKeysWithValues: leagues.map { league in
+            let games = model.games.filter { $0.league.id == league.id }
+            return (league.id, games.contains(where: { $0.state == .live }) ? 0 : (games.isEmpty ? 2 : 1))
+        })
+        let ordered = leagues.enumerated()
+            .sorted { ((ranks[$0.element.id] ?? 2), $0.offset) < ((ranks[$1.element.id] ?? 2), $1.offset) }
+            .map(\.element)
+        return ScrollView(.horizontal) {
+            HStack(spacing: 16) {
+                Button {
+                    nav.homeSelection = .sport(sport)
+                } label: {
+                    Text("All")
+                        .font(.system(size: 22, weight: .semibold))
+                }
+                .buttonStyle(TVChipButtonStyle(selected: nav.homeSelection == .sport(sport)))
+
+                ForEach(ordered) { league in
+                    let count = model.games.filter { $0.league.id == league.id }.count
+                    Button {
+                        nav.homeSelection = .league(league.id)
+                    } label: {
+                        HStack(spacing: 10) {
+                            TVLeagueLogo(league: league, size: 30)
+                            Text(league.name)
+                                .font(.system(size: 22, weight: .semibold))
+                            if count > 0 {
+                                Text("\(count)")
+                                    .font(.system(size: 19))
+                                    .opacity(0.6)
+                            }
+                        }
+                    }
+                    .buttonStyle(TVChipButtonStyle(selected: nav.homeSelection == .league(league.id)))
+                    .opacity(count == 0 ? 0.5 : 1)
+                }
+            }
+            .padding(.vertical, 12)
+            .padding(.horizontal, 8)
+        }
+        .scrollClipDisabled()
+        .focusSection()
     }
 
     private var subtitle: String {

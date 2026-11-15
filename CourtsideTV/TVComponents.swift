@@ -64,6 +64,32 @@ struct TVTabButtonStyle: ButtonStyle {
     }
 }
 
+/// A filter chip (league filters on Home). Selected: grey; focused: white.
+struct TVChipButtonStyle: ButtonStyle {
+    let selected: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        Chip(configuration: configuration, selected: selected)
+    }
+
+    private struct Chip: View {
+        let configuration: ButtonStyleConfiguration
+        let selected: Bool
+        @Environment(\.isFocused) private var focused
+
+        var body: some View {
+            configuration.label
+                .padding(.horizontal, 24)
+                .frame(height: 58)
+                .foregroundStyle(focused ? Theme.bg : (selected ? Theme.text : Theme.soft))
+                .background(Capsule().fill(focused ? Theme.text : (selected ? Theme.raised : Color.clear)))
+                .overlay(Capsule().stroke(selected || focused ? Color.clear : Theme.border, lineWidth: 2))
+                .scaleEffect(focused ? 1.06 : 1)
+                .animation(.easeOut(duration: 0.15), value: focused)
+        }
+    }
+}
+
 /// "‹ Back" in the top-left of a screen. The remote's Back button does the same.
 struct TVBackButton: View {
     let action: () -> Void

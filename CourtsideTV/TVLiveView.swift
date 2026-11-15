@@ -7,6 +7,8 @@ struct TVLiveView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.guideCategory) private var selectedID = ""
     @AppStorage(Prefs.guideGrouped) private var grouped = true
+    /// The groups you've opened in the category list (ids, outermost first).
+    @State private var path: [String] = []
     @State private var focusedChannelID: Int?
     /// The channel playing in the mini player: only one you clicked.
     @State private var playingID: Int?
@@ -19,48 +21,43 @@ struct TVLiveView: View {
         let categories: [ChannelCategory]
     }
 
-    struct CategorySection: Identifiable {
-        let id: String
-        let name: String
-        let entries: [Entry]
-    }
 
-    /// The category tree flattened into headed lists: "Sports" › "NBA", "Country" › "Foreign › Spain"…
-    private var groups: [CategorySection] {
+    /// Every provider category (or merged group of them) you can pick, at any depth.
+    private var allEntries: [Entry] {
         guard grouped else {
-            // Plain A–Z list of your provider's categories (numbers first), like the Mac with grouping off.
-            let sorted = model.categories.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-            return [CategorySection(id: "all", name: "", entries: sorted.map { Entry(id: $0.id, name: $0.name, categories: [$0]) })]
+            return model.categories
+                .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+                .map { Entry(id: $0.id, name: $0.name, categories: [$0]) }
         }
-        return model.categoryTree.map { node in
-            if node.isGroup {
-                return CategorySection(id: node.id, name: node.name, entries: leaves(node.children, prefix: ""))
-            }
-            return CategorySection(id: node.id, name: "", entries: [Entry(id: node.id, name: node.name, categories: node.categories)])
+        func leaves(_ nodes: [CategoryGrouping.Node]) -> [Entry] {
+            nodes.flatMap { $0.isGroup ? leaves($0.children) : [Entry(id: $0.id, name: $0.name, categories: $0.categories)] }
         }
-        .reduce(into: [CategorySection]()) { out, group in
-            // Single categories at the top level go together under one untitled heading.
-            if group.name.isEmpty, let last = out.last, last.name.isEmpty {
-                out[out.count - 1] = CategorySection(id: last.id, name: "", entries: last.entries + group.entries)
-            } else {
-                out.append(group)
-            }
-        }
+        return leaves(model.categoryTree)
     }
 
-    private func leaves(_ nodes: [CategoryGrouping.Node], prefix: String) -> [Entry] {
-        nodes.flatMap { node -> [Entry] in
-            if node.isGroup {
-                return leaves(node.children, prefix: prefix + node.name + " › ")
-            }
-            return [Entry(id: node.id, name: prefix + node.name, categories: node.categories)]
+    /// The groups you've opened, outermost first ("Country", then "Foreign").
+    private var openNodes: [CategoryGrouping.Node] {
+        var out: [CategoryGrouping.Node] = []
+        var level = model.categoryTree
+        for id in path {
+            guard let node = level.first(where: { $0.id == id }) else { break }
+            out.append(node)
+            level = node.children
         }
+        return out
     }
 
-    private var allEntries: [Entry] { groups.flatMap(\.entries) }
+    /// What the left column lists right now: the top level, or the inside of the open group.
+    private var levelNodes: [CategoryGrouping.Node] {
+        openNodes.last?.children ?? model.categoryTree
+    }
 
     private var selected: Entry? {
         allEntries.first { $0.id == selectedID } ?? allEntries.first
+    }
+
+    private func channelCount(_ categories: [ChannelCategory]) -> Int {
+        categories.reduce(0) { $0 + (model.channelsByCategory[$1.id]?.count ?? 0) }
     }
 
     private var channels: [Channel] {
@@ -117,6 +114,7 @@ struct TVLiveView: View {
             LazyVStack(alignment: .leading, spacing: 4) {
                 Button {
                     grouped.toggle()
+                    path = []
                 } label: {
                     HStack(spacing: 14) {
                         Image(systemName: "square.stack.3d.up")
@@ -132,37 +130,76 @@ struct TVLiveView: View {
                 .buttonStyle(TVRowButtonStyle())
                 .padding(.bottom, 6)
 
-                ForEach(groups) { group in
-                    if !group.name.isEmpty {
-                        Text(group.name.uppercased())
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(Theme.muted)
-                            .kerning(1)
-                            .padding(.top, 22)
-                            .padding(.bottom, 4)
-                            .padding(.horizontal, 22)
-                    }
-                    ForEach(group.entries) { entry in
+                if grouped {
+                    // Groups first: click one to open it, Back (or the top row) to go up a level.
+                    if !path.isEmpty {
                         Button {
-                            selectedID = entry.id
+                            path.removeLast()
                         } label: {
-                            HStack {
-                                Text(entry.name)
-                                    .font(.system(size: 24, weight: .medium))
+                            HStack(spacing: 14) {
+                                Image(systemName: "chevron.left")
+                                    .font(.system(size: 20, weight: .semibold))
+                                Text(openNodes.map(\.name).joined(separator: " › "))
+                                    .font(.system(size: 24, weight: .bold))
                                     .lineLimit(1)
-                                Spacer(minLength: 8)
-                                Text("\(entry.categories.reduce(0) { $0 + (model.channelsByCategory[$1.id]?.count ?? 0) })")
-                                    .font(.system(size: 19))
-                                    .opacity(0.55)
+                                Spacer()
                             }
                         }
-                        .buttonStyle(TVRowButtonStyle(selected: entry.id == selected?.id))
-                        .focused($focusedCategory, equals: entry.id)
+                        .buttonStyle(TVRowButtonStyle())
+                    }
+                    ForEach(levelNodes) { node in
+                        if node.isGroup {
+                            Button {
+                                path.append(node.id)
+                            } label: {
+                                HStack(spacing: 14) {
+                                    Image(systemName: "folder.fill")
+                                        .font(.system(size: 20))
+                                        .opacity(0.7)
+                                    Text(node.name)
+                                        .font(.system(size: 24, weight: .semibold))
+                                        .lineLimit(1)
+                                    Spacer(minLength: 8)
+                                    Text("\(node.categories.count)")
+                                        .font(.system(size: 19))
+                                        .opacity(0.55)
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .opacity(0.6)
+                                }
+                            }
+                            .buttonStyle(TVRowButtonStyle())
+                        } else {
+                            categoryRow(Entry(id: node.id, name: node.name, categories: node.categories))
+                        }
+                    }
+                } else {
+                    ForEach(allEntries) { entry in
+                        categoryRow(entry)
                     }
                 }
             }
             .padding(.vertical, 20)
         }
+        .onExitCommand(perform: path.isEmpty ? nil : { path.removeLast() })
+    }
+
+    private func categoryRow(_ entry: Entry) -> some View {
+        Button {
+            selectedID = entry.id
+        } label: {
+            HStack {
+                Text(entry.name)
+                    .font(.system(size: 24, weight: .medium))
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Text("\(channelCount(entry.categories))")
+                    .font(.system(size: 19))
+                    .opacity(0.55)
+            }
+        }
+        .buttonStyle(TVRowButtonStyle(selected: entry.id == selected?.id))
+        .focused($focusedCategory, equals: entry.id)
     }
 
     // MARK: Mini player and programme
