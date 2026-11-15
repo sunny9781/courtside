@@ -156,7 +156,8 @@ struct DashboardView: View {
                                                     LiveGameCard(game: game, streams: model.streamCount(game.id), showLeague: true) {
                                                         onOpenGame(game)
                                                     }
-                                                    .frame(width: 310)
+                                                    .frame(width: cardWidth(for: model.games(for: sport), charWidth: 9.5,
+                                                                            fixed: 112, minimum: 290, maximum: 560))
                                                 }
                                             }
                                         }
@@ -169,7 +170,9 @@ struct DashboardView: View {
                     if !finals.isEmpty {
                         VStack(alignment: .leading, spacing: 14) {
                             SectionTitle(text: "Final scores")
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 260), spacing: 12)], spacing: 12) {
+                            let finalWidth = cardWidth(for: Array(finals.prefix(9)), charWidth: 8.5, fixed: 90, minimum: 240, maximum: 520)
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: finalWidth, maximum: finalWidth), spacing: 12, alignment: .top)],
+                                      alignment: .leading, spacing: 12) {
                                 ForEach(finals.prefix(9)) { game in
                                     FinalScoreCard(game: game) { onOpenGame(game) }
                                 }
@@ -372,7 +375,8 @@ struct FinalScoreCard: View {
             Text(team.shortName)
                 .font(.system(size: 14, weight: winner ? .bold : .regular))
                 .foregroundStyle(winner ? Theme.text : Theme.soft)
-                .lineLimit(1)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
             Spacer()
             Text(team.score)
                 .font(.system(size: 16, weight: winner ? .bold : .regular))

@@ -94,7 +94,9 @@ struct LeagueSection: View {
             let byStart: (Game, Game) -> Bool = { ($0.start ?? .distantFuture) < ($1.start ?? .distantFuture) }
             let cards = live.sorted(by: byStart) + upcoming.sorted(by: byStart)
                 + (showFinished ? finished.sorted(by: byStart) : [])
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 290), spacing: 16)], spacing: 16) {
+            let width = cardWidth(for: model.games(for: league.sport), charWidth: 9.5, fixed: 112, minimum: 260, maximum: 560)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: width, maximum: width), spacing: 16, alignment: .top)],
+                      alignment: .leading, spacing: 16) {
                 ForEach(cards) { game in
                     LiveGameCard(game: game, streams: model.streamCount(game.id)) { onOpen(game) }
                 }

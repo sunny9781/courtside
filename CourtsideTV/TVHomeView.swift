@@ -230,7 +230,11 @@ struct TVGamesPane: View {
                                 .font(.system(size: 30, weight: .bold))
                                 .foregroundStyle(Theme.text)
                         }
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 32, alignment: .top), count: 3),
+                        let width = cardWidth(for: section.league.map { model.games(for: $0.sport) }
+                                                ?? (section.id == "finals" ? section.games
+                                                    : model.games(for: Sport(rawValue: section.title) ?? .basketball)),
+                                              charWidth: 15.5, fixed: 130, minimum: 360, maximum: 900)
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: width, maximum: width), spacing: 32, alignment: .top)],
                                   alignment: .leading, spacing: 32) {
                             ForEach(section.games) { game in
                                 Button {

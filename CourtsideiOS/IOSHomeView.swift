@@ -182,7 +182,14 @@ struct IOSGamesList: View {
                         }
                         .padding(.horizontal)
 
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 12)], spacing: 12) {
+                        let width = cardWidth(for: section.league.map { model.games(for: $0.sport) }
+                                                ?? (section.id == "finals" ? section.games
+                                                    : model.games(for: Sport(rawValue: section.title) ?? .basketball)),
+                                              charWidth: 9.5, fixed: 90, minimum: 280, maximum: 560)
+                        LazyVGrid(columns: showsSportChips
+                                      ? [GridItem(.flexible(), spacing: 12)]
+                                      : [GridItem(.adaptive(minimum: width, maximum: width), spacing: 12, alignment: .top)],
+                                  alignment: .leading, spacing: 12) {
                             ForEach(section.games) { game in
                                 NavigationLink(value: game.id) {
                                     IOSGameCard(game: game, showLeague: nav.homeSelection == .liveNow)

@@ -36,6 +36,26 @@ func orderedSports(model: AppModel) -> [Sport] {
         .map(\.element)
 }
 
+/// How wide score cards need to be so every team name and score in these games fits on one line. Pass all of a
+/// sport's games so the sport's cards all share one width. `charWidth` is the average width of a letter in the
+/// card's team-name font; `fixed` covers the logo, padding and gaps.
+func cardWidth(for games: [Game], charWidth: Double, fixed: Double, minimum: Double, maximum: Double) -> Double {
+    var longest = 0
+    for g in games {
+        if g.isEvent && !g.hasSides {
+            longest = max(longest, min(g.eventTitle.count, 36))
+            continue
+        }
+        for t in [g.away, g.home] {
+            let name = (t.shortName.isEmpty ? t.name : t.shortName).count
+            // A long score sits under the name; a short one sits beside it.
+            longest = max(longest, t.hasLongScore ? max(name, t.score.count) : name + t.score.count + 2)
+        }
+        longest = max(longest, Int(Double(g.headerText.count + g.league.name.count) * 0.75))
+    }
+    return min(max(fixed + Double(longest) * charWidth, minimum), maximum)
+}
+
 extension Team {
     /// Scores that don't fit beside a name (cricket: "322/7 (83 ov)") go on their own line under it.
     var hasLongScore: Bool { score.count > 4 }
