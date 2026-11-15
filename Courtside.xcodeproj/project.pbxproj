@@ -9,12 +9,15 @@
 /* Begin PBXBuildFile section */
 		5149E61F30A8AD4C0043DA0E /* VLCKitSPM in Frameworks */ = {isa = PBXBuildFile; productRef = 5149E61E30A8AD4C0043DA0E /* VLCKitSPM */; };
 		C0A200000000000000000011 /* VLCKitSPM in Frameworks */ = {isa = PBXBuildFile; productRef = C0A200000000000000000012 /* VLCKitSPM */; };
+		C0A300000000000000000011 /* VLCKitSPM in Frameworks */ = {isa = PBXBuildFile; productRef = C0A300000000000000000012 /* VLCKitSPM */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		C0A100000000000000000001 /* Courtside.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Courtside.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C0A100000000000000000002 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		C0A200000000000000000002 /* CourtsideTV-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "CourtsideTV-Info.plist"; sourceTree = "<group>"; };
+		C0A300000000000000000002 /* CourtsideiOS-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "CourtsideiOS-Info.plist"; sourceTree = "<group>"; };
+		C0A300000000000000000001 /* CourtsideiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CourtsideiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C0A200000000000000000001 /* CourtsideTV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CourtsideTV.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -32,6 +35,11 @@
 		C0A200000000000000000003 /* CourtsideTV */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = CourtsideTV;
+			sourceTree = "<group>";
+		};
+		C0A300000000000000000003 /* CourtsideiOS */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = CourtsideiOS;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -53,6 +61,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C0A300000000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C0A300000000000000000011 /* VLCKitSPM in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -62,8 +78,10 @@
 				C0A100000000000000000003 /* Courtside */,
 				C0A100000000000000000013 /* Shared */,
 				C0A200000000000000000003 /* CourtsideTV */,
+				C0A300000000000000000003 /* CourtsideiOS */,
 				C0A100000000000000000002 /* Info.plist */,
 				C0A200000000000000000002 /* CourtsideTV-Info.plist */,
+				C0A300000000000000000002 /* CourtsideiOS-Info.plist */,
 				C0A100000000000000000006 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -73,6 +91,7 @@
 			children = (
 				C0A100000000000000000001 /* Courtside.app */,
 				C0A200000000000000000001 /* CourtsideTV.app */,
+				C0A300000000000000000001 /* CourtsideiOS.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -128,6 +147,30 @@
 			productReference = C0A200000000000000000001 /* CourtsideTV.app */;
 			productType = "com.apple.product-type.application";
 		};
+		C0A300000000000000000007 /* CourtsideiOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0A30000000000000000000E /* Build configuration list for PBXNativeTarget "CourtsideiOS" */;
+			buildPhases = (
+				C0A300000000000000000008 /* Sources */,
+				C0A300000000000000000004 /* Frameworks */,
+				C0A300000000000000000009 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C0A300000000000000000003 /* CourtsideiOS */,
+				C0A100000000000000000013 /* Shared */,
+			);
+			name = CourtsideiOS;
+			packageProductDependencies = (
+				C0A300000000000000000012 /* VLCKitSPM */,
+			);
+			productName = CourtsideiOS;
+			productReference = C0A300000000000000000001 /* CourtsideiOS.app */;
+			productType = "com.apple.product-type.application";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -142,6 +185,9 @@
 						CreatedOnToolsVersion = 16.0;
 					};
 					C0A200000000000000000007 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					C0A300000000000000000007 = {
 						CreatedOnToolsVersion = 16.0;
 					};
 				};
@@ -165,6 +211,7 @@
 			targets = (
 				C0A100000000000000000007 /* Courtside */,
 				C0A200000000000000000007 /* CourtsideTV */,
+				C0A300000000000000000007 /* CourtsideiOS */,
 			);
 		};
 /* End PBXProject section */
@@ -184,6 +231,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C0A300000000000000000009 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -195,6 +249,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		C0A200000000000000000008 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0A300000000000000000008 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -334,6 +395,70 @@
 			};
 			name = Release;
 		};
+		C0A30000000000000000000F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "CourtsideiOS-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Courtside;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.sunny9781.courtside.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C0A300000000000000000010 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "CourtsideiOS-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = Courtside;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIUserInterfaceStyle = Dark;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = ca.sunny9781.courtside.ios;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -364,6 +489,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		C0A30000000000000000000E /* Build configuration list for PBXNativeTarget "CourtsideiOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0A30000000000000000000F /* Debug */,
+				C0A300000000000000000010 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
@@ -384,6 +518,11 @@
 			productName = VLCKitSPM;
 		};
 		C0A200000000000000000012 /* VLCKitSPM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 5149E61D30A8AD4C0043DA0E /* XCRemoteSwiftPackageReference "vlckit-spm" */;
+			productName = VLCKitSPM;
+		};
+		C0A300000000000000000012 /* VLCKitSPM */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 5149E61D30A8AD4C0043DA0E /* XCRemoteSwiftPackageReference "vlckit-spm" */;
 			productName = VLCKitSPM;

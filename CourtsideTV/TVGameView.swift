@@ -119,7 +119,7 @@ struct TVGameView: View {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(spacing: 14) {
                     TVLeagueLogo(league: game.league, size: 40)
-                    Text(game.tvHeader)
+                    Text(game.headerText)
                         .font(.system(size: 24, weight: .bold))
                         .foregroundStyle(game.state == .live ? Theme.accent : Theme.soft)
                 }
@@ -176,7 +176,7 @@ struct TVGameView: View {
 
     private func details(_ game: Game) -> some View {
         var lines: [String] = []
-        if game.state == .upcoming { lines.append("Starts \(game.tvStart)") }
+        if game.state == .upcoming { lines.append("Starts \(game.startText)") }
         if !game.venue.isEmpty { lines.append(game.venue) }
         if !game.broadcasters.isEmpty { lines.append("On " + game.broadcasters.joined(separator: ", ")) }
         return Text(lines.joined(separator: "  ·  "))
