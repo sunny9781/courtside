@@ -62,7 +62,8 @@ enum Changelog {
 
     static let releases: [Release] = [
         Release(version: "1.23", date: "2026-11-15", time: "17:35", title: "Smooth back from full screen", changes: [
-            Change(text: "Full screen now opens within the same screen (like the Mac), so going back leaves the stream playing in the player at the top, with no black picture and no reconnect.", apps: tv)
+            Change(text: "Full screen now opens within the same screen (like the Mac), so going back leaves the stream playing in the player at the top, with no black picture and no reconnect.", apps: tv),
+            Change(text: "Home, game screens, EPG and Settings now line up with the player at the top and use the full width of the TV.", apps: tv)
         ]),
         Release(version: "1.22", date: "2026-11-15", time: "17:00", title: "Filter in the top bar", changes: [
             Change(text: "The filter box is in the top bar on the EPG and game screens, and stays put while you type.", apps: mac),

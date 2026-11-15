@@ -266,6 +266,8 @@ struct TVGameView: View {
             .padding(.vertical, 24)
             .padding(.horizontal, 36)
         }
+        // Use the full width: no Apple TV side insets on top of our own small margin.
+        .ignoresSafeArea(.container, edges: .horizontal)
         // Clipped, so streams scrolling up disappear under the edge instead of drawing over the player and score.
         // The padding inside leaves room for a focused stream to grow.
         .padding(.horizontal, -36)

@@ -209,6 +209,8 @@ struct TVLiveView: View {
             }
             .padding(.vertical, 20)
         }
+        // Use the full width: no Apple TV side insets on top of our own small margin.
+        .ignoresSafeArea(.container, edges: .horizontal)
         .onExitCommand(perform: path.isEmpty ? nil : { path.removeLast() })
     }
 
@@ -306,6 +308,8 @@ struct TVLiveView: View {
             }
             .padding(.vertical, 10)
         }
+        // Use the full width: no Apple TV side insets on top of our own small margin.
+        .ignoresSafeArea(.container, edges: .horizontal)
     }
 
     private var searching: Bool { search.trimmingCharacters(in: .whitespaces).count >= 2 }

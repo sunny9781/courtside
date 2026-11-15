@@ -114,6 +114,7 @@ struct TVShell: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea(.container, edges: .horizontal)
             .focusSection()
         }
         // Use almost the full width of the screen (the content keeps a small margin of its own).

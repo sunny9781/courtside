@@ -84,6 +84,8 @@ struct TVSportList: View {
             }
             .padding(.vertical, 20)
         }
+        // Use the full width: no Apple TV side insets on top of our own small margin.
+        .ignoresSafeArea(.container, edges: .horizontal)
         .onChange(of: focused.wrappedValue) {
             // Moving onto a row shows its games, the usual Apple TV sidebar behaviour. Coming back to the sport
             // whose league you picked on the right keeps that league.
@@ -245,6 +247,8 @@ struct TVGamesPane: View {
             .padding(.vertical, 24)
             .padding(.horizontal, 24)
         }
+        // Use the full width: no Apple TV side insets on top of our own small margin.
+        .ignoresSafeArea(.container, edges: .horizontal)
         .scrollClipDisabled()
     }
 
@@ -316,6 +320,8 @@ struct TVGamesPane: View {
             .padding(.vertical, 12)
             .padding(.horizontal, 8)
         }
+        // Use the full width: no Apple TV side insets on top of our own small margin.
+        .ignoresSafeArea(.container, edges: .horizontal)
         .scrollClipDisabled()
         .focusSection()
     }

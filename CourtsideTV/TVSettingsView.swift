@@ -77,6 +77,8 @@ struct TVSettingsView: View {
                 .padding(.vertical, 20)
                 .frame(maxWidth: 1000, alignment: .leading)
             }
+            // Use the full width: no Apple TV side insets on top of our own small margin.
+            .ignoresSafeArea(.container, edges: .horizontal)
             .focusSection()
         }
         .padding(.horizontal, TVLayout.margin)
