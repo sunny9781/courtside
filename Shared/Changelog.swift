@@ -55,6 +55,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(date: "2026-11-15", title: "French streams", changes: [
+            Change(text: "Game screen: French-language channels (\"CA | French\", RDS, TVA) and Spanish ones in US categories go in Foreign streams, grouped by language.", apps: all)
+        ]),
         Release(date: "2026-11-15", title: "Score in the player", changes: [
             Change(text: "Game screen: the score and game info sit in the player strip, to the right of the video, while one of the game's streams plays.", apps: mac),
             Change(text: "Player: resolution and frame rate are under the channel name instead of on the video.", apps: mac),
@@ -63,7 +66,7 @@ enum Changelog {
         Release(date: "2026-11-15", title: "Player strip everywhere and better updates", changes: [
             Change(text: "The player is the strip under the top bar on every screen, game screens included.", apps: mac),
             Change(text: "Drag the handle under the player to resize it again, on every screen (it stays 16:9).", apps: mac),
-            Change(text: "\"Foreign languages\" is now \"Foreign streams\"; Canadian channels (French ones included) are never in it.", apps: all),
+            Change(text: "\"Foreign languages\" is now \"Foreign streams\"; English-language Canadian channels are never in it.", apps: all),
             Change(text: "Updates: \"Restart to update\" always installs the newest version, even if several came out since you last restarted. The app checks every 15 minutes.", apps: mac)
         ]),
         Release(date: "2026-11-15", title: "Tidier game screen and player", changes: [

@@ -46,16 +46,41 @@ enum StreamSections {
     /// ("LATINO | ESPN" → Latino).
     static func country(of match: StreamMatch) -> String? {
         if let c = match.country { return c }
-        let found = CategoryGrouping.foreignCountry(match.channel.categoryName)
+        return CategoryGrouping.foreignCountry(match.channel.categoryName)
             ?? CategoryGrouping.foreignCountry(match.channel.name)
-        // French-Canadian channels (Quebec, RDS, TVA) are Canadian, never foreign.
-        if found == "Quebec" { return "Canada" }
-        return found
+    }
+
+    /// Words that mark a foreign-language channel even in an English-speaking country's category:
+    /// "CA | French", "US | Latino", "RDS", "TVA Sports".
+    private static let languageWords: [String: String] = [
+        "french": "French", "francais": "French", "français": "French", "quebec": "French", "québec": "French",
+        "rds": "French", "tva": "French",
+        "latino": "Latino", "latin": "Latino", "spanish": "Spanish", "espanol": "Spanish", "español": "Spanish",
+        "deportes": "Spanish", "portuguese": "Portuguese", "arabic": "Arabic", "hindi": "Hindi", "punjabi": "Punjabi",
+        "italian": "Italian", "german": "German"
+    ]
+
+    /// The language of a foreign-language channel, from its category or name.
+    static func language(of match: StreamMatch) -> String? {
+        for text in [match.channel.categoryName, match.channel.name] {
+            let words = text.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init)
+            if let hit = words.lazy.compactMap({ languageWords[$0] }).first { return hit }
+        }
+        return nil
     }
 
     static func isForeign(_ match: StreamMatch, home: [String]) -> Bool {
+        if language(of: match) != nil { return true }
         guard let c = country(of: match) else { return false }
         return !englishCountries.contains(c) && !home.contains(c)
+    }
+
+    /// The section a foreign stream goes in: its language ("French" for "CA | French") or its country.
+    private static func foreignGroup(_ match: StreamMatch) -> String {
+        if let lang = language(of: match), match.country == nil || englishCountries.contains(match.country ?? "") {
+            return lang
+        }
+        return country(of: match) ?? language(of: match) ?? "Other"
     }
 
     /// The league's own category: "NFL Sunday Ticket", "US | NBA League Pass", "NHL Center Ice".
@@ -99,7 +124,7 @@ enum StreamSections {
         take("Other") { _ in true }
 
         // Foreign-language countries, biggest first.
-        let byCountry = Dictionary(grouping: foreignList, by: { country(of: $0) ?? "Other" })
+        let byCountry = Dictionary(grouping: foreignList, by: { foreignGroup($0) })
         let foreign = byCountry.keys
             .sorted { ((byCountry[$0]?.count ?? 0), $1) > ((byCountry[$1]?.count ?? 0), $0) }
             .map { Section(name: $0, streams: byCountry[$0] ?? []) }
