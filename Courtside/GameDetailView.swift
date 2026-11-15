@@ -65,15 +65,16 @@ struct GameDetailView: View {
                     Color.clear.frame(height: 4)
                         .frame(maxWidth: .infinity)
                         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { listWidth = $0 }
-                    Field(placeholder: "Search streams", text: $search)
-                        .frame(width: 260)
-
+                    if listing.sections.isEmpty {
+                        Color.clear.frame(height: 36)   // room for the search box
+                    }
                     if listing.sections.isEmpty && listing.foreign.isEmpty {
                         Banner(text: search.isEmpty ? "No channels on your provider matched this game yet. If you know which channel has it, find it in the EPG."
                                                     : "No streams match \"\(search)\".",
                                icon: "magnifyingglass")
                     }
 
+                    // The search box sits at the right end of the first section's line.
                     ForEach(listing.sections) { sectionView($0) }
 
                     // Foreign-language countries, folded into one group.
@@ -98,6 +99,10 @@ struct GameDetailView: View {
                         }
                     }
                 }
+                // The search box sits at the right end of the first line (beside the first section's name).
+                .overlay(alignment: .topTrailing) {
+                    searchField.padding(.top, 2)
+                }
                 .padding(.horizontal, 32)
                 .padding(.bottom, 40)
             }
@@ -109,6 +114,11 @@ struct GameDetailView: View {
     }
 
     /// A section: its name (click to fold it) and its streams.
+    private var searchField: some View {
+        Field(placeholder: "Search streams", text: $search)
+            .frame(width: 240)
+    }
+
     private func sectionView(_ section: StreamSections.Section) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {

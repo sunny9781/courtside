@@ -79,12 +79,15 @@ struct IOSShell: View {
     @EnvironmentObject var nav: IOSNav
     @ObservedObject private var playback = IOSPlayback.shared
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
         VStack(spacing: 0) {
-            // The pinned player: only while something is playing, in the same spot on every tab.
-            if let item = model.pinned, model.nowPlaying == nil {
-                IOSPinnedPlayer(item: item)
+            // The pinned player: only while something is playing, in the same spot on every tab. On iPhone it's
+            // above the tabs; on iPad it sits inside each tab's content (see pinnedPlayerSlot), so it doesn't push
+            // the sidebar down.
+            if sizeClass != .regular, let item = model.pinned, model.nowPlaying == nil {
+                IOSPinnedPlayer(item: item, game: model.pinnedGame)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
             tabs
@@ -159,11 +162,34 @@ struct IOSShell: View {
                 .tabItem { Label("Home", systemImage: "house.fill") }
                 .tag(IOSTab.home)
             IOSEPGView()
+                .pinnedPlayerSlot(.epg)
                 .tabItem { Label("EPG", systemImage: "tv") }
                 .tag(IOSTab.epg)
             IOSSettingsView()
+                .pinnedPlayerSlot(.settings)
                 .tabItem { Label("Settings", systemImage: "slider.horizontal.3") }
                 .tag(IOSTab.settings)
         }
     }
+}
+
+/// iPad: the pinned player at the top of this tab's content, shown only on the tab you're on (one player at a time).
+private struct PinnedPlayerSlot: ViewModifier {
+    @EnvironmentObject var model: AppModel
+    @EnvironmentObject var nav: IOSNav
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    let tab: IOSTab
+
+    func body(content: Content) -> some View {
+        content.safeAreaInset(edge: .top, spacing: 0) {
+            if sizeClass == .regular, nav.tab == tab, let item = model.pinned, model.nowPlaying == nil {
+                IOSPinnedPlayer(item: item, game: model.pinnedGame)
+                    .transition(.opacity)
+            }
+        }
+    }
+}
+
+extension View {
+    func pinnedPlayerSlot(_ tab: IOSTab) -> some View { modifier(PinnedPlayerSlot(tab: tab)) }
 }

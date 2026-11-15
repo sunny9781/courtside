@@ -61,6 +61,13 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.18", date: "2026-11-15", time: "14:20", title: "More room for what matters", changes: [
+            Change(text: "EPG: the panel above the guide is gone; what's on now, what's next and \"All streams for this game\" are in the player strip, and the category's name sits at the left of the time row.", apps: mac),
+            Change(text: "Game screen: the search box is at the right end of the first section's line instead of its own row.", apps: mac),
+            Change(text: "EPG: the channel you're on is described in two short lines, so the channel list starts higher.", apps: tv),
+            Change(text: "Game screen: the score is in the player at the top while one of the game's streams plays, so the streams start higher.", apps: ios),
+            Change(text: "iPad: the player sits inside the page (on Home, in the right-hand column) instead of pushing the sidebar down.", apps: ios)
+        ]),
         Release(version: "1.17", date: "2026-11-15", time: "13:05", title: "Apple TV player strip and less repeated text", changes: [
             Change(text: "Home: the sport you picked on the left (or in the chips) isn't repeated as a big title above the games.", apps: all),
             Change(text: "One player strip under the top bar on every screen, like the Mac and iPhone: it keeps playing as you move around, shows the score beside the video for games, and never gets in the way of moving with the remote. Click the playing stream again for full screen; Play/Pause stops it.", apps: tv),

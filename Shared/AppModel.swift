@@ -32,6 +32,12 @@ final class AppModel: ObservableObject {
     /// Mac: the pinned player is showing in its own window.
     @Published var poppedOut = false
 
+    /// The game the pinned player's stream was started from, if any (its score shows beside the video).
+    var pinnedGame: Game? {
+        guard let item = pinned, let title = item.gameTitle else { return nil }
+        return games.first { $0.title == title && pinnedIsFrom(gameID: $0.id) }
+    }
+
     /// Whether the pinned player is playing one of this game's streams.
     func pinnedIsFrom(gameID: String) -> Bool {
         guard let id = pinned?.channel.id else { return false }

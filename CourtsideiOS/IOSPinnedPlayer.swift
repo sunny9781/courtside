@@ -14,6 +14,8 @@ struct IOSPinnedPlayer: View {
     @ObservedObject private var cast = CastManager.shared
     @State private var available: CGFloat = 360
     let item: NowPlaying
+    /// The game the stream belongs to: its score replaces the title, so the game screen doesn't need its own.
+    var game: Game? = nil
 
     /// Smallest size where the quality badges and buttons still fit on one line under the video.
     private var minWidth: CGFloat { min(available, 270) }
@@ -57,9 +59,41 @@ struct IOSPinnedPlayer: View {
     }
 
     private var titles: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(model.playerTitle(item)).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text).lineLimit(2)
+        VStack(alignment: .leading, spacing: 3) {
+            if let game {
+                scoreLine(game)
+            } else {
+                Text(model.playerTitle(item)).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text).lineLimit(2)
+            }
             Text(item.channel.name).font(.caption).foregroundStyle(Theme.muted).lineLimit(1)
+        }
+    }
+
+    /// "🏀 TOR 78  81 BOS 🏀 · Q3 4:12", or the event's name.
+    @ViewBuilder
+    private func scoreLine(_ game: Game) -> some View {
+        if game.isEvent && !game.hasSides {
+            Text(game.eventTitle).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text).lineLimit(1)
+        } else {
+            HStack(spacing: 6) {
+                IOSTeamLogo(team: game.away, size: 20)
+                Text(game.away.abbr).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
+                if game.state != .upcoming {
+                    Text(game.away.score).font(.subheadline.bold().monospacedDigit()).foregroundStyle(game.scoreColor(game.away))
+                    Text("–").foregroundStyle(Theme.muted)
+                    Text(game.home.score).font(.subheadline.bold().monospacedDigit()).foregroundStyle(game.scoreColor(game.home))
+                } else {
+                    Text("at").font(.caption).foregroundStyle(Theme.muted)
+                }
+                Text(game.home.abbr).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
+                IOSTeamLogo(team: game.home, size: 20)
+                Text("· \(game.statusText)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(game.state == .live ? Theme.accent : Theme.muted)
+                    .lineLimit(1)
+            }
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
         }
     }
 
@@ -127,7 +161,8 @@ struct IOSPinnedPlayer: View {
         HStack(spacing: 10) {
             Image(systemName: "speaker.wave.2.fill").foregroundStyle(Theme.accent)
             VStack(alignment: .leading, spacing: 1) {
-                Text(model.playerTitle(item)).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text).lineLimit(1)
+                Text(game.map { GameScoreText.slim($0) } ?? model.playerTitle(item))
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text).lineLimit(1)
                 Text(item.channel.name).font(.caption2).foregroundStyle(Theme.muted).lineLimit(1)
             }
             Spacer()
@@ -153,5 +188,14 @@ struct IOSPinnedPlayer: View {
                 .background(Circle().fill(Theme.raised))
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// One-line score text: "TOR 78 – 81 BOS · Q3 4:12".
+enum GameScoreText {
+    static func slim(_ game: Game) -> String {
+        if game.isEvent && !game.hasSides { return game.eventTitle }
+        if game.state == .upcoming { return "\(game.away.abbr) at \(game.home.abbr) · \(game.statusText)" }
+        return "\(game.away.abbr) \(game.away.score) – \(game.home.score) \(game.home.abbr) · \(game.statusText)"
     }
 }

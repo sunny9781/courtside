@@ -266,11 +266,27 @@ struct PinnedInfo: View {
                     if controller.frameRate > 0 { Badge(text: PlaybackController.fpsLabel(controller.frameRate)).fixedSize() }
                 }
             }
-            if let now = model.currentProgramme(item.channel), !now.title.isEmpty {
-                Text("On now: \(now.title)")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.soft)
-                    .lineLimit(2)
+            if item.gameTitle == nil, let now = model.currentProgramme(item.channel) {
+                if !now.title.isEmpty {
+                    Text("On now: \(now.title) · until \(now.end.formatted(date: .omitted, time: .shortened))")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.soft)
+                        .lineLimit(2)
+                }
+                if let next = model.guide[item.channel.epgID]?.first(where: { $0.start >= now.end }) {
+                    Text("Next: \(next.title) at \(next.start.formatted(date: .omitted, time: .shortened))")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1)
+                }
+                // A game on now: jump to all of its streams.
+                if let gameID = model.guideLinks[Matcher.linkKey(item.channel.epgID, now.start)] {
+                    Button("All streams for this game") {
+                        NotificationCenter.default.post(name: .openGame, object: gameID)
+                    }
+                    .buttonStyle(GhostButtonStyle())
+                    .padding(.top, 2)
+                }
             }
         }
         .padding(.top, 4)

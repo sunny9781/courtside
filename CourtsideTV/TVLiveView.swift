@@ -233,50 +233,43 @@ struct TVLiveView: View {
 
     // MARK: Mini player and programme
 
+    /// Two lines about the channel you're on: what's on now (and until when), then what's next. What's playing
+    /// is in the player strip at the top.
     private var infoPanel: some View {
-        HStack(alignment: .top, spacing: 36) {
-            VStack(alignment: .leading, spacing: 12) {
-                if let channel = infoChannel {
-                    Text(channel.name)
-                        .font(.system(size: 24, weight: .semibold))
-                        .foregroundStyle(Theme.soft)
+        VStack(alignment: .leading, spacing: 6) {
+            if let channel = infoChannel {
+                let now = model.currentProgramme(channel)
+                HStack(alignment: .firstTextBaseline, spacing: 16) {
+                    Text(now?.title.isEmpty == false ? now!.title : channel.name)
+                        .font(.system(size: 30, weight: .bold))
+                        .foregroundStyle(Theme.text)
                         .lineLimit(1)
-                    if let now = model.currentProgramme(channel) {
-                        Text(now.title)
-                            .font(.system(size: 38, weight: .bold))
-                            .foregroundStyle(Theme.text)
-                            .lineLimit(2)
+                    if let now {
                         Text("\(now.start.formatted(date: .omitted, time: .shortened)) – \(now.end.formatted(date: .omitted, time: .shortened))")
-                            .font(.system(size: 22))
-                            .foregroundStyle(Theme.muted)
-                        ProgressView(value: progress(now))
-                            .frame(maxWidth: 520)
-                        if let next = nextProgramme(channel, after: now) {
-                            Text("Next: \(next.title) at \(next.start.formatted(date: .omitted, time: .shortened))")
-                                .font(.system(size: 22))
-                                .foregroundStyle(Theme.muted)
-                                .lineLimit(1)
-                        }
-                    } else {
-                        Text("No guide information")
-                            .font(.system(size: 26))
+                            .font(.system(size: 21))
                             .foregroundStyle(Theme.muted)
                     }
-                    Text(channel.id == playingChannel?.id ? "Click again for full screen." : "Click to play it in the player at the top.")
-                        .font(.system(size: 19))
-                        .foregroundStyle(Theme.muted.opacity(0.8))
-                } else {
-                    Text("Pick a channel")
-                        .font(.system(size: 38, weight: .bold))
-                        .foregroundStyle(Theme.text)
-                    Text("Click a channel to play it in the player at the top. Click it again for full screen.")
-                        .font(.system(size: 22))
-                        .foregroundStyle(Theme.muted)
+                    Spacer(minLength: 0)
                 }
+                HStack(spacing: 16) {
+                    Text(channel.name).foregroundStyle(Theme.soft)
+                    if let now, let next = nextProgramme(channel, after: now) {
+                        Text("Next: \(next.title) at \(next.start.formatted(date: .omitted, time: .shortened))")
+                            .foregroundStyle(Theme.muted)
+                    }
+                    Spacer(minLength: 0)
+                    Text(channel.id == playingChannel?.id ? "Click again for full screen" : "Click to play")
+                        .foregroundStyle(Theme.muted.opacity(0.8))
+                }
+                .font(.system(size: 20))
+                .lineLimit(1)
+            } else {
+                Text("Click a channel to play it in the player at the top. Click it again for full screen.")
+                    .font(.system(size: 22))
+                    .foregroundStyle(Theme.muted)
             }
-            Spacer(minLength: 0)
         }
-        .frame(height: 200, alignment: .top)
+        .frame(height: 80, alignment: .top)
     }
 
     // MARK: Channels

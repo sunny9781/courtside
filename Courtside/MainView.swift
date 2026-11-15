@@ -58,6 +58,13 @@ struct ShellView: View {
         .task {
             await model.refresh()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .openGame)) { note in
+            guard let id = note.object as? String, let game = model.games.first(where: { $0.id == id }) else { return }
+            selectedSport = game.league.sport
+            selectedLeague = nil
+            route = .home
+            openGameID = id
+        }
     }
 
     /// The game the player's stream was started from, so its score stays in the player strip on every screen
@@ -300,4 +307,9 @@ struct TopTab: View {
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
     }
+}
+
+extension Notification.Name {
+    /// Open a game's screen (object: the game's id), e.g. from the player strip.
+    static let openGame = Notification.Name("openGame")
 }

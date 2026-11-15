@@ -35,14 +35,12 @@ struct GuideView: View {
             HStack(spacing: 0) {
                 categoryList
 
+                // What's playing (and what's next) is in the player strip at the top, so the guide starts right
+                // away; the category's name and channel count sit at the left of the time row.
                 VStack(alignment: .leading, spacing: 16) {
-                    infoPanel(selected, now: now)
-
                     if let status = model.guideStatus {
                         Banner(text: status, icon: "tablecells")
                     }
-
-                    listHeader(count: list.count)
 
                     if list.isEmpty {
                         Text(model.isLoading ? "Loading channels…" : (channelSearch.isEmpty ? "No channels here." : "No channels match."))
@@ -390,7 +388,7 @@ struct GuideView: View {
             let windowEnd = windowStart.addingTimeInterval(Double(area / slotWidth) * 1800)
 
             VStack(spacing: 6) {
-                timeHeader(column: column, area: area, windowStart: windowStart, now: now)
+                timeHeader(column: column, area: area, windowStart: windowStart, now: now, count: list.count)
 
                 ScrollViewReader { proxy in
                     ScrollView(.vertical) {
@@ -447,13 +445,18 @@ struct GuideView: View {
         return .handled
     }
 
-    private func timeHeader(column: CGFloat, area: CGFloat, windowStart: Date, now: Date) -> some View {
+    private func timeHeader(column: CGFloat, area: CGFloat, windowStart: Date, now: Date, count: Int) -> some View {
         HStack(spacing: 8) {
             HStack(spacing: 6) {
-                Text(now.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().hour().minute()))
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Theme.accent)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(currentTitle)
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Theme.text)
+                        .lineLimit(1)
+                    Text("\(count.formatted()) channels")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Theme.muted)
+                }
                 Spacer(minLength: 4)
                 RoundIconButton(symbol: "chevron.left", help: "Earlier (Left arrow)") { offset = max(offset - 1, -2) }
                 Button("Now") { offset = 0 }

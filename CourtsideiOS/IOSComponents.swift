@@ -142,8 +142,17 @@ struct IOSVideoSurface: UIViewRepresentable {
 
     func makeUIView(context: Context) -> UIView {
         // The video never takes taps, so tapping it shows the controls (and the resolution and frame rate).
+        // It sits in a container of its own: when it moves (full screen, another tab's player) the place it
+        // left can't pull it back out.
+        let container = UIView()
+        container.backgroundColor = .black
+        container.isUserInteractionEnabled = false
         view.isUserInteractionEnabled = false
-        return view
+        view.removeFromSuperview()
+        view.frame = container.bounds
+        view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        container.addSubview(view)
+        return container
     }
     func updateUIView(_ uiView: UIView, context: Context) {}
 }

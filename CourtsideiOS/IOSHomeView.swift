@@ -16,6 +16,7 @@ struct IOSHomeView: View {
                     IOSGamesList(showsSportChips: false)
                         .navigationDestination(for: String.self) { IOSGameView(gameID: $0) }
                 }
+                .pinnedPlayerSlot(.home)
             }
             .navigationSplitViewStyle(.balanced)
         } else {

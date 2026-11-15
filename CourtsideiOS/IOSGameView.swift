@@ -43,7 +43,8 @@ struct IOSGameView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    if let game { score(game) }
+                    // While one of this game's streams plays, the score is in the player at the top.
+                    if let game, !model.pinnedIsFrom(gameID: gameID) { score(game) }
 
                     HStack(spacing: 8) {
                         HStack(spacing: 6) {
