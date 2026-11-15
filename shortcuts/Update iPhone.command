@@ -1,8 +1,7 @@
 #!/bin/bash
-# Double-click to put the latest Courtside on your iPhone (run at least weekly).
-# The iPhone must be unlocked and on the same Wi-Fi (or plugged in), with Developer Mode on.
-DIR=~/projects/courtside-tv
-if cd "$DIR" && git fetch -q origin main && git checkout -q FETCH_HEAD && scripts/ios-update.sh; then
+# Double-click to put the latest Courtside on your iPhone (run at least weekly). iPhone unlocked, same Wi-Fi or plugged in, Developer Mode on.
+cd "$(dirname "$0")/.." || exit 1
+if git fetch -q origin main && git checkout -q FETCH_HEAD && scripts/ios-update.sh; then
   echo
   echo "Done. This window closes in 3 seconds."
   sleep 3
