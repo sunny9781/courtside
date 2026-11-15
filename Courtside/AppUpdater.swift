@@ -1,12 +1,13 @@
 import AppKit
 import Foundation
 
-/// Keeps the Mac app up to date from the public courtside-releases repo.
+/// Keeps the Mac app up to date from the courtside repo's releases.
 ///
-/// Every build publishes `mac/latest.json` there, e.g.
-///   { "build": 12, "version": "1.0.12", "url": "https://github.com/.../Courtside.zip", "notes": "..." }
-/// On launch (and every few hours) the app compares `build` with its own build number. When a newer one
-/// exists it downloads the zip in the background, then offers "Restart to update". Because the app downloads
+/// Every build publishes a release with Courtside.zip and latest.json, e.g.
+///   { "build": 12, "version": "1.18", "url": "https://github.com/.../Courtside.zip", "notes": "..." }
+/// On launch (and every 15 minutes) the app compares `build` with its own build number. When a newer one
+/// exists it downloads the zip in the background, then offers "Restart to update". If you just quit instead,
+/// it installs on the way out, so the next launch is the new version. Because the app downloads
 /// the file itself, macOS doesn't flag it, so there is no "Open Anyway" step after the first install.
 @MainActor
 final class AppUpdater: ObservableObject {
@@ -24,7 +25,9 @@ final class AppUpdater: ObservableObject {
     @Published private(set) var state: State = .idle
     @Published private(set) var lastChecked: Date?
 
-    private let feed = URL(string: "https://raw.githubusercontent.com/sunny9781/courtside-releases/main/mac/latest.json")!
+    /// The newest release's latest.json (GitHub redirects "latest" to the newest release).
+    private let feed = URL(string: "https://github.com/sunny9781/courtside/releases/latest/download/latest.json")!
+    private var installing = false
     private var stagedApp: URL?
     /// Build number of the downloaded update, so a newer one replaces it before you restart.
     private var stagedBuild = 0
@@ -51,6 +54,9 @@ final class AppUpdater: ObservableObject {
         guard timer == nil else { return }
         Task { await check() }
         // Every 15 minutes: a tiny file, and it means "Restart to update" always has the newest build.
+        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated { AppUpdater.shared.installOnQuit() }
+        }
         timer = Timer.scheduledTimer(withTimeInterval: 15 * 60, repeats: true) { _ in
             Task { @MainActor in await AppUpdater.shared.check() }
         }
@@ -130,26 +136,39 @@ final class AppUpdater: ObservableObject {
     }
 
     private func install() {
-        guard isReady, let stagedApp else { return }
+        guard startInstaller(reopen: true) else {
+            state = .failed("Couldn't install the update.")
+            return
+        }
+        NSApp.terminate(nil)
+    }
+
+    /// Quitting with an update downloaded: install it on the way out (without reopening).
+    func installOnQuit() {
+        _ = startInstaller(reopen: false)
+    }
+
+    /// Starts a tiny helper that waits for this app to quit, then swaps in the new copy (and opens it if asked).
+    private func startInstaller(reopen: Bool) -> Bool {
+        guard isReady, !installing, let stagedApp else { return false }
         let target = installLocation.path
         let pid = ProcessInfo.processInfo.processIdentifier
-
-        // A tiny helper that waits for this app to quit before replacing it.
         let script = """
         while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done
         rm -rf "\(target)"
         /usr/bin/ditto "\(stagedApp.path)" "\(target)"
         /usr/bin/xattr -dr com.apple.quarantine "\(target)" 2>/dev/null
-        /usr/bin/open "\(target)"
+        \(reopen ? "/usr/bin/open \"\(target)\"" : "true")
         """
         let helper = Process()
         helper.executableURL = URL(fileURLWithPath: "/bin/sh")
         helper.arguments = ["-c", script]
         do {
             try helper.run()
-            NSApp.terminate(nil)
+            installing = true
+            return true
         } catch {
-            state = .failed("Couldn't install the update.")
+            return false
         }
     }
 

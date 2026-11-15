@@ -61,6 +61,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.19", date: "2026-11-15", time: "15:35", title: "Updates from one place", changes: [
+            Change(text: "Updates now come from the main Courtside page on GitHub.", apps: mac),
+            Change(text: "If an update has downloaded and you just quit, it installs on the way out, so the next launch is the new version.", apps: mac)
+        ]),
         Release(version: "1.18", date: "2026-11-15", time: "14:20", title: "More room for what matters", changes: [
             Change(text: "EPG: the panel above the guide is gone; what's on now, what's next and \"All streams for this game\" are in the player strip, and the category's name sits at the left of the time row.", apps: mac),
             Change(text: "Game screen: the search box is at the right end of the first section's line instead of its own row.", apps: mac),

@@ -1,7 +1,7 @@
 name: Mac app
 
-# Every push to main builds the Mac app on GitHub's Macs and publishes it to sunny9781/courtside-releases,
-# where the installed apps pick it up automatically. Nothing runs on Sunny's Mac.
+# Every push to main builds the Mac app on GitHub's Macs and publishes it as a release of this repo, where the
+# installed apps pick it up automatically. Nothing runs on Sunny's Mac.
 on:
   push:
     branches: [main]
@@ -11,6 +11,9 @@ on:
 concurrency:
   group: mac-build
   cancel-in-progress: true
+
+permissions:
+  contents: write   # publish releases on this repo
 
 jobs:
   build:
@@ -51,6 +54,8 @@ jobs:
 
       - name: Publish
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          # Only while courtside-releases still exists: keeps copies installed before the move updating.
+          LEGACY_TOKEN: ${{ secrets.RELEASES_TOKEN }}
           NOTES: ${{ github.event.head_commit.message }}
         run: scripts/publish-mac.sh Courtside.zip
