@@ -216,6 +216,13 @@ struct StreamMatch: Identifiable, Hashable {
     /// Kept behind "Show more" on the game screen.
     var hidden: Bool { local || likelyOnly }
 
+    /// Pay-per-view channel or category ("PPV", "Pay Per View"), listed right after 4K for fight cards.
+    var isPPV: Bool {
+        let text = (channel.name + " " + channel.categoryName).lowercased()
+        return text.range(of: #"\bppv\b"#, options: .regularExpression) != nil || text.contains("pay per view")
+            || text.contains("pay-per-view")
+    }
+
     var id: Int { channel.id }
 }
 

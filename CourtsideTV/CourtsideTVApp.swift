@@ -26,9 +26,9 @@ enum TVTab: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var symbol: String {
+    var symbol: String? {
         switch self {
-        case .home: return "basketball.fill"
+        case .home: return nil
         case .epg: return "tv"
         case .settings: return "slider.horizontal.3"
         }
@@ -142,7 +142,11 @@ struct TVTopBar: View {
                     Button {
                         NotificationCenter.default.post(name: .tvSwitchTab, object: tab)
                     } label: {
-                        Label(tab.rawValue, systemImage: tab.symbol)
+                        if let symbol = tab.symbol {
+                            Label(tab.rawValue, systemImage: symbol)
+                        } else {
+                            Text(tab.rawValue)
+                        }
                     }
                     .buttonStyle(TVTabButtonStyle(selected: nav.tab == tab))
                 }
@@ -168,9 +172,14 @@ struct TVTopBar: View {
             .font(.system(size: 22))
             .foregroundStyle(Theme.muted)
         } else if let saved = model.savedAt {
-            Label("Updated \(saved.formatted(date: .omitted, time: .shortened))", systemImage: "arrow.clockwise")
-                .font(.system(size: 22))
-                .foregroundStyle(Theme.muted)
+            // Like the Mac: "Updated 8:15 PM" is itself the refresh button.
+            Button {
+                Task { await model.refresh(force: true) }
+            } label: {
+                Label("Updated \(saved.formatted(date: .omitted, time: .shortened))", systemImage: "arrow.clockwise")
+                    .font(.system(size: 22, weight: .medium))
+            }
+            .buttonStyle(TVQuietButtonStyle())
         }
     }
 }

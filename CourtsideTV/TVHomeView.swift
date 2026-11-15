@@ -224,9 +224,12 @@ struct TVGamesPane: View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 40) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(title)
-                        .font(.system(size: 48, weight: .bold))
-                        .foregroundStyle(Theme.text)
+                    // "Live Now" is already highlighted on the left, so it isn't repeated here.
+                    if nav.homeSelection != .liveNow {
+                        Text(title)
+                            .font(.system(size: 48, weight: .bold))
+                            .foregroundStyle(Theme.text)
+                    }
                     Text(subtitle)
                         .font(.system(size: 22))
                         .foregroundStyle(Theme.muted)

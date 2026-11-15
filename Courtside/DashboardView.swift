@@ -118,14 +118,8 @@ struct DashboardView: View {
                         Banner(text: error)
                     }
 
-                    // Live now
+                    // Live now (no heading: "Live Now" is already selected on the left)
                     VStack(alignment: .leading, spacing: 14) {
-                        HStack(spacing: 10) {
-                            if !live.isEmpty {
-                                Circle().fill(Theme.accent).frame(width: 9, height: 9)
-                            }
-                            SectionTitle(text: "Live now")
-                        }
                         if live.isEmpty && soon.isEmpty {
                             Banner(text: nextUpText(shown.first { $0.state == .upcoming }), icon: "clock")
                         } else {

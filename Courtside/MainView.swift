@@ -122,7 +122,7 @@ struct TopBar: View {
         ZStack {
             // Tabs in the middle of the bar.
             HStack(spacing: 10) {
-                TopTab(title: "Home", symbol: "basketball.fill", selected: onHome) { go(.home) }
+                TopTab(title: "Home", symbol: nil, selected: onHome) { go(.home) }
                 TopTab(title: "EPG", symbol: "tv", selected: route == .guide) { go(.guide) }
                 TopTab(title: "Settings", symbol: "slider.horizontal.3", selected: route == .settings) { go(.settings) }
             }
@@ -259,7 +259,7 @@ struct UpdatedButton: View {
 
 struct TopTab: View {
     let title: String
-    let symbol: String
+    let symbol: String?
     let selected: Bool
     let action: () -> Void
     @State private var hovering = false
@@ -267,9 +267,11 @@ struct TopTab: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: symbol)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(selected ? Theme.accent : Theme.soft)
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(selected ? Theme.accent : Theme.soft)
+                }
                 Text(title)
                     .font(.system(size: 17, weight: selected ? .bold : .medium))
                     .foregroundStyle(selected ? Theme.text : Theme.soft)

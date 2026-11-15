@@ -35,9 +35,13 @@ struct TVGameView: View {
     /// Same order as the Mac: 4K, then countries (best first), "Other" last, then the extras when shown.
     private var sections: [StreamSection] {
         let uhd = mainStreams.filter { $0.qualityRank == 4 }
+        // Fight cards: pay-per-view streams come right after 4K.
+        let fight = game?.league.sport == .fighting
+        let ppv = fight ? mainStreams.filter { $0.qualityRank != 4 && $0.isPPV } : []
+        let ppvIDs = Set(ppv.map(\.id))
         var order: [String] = []
         var groups: [String: [StreamMatch]] = [:]
-        for match in mainStreams where match.qualityRank != 4 {
+        for match in mainStreams where match.qualityRank != 4 && !ppvIDs.contains(match.id) {
             let name = match.country ?? "Other"
             if groups[name] == nil { order.append(name) }
             groups[name, default: []].append(match)
@@ -46,6 +50,7 @@ struct TVGameView: View {
             order.append(order.remove(at: i))
         }
         var out = (uhd.isEmpty ? [] : [StreamSection(name: "4K", streams: uhd)])
+            + (ppv.isEmpty ? [] : [StreamSection(name: "PPV", streams: ppv)])
             + order.map { StreamSection(name: $0, streams: groups[$0] ?? []) }
         if showLocal {
             let mainIDs = Set(mainStreams.map(\.id))

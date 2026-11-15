@@ -99,6 +99,28 @@ struct TVPillButtonStyle: ButtonStyle {
     }
 }
 
+/// Text-only button that lights up when focused ("Updated 8:15 PM" in the top bar).
+struct TVQuietButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Quiet(configuration: configuration)
+    }
+
+    private struct Quiet: View {
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.isFocused) private var focused
+
+        var body: some View {
+            configuration.label
+                .padding(.horizontal, 22)
+                .frame(height: 56)
+                .foregroundStyle(focused ? Theme.bg : Theme.muted)
+                .background(Capsule().fill(focused ? Theme.text : Color.clear))
+                .scaleEffect(focused ? 1.05 : 1)
+                .animation(.easeOut(duration: 0.15), value: focused)
+        }
+    }
+}
+
 // MARK: Small pieces
 
 /// "1/2" connections in use on the IPTV account. Orange at the limit.

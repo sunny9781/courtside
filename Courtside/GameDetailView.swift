@@ -33,7 +33,10 @@ struct GameDetailView: View {
     private var sections: [CountrySection] {
         let all = mainStreams
         let uhd = all.filter { $0.qualityRank == 4 }
-        let list = all.filter { $0.qualityRank != 4 }
+        // Fight cards: pay-per-view streams come right after 4K.
+        let ppv = game.league.sport == .fighting ? all.filter { $0.qualityRank != 4 && $0.isPPV } : []
+        let ppvIDs = Set(ppv.map(\.id))
+        let list = all.filter { $0.qualityRank != 4 && !ppvIDs.contains($0.id) }
         var order: [String] = []
         var groups: [String: [StreamMatch]] = [:]
         for match in list {
@@ -45,7 +48,8 @@ struct GameDetailView: View {
             order.append(order.remove(at: i))
         }
         let byCountry = order.map { CountrySection(name: $0, streams: groups[$0] ?? []) }
-        let main = (uhd.isEmpty ? [] : [CountrySection(name: "4K", streams: uhd)]) + byCountry
+        let main = (uhd.isEmpty ? [] : [CountrySection(name: "4K", streams: uhd)])
+            + (ppv.isEmpty ? [] : [CountrySection(name: "PPV", streams: ppv)]) + byCountry
         // The extras (local stations, "usually on" guesses) get their own section at the end.
         let mainIDs = Set(mainStreams.map(\.id))
         let extras = allStreams.filter { !mainIDs.contains($0.id) }

@@ -6,6 +6,7 @@ import SwiftUI
 struct TVLiveView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.guideCategory) private var selectedID = ""
+    @AppStorage(Prefs.guideGrouped) private var grouped = true
     @State private var focusedChannelID: Int?
     @FocusState private var focusedCategory: String?
     @FocusState private var focusedChannel: Int?
@@ -24,7 +25,12 @@ struct TVLiveView: View {
 
     /// The category tree flattened into headed lists: "Sports" › "NBA", "Country" › "Foreign › Spain"…
     private var groups: [CategorySection] {
-        model.categoryTree.map { node in
+        guard grouped else {
+            // Plain A–Z list of your provider's categories (numbers first), like the Mac with grouping off.
+            let sorted = model.categories.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+            return [CategorySection(id: "all", name: "", entries: sorted.map { Entry(id: $0.id, name: $0.name, categories: [$0]) })]
+        }
+        return model.categoryTree.map { node in
             if node.isGroup {
                 return CategorySection(id: node.id, name: node.name, entries: leaves(node.children, prefix: ""))
             }
@@ -104,6 +110,23 @@ struct TVLiveView: View {
     private var categoryList: some View {
         ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: 4) {
+                Button {
+                    grouped.toggle()
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: "square.stack.3d.up")
+                            .font(.system(size: 22))
+                        Text("Group similar categories")
+                            .font(.system(size: 22, weight: .medium))
+                        Spacer()
+                        Text(grouped ? "On" : "Off")
+                            .font(.system(size: 21, weight: .semibold))
+                            .opacity(0.75)
+                    }
+                }
+                .buttonStyle(TVRowButtonStyle())
+                .padding(.bottom, 6)
+
                 ForEach(groups) { group in
                     if !group.name.isEmpty {
                         Text(group.name.uppercased())
