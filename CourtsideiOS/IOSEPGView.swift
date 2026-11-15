@@ -52,11 +52,29 @@ struct IOSEPGView: View {
     /// What's in the pinned player.
     private var playing: Channel? { model.pinned?.channel }
 
-    // MARK: Layout
-
-    var body: some View {
-        VStack(spacing: 0) {
+    /// At the bottom, in easy reach of the right thumb: "back" (when you've opened a group), then Group and the
+    /// filter box, with the filter on the right.
+    private var bottomControls: some View {
+        VStack(spacing: 8) {
+            if !path.isEmpty {
+                Button {
+                    path.removeLast()
+                    search = ""
+                } label: {
+                    HStack(spacing: 6) {
+                        Spacer()
+                        Text(breadcrumb).font(.subheadline.weight(.semibold)).lineLimit(1)
+                        Image(systemName: "arrow.uturn.left").font(.subheadline.weight(.semibold))
+                    }
+                    .foregroundStyle(Theme.accent)
+                    .padding(.horizontal)
+                    .frame(minHeight: 32)
+                }
+            }
             HStack(spacing: 10) {
+                IOSChip(selected: grouped, action: { grouped.toggle(); path = [] }) {
+                    Label("Group", systemImage: "square.stack.3d.up")
+                }
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass").foregroundStyle(Theme.muted)
                     TextField("Filter", text: $search)
@@ -69,32 +87,19 @@ struct IOSEPGView: View {
                     }
                 }
                 .padding(.horizontal, 12)
-                .frame(height: 38)
+                .frame(height: 40)
                 .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
-
-                IOSChip(selected: grouped, action: { grouped.toggle(); path = [] }) {
-                    Label("Group", systemImage: "square.stack.3d.up")
-                }
             }
             .padding(.horizontal)
-            .padding(.vertical, 10)
+        }
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial)
+    }
 
-            if !path.isEmpty {
-                Button {
-                    path.removeLast()
-                    search = ""
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "chevron.left").font(.subheadline.weight(.semibold))
-                        Text(breadcrumb).font(.subheadline.weight(.semibold)).lineLimit(1)
-                        Spacer()
-                    }
-                    .foregroundStyle(Theme.accent)
-                    .padding(.horizontal)
-                    .padding(.bottom, 6)
-                }
-            }
+    // MARK: Layout
 
+    var body: some View {
+        VStack(spacing: 0) {
             if model.channels.isEmpty {
                 Spacer()
                 Text(model.downloadingChannels ? "Downloading channels…" : (model.errorMessage ?? "No channels yet."))
@@ -138,6 +143,7 @@ struct IOSEPGView: View {
                 }
             }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) { bottomControls }
         .background(Theme.bg)
         .task(id: "\(search)|\(grouped)") {
             // A moment after typing stops, search every category and channel.

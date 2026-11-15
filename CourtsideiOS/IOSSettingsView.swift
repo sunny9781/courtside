@@ -14,8 +14,8 @@ struct IOSSettingsView: View {
     @AppStorage(Prefs.refreshHours) private var refreshHours = 6
     @AppStorage(Prefs.hideAdult) private var hideAdult = true
     @AppStorage(Prefs.guideGrouped) private var grouped = true
-    @State private var openReleases: Set<String> = []
-    @State private var closedLatest = false
+    /// Updates open in What's new: only the newest to start with.
+    @State private var openReleases: Set<String> = Set(Changelog.forThisApp.prefix(1).map(\.id))
     @State private var confirmSignOut = false
 
     var body: some View {
@@ -26,7 +26,10 @@ struct IOSSettingsView: View {
                     LabeledContent("Status", value: model.account?.status ?? "–")
                     LabeledContent("Expires", value: model.account?.expires?.formatted(date: .long, time: .omitted) ?? "No expiry date")
                     LabeledContent("Connections", value: connections)
-                    Button("Sign out", role: .destructive) { confirmSignOut = true }
+                    HStack {
+                        Spacer()
+                        Button("Sign out", role: .destructive) { confirmSignOut = true }
+                    }
                 }
 
                 Section {
@@ -95,9 +98,8 @@ struct IOSSettingsView: View {
                 Section("What's new") {
                     ForEach(Array(Changelog.forThisApp.enumerated()), id: \.element.id) { index, release in
                         DisclosureGroup(isExpanded: Binding(
-                            get: { openReleases.contains(release.id) || (index == 0 && !closedLatest) },
+                            get: { openReleases.contains(release.id) },
                             set: { isOpen in
-                                if index == 0 { closedLatest = !isOpen }
                                 if isOpen { openReleases.insert(release.id) } else { openReleases.remove(release.id) }
                             })) {
                             ForEach(release.changes, id: \.self) { change in

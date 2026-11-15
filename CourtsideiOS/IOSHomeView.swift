@@ -151,8 +151,8 @@ struct IOSGamesList: View {
         ScrollView {
             // "Updated" lives in Settings; pull down to refresh.
             VStack(alignment: .leading, spacing: 22) {
-                if showsSportChips { sportChips }
-                if let sport = nav.selectedSport, model.leagues(for: sport).count > 1 { leagueChips(sport) }
+                // iPhone: sports and leagues are at the bottom, in easy reach of the thumb. iPad: leagues stay here.
+                if !showsSportChips, let sport = nav.selectedSport, model.leagues(for: sport).count > 1 { leagueChips(sport) }
 
                 if let error = model.errorMessage {
                     Label(error, systemImage: "exclamationmark.triangle")
@@ -206,6 +206,9 @@ struct IOSGamesList: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(showsSportChips ? .hidden : .automatic, for: .navigationBar)
         .refreshable { await model.refresh(force: true) }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if showsSportChips { bottomBar }
+        }
     }
 
     /// When channels were last downloaded (tap to refresh), on the right.
@@ -230,6 +233,94 @@ struct IOSGamesList: View {
             }
         }
         .padding(.horizontal)
+    }
+
+    // MARK: iPhone: controls at the bottom, laid out for the right thumb
+
+    @State private var barWidth: CGFloat = 390
+
+    /// Leagues (when the sport has more than one) above the sports, both starting from the right edge: the most
+    /// used (Live Now, "All") sit nearest the thumb, the rest further left.
+    private var bottomBar: some View {
+        VStack(spacing: 8) {
+            if let sport = nav.selectedSport, model.leagues(for: sport).count > 1 {
+                trailingRow { leagueItems(sport) }
+            }
+            trailingRow { sportItems }
+        }
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { barWidth = $0 }
+    }
+
+    /// A row that starts at the right edge and scrolls left if it doesn't fit.
+    private func trailingRow<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) { content() }
+                .padding(.horizontal)
+                .frame(minWidth: barWidth, alignment: .trailing)
+        }
+        .defaultScrollAnchor(.trailing)
+    }
+
+    /// Right to left: Live Now, then favourites and sports with live games, then the rest with games today.
+    /// Sports with no games today are left out (unless they're a favourite or picked).
+    @ViewBuilder
+    private var sportItems: some View {
+        let favs = Set(favoriteSports.split(separator: ",").map(String.init))
+        let shown = sports.filter { !model.games(for: $0).isEmpty || nav.selectedSport == $0 || favs.contains($0.rawValue) }
+        ForEach(shown.reversed()) { sport in
+            let games = model.games(for: sport)
+            let liveCount = games.filter { $0.state == .live }.count
+            IOSChip(selected: nav.selectedSport == sport, action: { nav.homeSelection = .sport(sport) }) {
+                HStack(spacing: 6) {
+                    Image(systemName: sport.symbol)
+                    if liveCount > 0 {
+                        IOSBadge(text: "\(liveCount)", fill: Theme.accent, color: Theme.onAccent)
+                    } else if !games.isEmpty {
+                        Text("\(games.count)").font(.caption.weight(.semibold)).opacity(0.6)
+                    }
+                }
+                .frame(minHeight: 30)
+            }
+            .accessibilityLabel(sport.rawValue)
+        }
+        let live = model.games.filter { $0.state == .live && sports.contains($0.league.sport) }.count
+        IOSChip(selected: nav.homeSelection == .liveNow, action: { nav.homeSelection = .liveNow }) {
+            HStack(spacing: 6) {
+                Image(systemName: "dot.radiowaves.left.and.right")
+                if live > 0 { IOSBadge(text: "\(live)", fill: Theme.accent, color: Theme.onAccent) }
+            }
+            .frame(minHeight: 30)
+        }
+        .accessibilityLabel("Live Now")
+    }
+
+    /// Right to left: All, then leagues with live games, then leagues with games, then the rest.
+    @ViewBuilder
+    private func leagueItems(_ sport: Sport) -> some View {
+        let leagues = model.leagues(for: sport)
+        let ranks: [String: Int] = Dictionary(uniqueKeysWithValues: leagues.map { league in
+            let games = model.games.filter { $0.league.id == league.id }
+            return (league.id, games.contains(where: { $0.state == .live }) ? 0 : (games.isEmpty ? 2 : 1))
+        })
+        let ordered = leagues.enumerated()
+            .sorted { ((ranks[$0.element.id] ?? 2), $0.offset) < ((ranks[$1.element.id] ?? 2), $1.offset) }
+            .map(\.element)
+        ForEach(ordered.reversed()) { league in
+            let count = model.games.filter { $0.league.id == league.id }.count
+            IOSChip(selected: nav.homeSelection == .league(league.id), action: { nav.homeSelection = .league(league.id) }) {
+                HStack(spacing: 6) {
+                    IOSLeagueLogo(league: league, size: 18)
+                    Text(league.name)
+                    if count > 0 { Text("\(count)").opacity(0.6) }
+                }
+            }
+            .opacity(count == 0 ? 0.5 : 1)
+        }
+        IOSChip(selected: nav.homeSelection == .sport(sport), action: { nav.homeSelection = .sport(sport) }) {
+            Text("All")
+        }
     }
 
     private var sportChips: some View {

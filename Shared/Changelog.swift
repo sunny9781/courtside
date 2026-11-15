@@ -61,6 +61,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.29", date: "2026-11-15", time: "19:10", title: "Controls in thumb reach", changes: [
+            Change(text: "Home: sports and leagues are at the bottom, above the tabs, starting from the right edge (Live Now and \"All\" nearest your thumb). Sports with no games today are left out.", apps: ios),
+            Change(text: "EPG: the filter box, Group and the way back out of a group are at the bottom too.", apps: ios),
+            Change(text: "Settings: Sign out is on the right, and What's new opens with only the latest update expanded.", apps: ios)
+        ]),
         Release(version: "1.28", date: "2026-11-15", time: "18:55", title: "No repeated score", changes: [
             Change(text: "The score is no longer shown beside the video or on the game screen while one of the game's streams plays: the broadcast already shows it. The game screen still shows the score when nothing from that game is playing.", apps: all)
         ]),
