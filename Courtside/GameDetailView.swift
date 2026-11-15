@@ -20,19 +20,15 @@ struct GameDetailView: View {
     /// 4K, PPV for fights, the league's own channels, home-country broadcasters, other countries (see
     /// StreamSections), filtered by the search field and the foreign-language toggle.
     private var listing: StreamSections.Result {
-        StreamSections.build(allStreams, league: game.league, showExtras: showLocal, showForeign: showForeign, search: search)
+        StreamSections.build(allStreams, league: game.league, search: search)
     }
 
     private var sections: [StreamSections.Section] { listing.sections }
 
-    private var localCount: Int {
-        let main = allStreams.filter { !$0.hidden }
-        return main.isEmpty ? 0 : allStreams.count - main.count
-    }
-
-    /// What's listed, in on-screen order, which is also what up/down flips through.
+    /// Everything showing, in on-screen order: what up/down flips through while watching.
     private var streams: [StreamMatch] {
-        sections.flatMap(\.streams)
+        sections.flatMap(\.streams) + (showForeign ? listing.foreign.flatMap(\.streams) : [])
+            + (showLocal ? listing.extras : [])
     }
 
     private var title: String { game.title }
@@ -65,96 +61,41 @@ struct GameDetailView: View {
             .padding(.bottom, 16)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 16) {
                     Color.clear.frame(height: 0)
                         .frame(maxWidth: .infinity)
                         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { listWidth = $0 }
-                    HStack(spacing: 12) {
-                        Field(placeholder: "Search streams", text: $search)
-                            .frame(width: 260)
-                        Toggle("Foreign languages", isOn: $showForeign)
-                            .toggleStyle(.switch)
-                            .controlSize(.small)
-                            .foregroundStyle(Theme.soft)
-                            .help("Show Spanish, Latino, French and other foreign-language streams")
-                        Spacer()
-                        Text(listing.streams.isEmpty ? "None found" : "\(listing.streams.count) streams")
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.muted)
-                        if localCount > 0 {
-                            Button(showLocal ? "Hide \(localCount) extra" : "+ \(localCount) local and likely") {
-                                showLocal.toggle()
-                            }
-                            .buttonStyle(GhostButtonStyle())
-                            .help("Local stations and channels that usually carry this league, kept separate at the bottom")
-                        }
-                    }
-                    if listing.hiddenForeign > 0 {
-                        Button("\(listing.hiddenForeign) foreign-language streams hidden · Show them") { showForeign = true }
-                            .buttonStyle(.plain)
-                            .font(.system(size: 12))
-                            .foregroundStyle(Theme.accent)
-                    }
+                    Field(placeholder: "Search streams", text: $search)
+                        .frame(width: 260)
 
-                    if streams.isEmpty {
+                    if listing.sections.isEmpty && listing.foreign.isEmpty {
                         Banner(text: search.isEmpty ? "No channels on your provider matched this game yet. If you know which channel has it, find it in the EPG."
                                                     : "No streams match \"\(search)\".",
                                icon: "magnifyingglass")
                     }
 
-                    VStack(alignment: .leading, spacing: 16) {
-                        ForEach(sections) { section in
-                            VStack(alignment: .leading, spacing: 8) {
-                                Button {
-                                    withAnimation(.easeOut(duration: 0.15)) {
-                                        if folded.contains(section.name) { folded.remove(section.name) } else { folded.insert(section.name) }
-                                    }
-                                } label: {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "chevron.right")
-                                            .font(.system(size: 9, weight: .bold))
-                                            .rotationEffect(.degrees(folded.contains(section.name) ? 0 : 90))
-                                        Text(section.name.uppercased())
-                                            .font(.system(size: 12, weight: .bold))
-                                            .foregroundStyle(Theme.soft)
-                                        Text("\(section.streams.count)")
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(Theme.muted)
-                                    }
-                                    .foregroundStyle(Theme.muted)
-                                    .padding(.leading, 4)
-                                    .contentShape(Rectangle())
-                                }
-                                .buttonStyle(.plain)
-                                if !folded.contains(section.name) {
-                                // Not lazy: a lazy grid guesses row heights as cards wrap, which made the page scroll
-                                // on past the last stream. A game only has a few dozen streams.
-                                let columns = max(1, Int((listWidth + 10) / 410))
-                                Grid(horizontalSpacing: 10, verticalSpacing: 10) {
-                                    ForEach(Array(stride(from: 0, to: section.streams.count, by: columns)), id: \.self) { start in
-                                        GridRow(alignment: .top) {
-                                            ForEach(start..<min(start + columns, section.streams.count), id: \.self) { i in
-                                                let match = section.streams[i]
-                                                StreamRow(match: match, previewing: match.channel.id == previewChannel?.id,
-                                                          onSelect: { preview(match.channel) },
-                                                          onWatch: { watch(match.channel) })
-                                                    .frame(maxWidth: .infinity)
-                                            }
-                                            ForEach(0..<(columns - min(columns, section.streams.count - start)), id: \.self) { _ in
-                                                Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
-                                            }
-                                        }
-                                    }
-                                }
-                                }
-                            }
+                    ForEach(listing.sections) { sectionView($0) }
+
+                    // Foreign-language countries, folded into one group.
+                    if !listing.foreign.isEmpty {
+                        groupHeader("Foreign languages", count: listing.foreignCount, open: showForeign) {
+                            showForeign.toggle()
+                        }
+                        if showForeign {
+                            ForEach(listing.foreign) { sectionView($0) }
+                                .padding(.leading, 18)
                         }
                     }
 
-                    if showLocal && localCount > 0 {
-                        Button("Hide local stations and likely channels") { showLocal = false }
-                            .buttonStyle(GhostButtonStyle())
-                            .padding(.top, 4)
+                    // Local stations and "usually on" guesses, at the very bottom.
+                    if !listing.extras.isEmpty {
+                        groupHeader("Local stations and likely channels", count: listing.extras.count, open: showLocal) {
+                            showLocal.toggle()
+                        }
+                        if showLocal {
+                            grid(listing.extras)
+                                .padding(.leading, 18)
+                        }
                     }
                 }
                 .padding(.horizontal, 32)
@@ -164,6 +105,83 @@ struct GameDetailView: View {
         .onAppear {
             // Opening a game plays its first stream in the pinned player, unless one of its streams already is.
             if previewChannel == nil, let first = streams.first { preview(first.channel) }
+        }
+    }
+
+    /// A section: its name (click to fold it) and its streams.
+    private func sectionView(_ section: StreamSections.Section) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    if folded.contains(section.name) { folded.remove(section.name) } else { folded.insert(section.name) }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                        .rotationEffect(.degrees(folded.contains(section.name) ? 0 : 90))
+                    Text(section.name.uppercased())
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Theme.soft)
+                    Text("\(section.streams.count)")
+                        .font(.system(size: 12))
+                }
+                .foregroundStyle(Theme.muted)
+                .padding(.leading, 4)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if !folded.contains(section.name) {
+                grid(section.streams)
+            }
+        }
+    }
+
+    /// A bigger header for the groups at the bottom (foreign languages, local stations).
+    private func groupHeader(_ title: String, count: Int, open: Bool, toggle: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.15)) { toggle() }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .bold))
+                    .rotationEffect(.degrees(open ? 90 : 0))
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                Text("\(count)")
+                    .font(.system(size: 12))
+                Spacer()
+            }
+            .foregroundStyle(Theme.muted)
+            .padding(.horizontal, 14)
+            .frame(height: 40)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 6)
+    }
+
+    /// Not lazy: a lazy grid guesses row heights as cards wrap, which made the page scroll on past the last
+    /// stream. A game only has a few dozen streams.
+    private func grid(_ list: [StreamMatch]) -> some View {
+        let columns = max(1, Int((listWidth + 10) / 410))
+        return Grid(horizontalSpacing: 10, verticalSpacing: 10) {
+            ForEach(Array(stride(from: 0, to: list.count, by: columns)), id: \.self) { start in
+                GridRow(alignment: .top) {
+                    ForEach(start..<min(start + columns, list.count), id: \.self) { i in
+                        let match = list[i]
+                        StreamRow(match: match, previewing: match.channel.id == previewChannel?.id,
+                                  onSelect: { preview(match.channel) },
+                                  onWatch: { watch(match.channel) })
+                            .frame(maxWidth: .infinity)
+                    }
+                    ForEach(0..<(columns - min(columns, list.count - start)), id: \.self) { _ in
+                        Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+                    }
+                }
+            }
         }
     }
 

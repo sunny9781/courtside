@@ -22,20 +22,17 @@ struct TVGameView: View {
         return hideSD ? all.filter { $0.quality != "SD" } : all
     }
 
-    private var extraCount: Int {
-        let main = allStreams.filter { !$0.hidden }
-        return main.isEmpty ? 0 : allStreams.count - main.count
-    }
-
     /// 4K, PPV for fights, the league's own channels, home-country broadcasters, other countries (StreamSections).
     private var listing: StreamSections.Result {
-        guard let game else { return StreamSections.Result(sections: [], hiddenForeign: 0, hiddenExtras: 0) }
-        return StreamSections.build(allStreams, league: game.league, showExtras: showLocal, showForeign: showForeign)
+        guard let game else { return .empty }
+        return StreamSections.build(allStreams, league: game.league)
     }
 
     private var sections: [StreamSections.Section] { listing.sections }
 
-    private var streams: [StreamMatch] { sections.flatMap(\.streams) }
+    private var streams: [StreamMatch] {
+        sections.flatMap(\.streams) + (showForeign ? listing.foreign.flatMap(\.streams) : []) + (showLocal ? listing.extras : [])
+    }
 
     /// On-screen order, which is also what swiping up and down flips through while watching.
     private var lineup: [Channel] { streams.map(\.channel) }
@@ -197,6 +194,43 @@ struct TVGameView: View {
 
     // MARK: Streams
 
+    private func sectionView(_ section: StreamSections.Section, game: Game) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            // Click a section's name to fold it shut or open it.
+            Button {
+                if folded.contains(section.name) { folded.remove(section.name) } else { folded.insert(section.name) }
+            } label: {
+                HStack(spacing: 14) {
+                    Image(systemName: folded.contains(section.name) ? "chevron.right" : "chevron.down")
+                        .font(.system(size: 20, weight: .bold))
+                    Text(section.name.uppercased())
+                        .font(.system(size: 22, weight: .bold))
+                    Text("\(section.streams.count)")
+                        .font(.system(size: 20))
+                        .opacity(0.6)
+                }
+            }
+            .buttonStyle(TVPillButtonStyle())
+            if !folded.contains(section.name) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 520), spacing: 34, alignment: .top)],
+                          alignment: .leading, spacing: 34) {
+                    ForEach(section.streams) { match in
+                        Button {
+                            select(match, game: game)
+                        } label: {
+                            TVStreamCell(match: match,
+                                         quality: model.measuredQuality[match.channel.id] ?? match.quality,
+                                         frameRate: model.measuredFrameRate[match.channel.id],
+                                         previewing: match.channel.id == previewChannel?.id)
+                        }
+                        .buttonStyle(.card)
+                        .focused($focusedStream, equals: match.channel.id)
+                    }
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private func streamList(_ game: Game) -> some View {
         ScrollView(.vertical) {
@@ -206,58 +240,32 @@ struct TVGameView: View {
                         .font(.system(size: 26))
                         .foregroundStyle(Theme.muted)
                 }
-                ForEach(sections) { section in
-                    VStack(alignment: .leading, spacing: 18) {
-                        // Click a section's name to fold it shut or open it.
-                        Button {
-                            if folded.contains(section.name) { folded.remove(section.name) } else { folded.insert(section.name) }
-                        } label: {
-                            HStack(spacing: 14) {
-                                Image(systemName: folded.contains(section.name) ? "chevron.right" : "chevron.down")
-                                    .font(.system(size: 20, weight: .bold))
-                                Text(section.name.uppercased())
-                                    .font(.system(size: 22, weight: .bold))
-                                Text("\(section.streams.count)")
-                                    .font(.system(size: 20))
-                                    .opacity(0.6)
-                            }
-                        }
-                        .buttonStyle(TVPillButtonStyle())
-                        if !folded.contains(section.name) {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 520), spacing: 34, alignment: .top)],
-                                  alignment: .leading, spacing: 34) {
-                            ForEach(section.streams) { match in
-                                Button {
-                                    select(match, game: game)
-                                } label: {
-                                    TVStreamCell(match: match,
-                                                 quality: model.measuredQuality[match.channel.id] ?? match.quality,
-                                                 frameRate: model.measuredFrameRate[match.channel.id],
-                                                 previewing: match.channel.id == previewChannel?.id)
-                                }
-                                .buttonStyle(.card)
-                                .focused($focusedStream, equals: match.channel.id)
-                            }
-                        }
-                        }
-                    }
-                }
-                HStack(spacing: 24) {
-                    Button(showForeign ? "Hide foreign-language streams"
-                                       : (listing.hiddenForeign > 0 ? "Show \(listing.hiddenForeign) foreign-language streams"
-                                                                    : "Show foreign-language streams")) {
+                ForEach(sections) { sectionView($0, game: game) }
+
+                // Foreign-language countries, folded into one group.
+                if !listing.foreign.isEmpty {
+                    Button(showForeign ? "Hide foreign-language streams (\(listing.foreignCount))"
+                                       : "Show foreign-language streams (\(listing.foreignCount))") {
                         showForeign.toggle()
                     }
                     .buttonStyle(TVPillButtonStyle())
                     .font(.system(size: 22, weight: .semibold))
+                    if showForeign {
+                        ForEach(listing.foreign) { sectionView($0, game: game) }
+                    }
                 }
-                if extraCount > 0 {
+
+                // Local stations and "usually on" guesses, at the very bottom.
+                if !listing.extras.isEmpty {
                     Button(showLocal ? "Hide local stations and likely channels"
-                                     : "Show \(extraCount) local stations and likely channels") {
+                                     : "Show \(listing.extras.count) local stations and likely channels") {
                         showLocal.toggle()
                     }
                     .buttonStyle(TVPillButtonStyle())
                     .font(.system(size: 22, weight: .semibold))
+                    if showLocal {
+                        sectionView(StreamSections.Section(name: "Local and likely", streams: listing.extras), game: game)
+                    }
                 }
             }
             .padding(.vertical, 24)

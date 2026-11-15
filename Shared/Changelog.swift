@@ -55,6 +55,13 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(date: "2026-11-15", title: "Tidier game screen and player", changes: [
+            Change(text: "Player: the quality and buttons sit over the bottom of the video and only show when you hover over it.", apps: mac),
+            Change(text: "Player: no more dragging to resize.", apps: mac),
+            Change(text: "Game screen: foreign-language streams (Spain, Latino, Mexico…) are folded into one \"Foreign languages\" group near the bottom; click it to open it.", apps: all),
+            Change(text: "Game screen: local stations and likely channels are a group at the very bottom.", apps: all),
+            Change(text: "Game screen: the \"streams found\" line is gone.", apps: mac)
+        ]),
         Release(date: "2026-11-15", title: "Game screen streams and a slimmer player", changes: [
             Change(text: "Game screen: streams are ordered 4K, then the league's own channels (like NFL Sunday Ticket), then the official broadcasters from the league's home country (USA for the NFL and NBA, Canada then USA for the NHL, UK for the Premier League), then other countries.", apps: all),
             Change(text: "Game screen: foreign-language streams (Latino, Spanish, French…) are hidden unless you switch them on.", apps: all),
@@ -62,7 +69,7 @@ enum Changelog {
             Change(text: "Game screen: search box to filter the streams.", apps: macIOS),
             Change(text: "Back is now an arrow in the top bar, left of the connection count (or press ⌘[).", apps: mac),
             Change(text: "Player: shrinking it now folds the whole panel, score included, into one slim bar.", apps: mac),
-            Change(text: "Player: resizing stops at the smallest size where the quality and buttons fit on one line; drag past it to shrink to the slim bar.", apps: macIOS),
+            Change(text: "Player: resizing stops at the smallest size where the quality and buttons fit on one line; drag past it to shrink to the slim bar.", apps: ios),
             Change(text: "Fixed the game screen scrolling on past the last stream.", apps: mac),
             Change(text: "EPG: one search box for categories and channels. \"NFL\" finds every NFL category and channel; \"Lions\" finds just the channels (or games on now) with the Lions, grouped by category. Click a group to fold it.", apps: all),
             Change(text: "Home: live badges show live out of today's games (\"2/5 LIVE\"), and the date is gone.", apps: all),

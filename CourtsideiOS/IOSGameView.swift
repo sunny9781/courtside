@@ -20,20 +20,18 @@ struct IOSGameView: View {
         return hideSD ? all.filter { $0.quality != "SD" } : all
     }
 
-    private var extraCount: Int {
-        let main = allStreams.filter { !$0.hidden }
-        return main.isEmpty ? 0 : allStreams.count - main.count
-    }
-
     /// 4K, PPV for fights, the league's own channels, home-country broadcasters, other countries (StreamSections).
     private var listing: StreamSections.Result {
-        guard let game else { return StreamSections.Result(sections: [], hiddenForeign: 0, hiddenExtras: 0) }
-        return StreamSections.build(allStreams, league: game.league, showExtras: showLocal, showForeign: showForeign, search: search)
+        guard let game else { return .empty }
+        return StreamSections.build(allStreams, league: game.league, search: search)
     }
 
     private var sections: [StreamSections.Section] { listing.sections }
 
-    private var streams: [StreamMatch] { sections.flatMap(\.streams) }
+    /// Everything showing, in on-screen order: what swiping up and down flips through while watching.
+    private var streams: [StreamMatch] {
+        sections.flatMap(\.streams) + (showForeign ? listing.foreign.flatMap(\.streams) : []) + (showLocal ? listing.extras : [])
+    }
     private var lineup: [Channel] { streams.map(\.channel) }
     /// The stream in the pinned player, if it's one of this game's.
     private var previewID: Int? {
@@ -60,14 +58,6 @@ struct IOSGameView: View {
                         .padding(.horizontal, 10)
                         .frame(height: 38)
                         .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
-                        IOSChip(selected: showForeign, action: { showForeign.toggle() }) {
-                            Text("Foreign")
-                        }
-                    }
-                    if listing.hiddenForeign > 0 {
-                        Button("\(listing.hiddenForeign) foreign-language streams hidden · Show") { showForeign = true }
-                            .font(.caption)
-                            .foregroundStyle(Theme.accent)
                     }
 
                     if sections.isEmpty {
@@ -76,45 +66,22 @@ struct IOSGameView: View {
                             .foregroundStyle(Theme.muted)
                     }
 
-                    ForEach(sections) { section in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Button {
-                                withAnimation(.easeOut(duration: 0.15)) {
-                                    if folded.contains(section.name) { folded.remove(section.name) } else { folded.insert(section.name) }
-                                }
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "chevron.right")
-                                        .font(.caption2.bold())
-                                        .rotationEffect(.degrees(folded.contains(section.name) ? 0 : 90))
-                                    Text(section.name.uppercased()).font(.caption.bold())
-                                    Text("\(section.streams.count)").font(.caption).opacity(0.7)
-                                    Spacer()
-                                }
-                                .foregroundStyle(Theme.muted)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            if !folded.contains(section.name) {
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 10)], spacing: 10) {
-                                ForEach(section.streams) { match in
-                                    IOSStreamRow(match: match,
-                                                 quality: model.measuredQuality[match.channel.id] ?? match.quality,
-                                                 frameRate: model.measuredFrameRate[match.channel.id],
-                                                 previewing: match.channel.id == previewID)
-                                        .onTapGesture { tap(match) }
-                                }
-                            }
-                            }
+                    ForEach(sections) { sectionView($0) }
+
+                    // Foreign-language countries, folded into one group.
+                    if !listing.foreign.isEmpty {
+                        groupHeader("Foreign languages", count: listing.foreignCount, open: showForeign) { showForeign.toggle() }
+                        if showForeign {
+                            ForEach(listing.foreign) { sectionView($0) }
                         }
                     }
 
-                    if extraCount > 0 {
-                        Button(showLocal ? "Hide local stations and likely channels"
-                                         : "Show \(extraCount) local stations and likely channels") {
-                            showLocal.toggle()
+                    // Local stations and "usually on" guesses, at the very bottom.
+                    if !listing.extras.isEmpty {
+                        groupHeader("Local stations and likely channels", count: listing.extras.count, open: showLocal) { showLocal.toggle() }
+                        if showLocal {
+                            sectionView(StreamSections.Section(name: "Local and likely", streams: listing.extras))
                         }
-                        .font(.subheadline.weight(.semibold))
                     }
                 }
                 .padding(.horizontal)
@@ -135,6 +102,60 @@ struct IOSGameView: View {
             // Turning the phone sideways while one of this game's streams plays goes full screen.
             if verticalSizeClass == .compact, previewID != nil, model.nowPlaying == nil { fullScreen() }
         }
+    }
+
+    private func sectionView(_ section: StreamSections.Section) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) {
+                    if folded.contains(section.name) { folded.remove(section.name) } else { folded.insert(section.name) }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.bold())
+                        .rotationEffect(.degrees(folded.contains(section.name) ? 0 : 90))
+                    Text(section.name.uppercased()).font(.caption.bold())
+                    Text("\(section.streams.count)").font(.caption).opacity(0.7)
+                    Spacer()
+                }
+                .foregroundStyle(Theme.muted)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if !folded.contains(section.name) {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 10)], spacing: 10) {
+                    ForEach(section.streams) { match in
+                        IOSStreamRow(match: match,
+                                     quality: model.measuredQuality[match.channel.id] ?? match.quality,
+                                     frameRate: model.measuredFrameRate[match.channel.id],
+                                     previewing: match.channel.id == previewID)
+                            .onTapGesture { tap(match) }
+                    }
+                }
+            }
+        }
+    }
+
+    private func groupHeader(_ title: String, count: Int, open: Bool, toggle: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.15)) { toggle() }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "chevron.right")
+                    .font(.caption.bold())
+                    .rotationEffect(.degrees(open ? 90 : 0))
+                Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text)
+                Text("\(count)").font(.caption)
+                Spacer()
+            }
+            .foregroundStyle(Theme.muted)
+            .padding(.horizontal, 12)
+            .frame(height: 42)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     /// Tap once to play it in the pinned player at the top, tap again for full screen.

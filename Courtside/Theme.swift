@@ -220,16 +220,19 @@ struct BackButton: View {
 struct RoundIconButton: View {
     let symbol: String
     var help: String = ""
+    /// See-through, smaller: for buttons drawn over video.
+    var glass = false
     let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(Theme.text)
-                .frame(width: 36, height: 36)
-                .background(Circle().fill(hovering ? Theme.cardHover : Theme.raised))
+                .font(.system(size: glass ? 12 : 13, weight: .bold))
+                .foregroundStyle(glass ? Color.white : Theme.text)
+                .frame(width: glass ? 30 : 36, height: glass ? 30 : 36)
+                .background(Circle().fill(glass ? Color.white.opacity(hovering ? 0.32 : 0.18)
+                                                : (hovering ? Theme.cardHover : Theme.raised)))
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)

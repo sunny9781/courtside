@@ -5,18 +5,17 @@ import AppKit
 /// and keeps playing as you move between Home, games, EPG and Settings. On a game's screen it's combined with the
 /// score (see GameDetailView), so `details` is what sits beside the video.
 ///
-/// Under the video: resolution and frame rate, then hide video (keeps the sound), full screen, pop out to its own
-/// window, and stop (ends the stream, so it stops using a connection). Drag the bottom edge to make it bigger or
-/// smaller; it stays 16:9. Click the video for full screen.
+/// Hovering over the video shows a see-through bar along its bottom: resolution and frame rate, then shrink to a
+/// slim bar (keeps the sound), full screen, pop out to its own window, and stop (ends the stream, so it stops
+/// using a connection). Click the video for full screen.
 struct PinnedPlayerBar<Details: View>: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
-    @AppStorage(Prefs.pinnedVideoHeight) private var videoHeight: Double = 190
     @AppStorage(Prefs.pinnedCollapsed) private var collapsed = false
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
     @ObservedObject private var controller = PlaybackController.shared
-    @State private var dragStart: Double?
+    @State private var hovering = false
     let item: NowPlaying
     /// True while full screen is showing the stream (the video can only be in one place).
     let hidden: Bool
@@ -26,9 +25,7 @@ struct PinnedPlayerBar<Details: View>: View {
     var slimTitle: String? = nil
     @ViewBuilder let details: () -> Details
 
-    /// Smallest size where the quality badges and buttons still fit on one line under the video.
-    static var minHeight: Double { 186 }
-    static var maxHeight: Double { 620 }
+    private let videoHeight: CGFloat = 190
 
     /// Collapsed, or showing in its own window: the whole panel shrinks to one slim row.
     private var slim: Bool { collapsed || model.poppedOut }
@@ -41,18 +38,12 @@ struct PinnedPlayerBar<Details: View>: View {
                     .padding(.vertical, card ? 12 : 8)
             } else {
                 HStack(alignment: .top, spacing: 22) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        video
-                        controls
-                    }
-                    .frame(width: videoWidth)
+                    video
                     details()
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
                 .padding(.horizontal, card ? 20 : 24)
-                .padding(.top, card ? 20 : 12)
-                .padding(.bottom, 4)
-                resizeHandle
+                .padding(.vertical, card ? 20 : 12)
             }
         }
         .background {
@@ -95,11 +86,14 @@ struct PinnedPlayerBar<Details: View>: View {
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture { fullScreen() }
-                    .help("Click for full screen")
             }
         }
         .frame(width: videoWidth, height: videoHeight)
+        .overlay(alignment: .bottom) {
+            if hovering { controls.transition(.opacity) }
+        }
         .clipShape(RoundedRectangle(cornerRadius: 10))
+        .onHover { inside in withAnimation(.easeOut(duration: 0.15)) { hovering = inside } }
     }
 
     private var badges: some View {
@@ -109,28 +103,32 @@ struct PinnedPlayerBar<Details: View>: View {
         }
     }
 
-    private var buttons: some View {
-        HStack(spacing: 8) {
+    private func buttons(glass: Bool) -> some View {
+        HStack(spacing: glass ? 6 : 8) {
             RoundIconButton(symbol: slim ? "rectangle.expand.vertical" : "rectangle.compress.vertical",
-                            help: slim ? "Show the player" : "Shrink to a slim bar (keeps playing)") {
+                            help: slim ? "Show the player" : "Shrink to a slim bar (keeps playing)", glass: glass) {
                 withAnimation(.easeOut(duration: 0.2)) {
                     if model.poppedOut { dismissWindow(id: PopOutPlayer.windowID); collapsed = false } else { collapsed.toggle() }
                 }
             }
-            RoundIconButton(symbol: "arrow.up.left.and.arrow.down.right", help: "Full screen") { fullScreen() }
+            RoundIconButton(symbol: "arrow.up.left.and.arrow.down.right", help: "Full screen", glass: glass) { fullScreen() }
             RoundIconButton(symbol: model.poppedOut ? "rectangle.inset.filled.and.person.filled" : "macwindow.on.rectangle",
-                            help: model.poppedOut ? "Bring the player back into the app" : "Open in its own window") { popOut() }
-            RoundIconButton(symbol: "stop.fill", help: "Stop (frees the connection)") { stop() }
+                            help: model.poppedOut ? "Bring the player back into the app" : "Open in its own window", glass: glass) { popOut() }
+            RoundIconButton(symbol: "stop.fill", help: "Stop (frees the connection)", glass: glass) { stop() }
         }
     }
 
-    /// Under the video: quality on the left, buttons on the right.
+    /// Over the bottom of the video while hovering: quality on the left, buttons on the right.
     private var controls: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             badges
             Spacer(minLength: 4)
-            buttons
+            buttons(glass: true)
         }
+        .padding(.horizontal, 8)
+        .padding(.bottom, 8)
+        .padding(.top, 22)
+        .background(LinearGradient(colors: [.clear, .black.opacity(0.75)], startPoint: .top, endPoint: .bottom))
     }
 
     /// Collapsed (or popped out): everything in one slim row.
@@ -151,36 +149,8 @@ struct PinnedPlayerBar<Details: View>: View {
             }
             badges
             Spacer(minLength: 8)
-            buttons
+            buttons(glass: false)
         }
-    }
-
-    /// Drag down for a bigger player, up for a smaller one.
-    private var resizeHandle: some View {
-        Capsule()
-            .fill(Theme.muted.opacity(dragStart == nil ? 0.45 : 0.9))
-            .frame(width: 44, height: 5)
-            .frame(maxWidth: .infinity)
-            .frame(height: 16)
-            .contentShape(Rectangle())
-            .onHover { inside in
-                if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() }
-            }
-            .gesture(
-                DragGesture(minimumDistance: 1)
-                    .onChanged { value in
-                        if dragStart == nil { dragStart = videoHeight }
-                        videoHeight = min(Self.maxHeight, max(Self.minHeight, (dragStart ?? videoHeight) + value.translation.height))
-                    }
-                    .onEnded { value in
-                        // Dragged well past the smallest size: shrink to the slim bar.
-                        if (dragStart ?? videoHeight) + value.translation.height < Self.minHeight - 40 {
-                            withAnimation(.easeOut(duration: 0.2)) { collapsed = true }
-                        }
-                        dragStart = nil
-                    }
-            )
-            .help("Drag to resize the player")
     }
 
     /// Full screen covers the app, or, when the player has its own window, puts that window full screen
