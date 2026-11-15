@@ -8,6 +8,8 @@ struct TVLiveView: View {
     @AppStorage(Prefs.guideCategory) private var selectedID = ""
     @AppStorage(Prefs.guideGrouped) private var grouped = true
     @State private var focusedChannelID: Int?
+    /// The channel playing in the mini player: only one you clicked.
+    @State private var playingID: Int?
     @FocusState private var focusedCategory: String?
     @FocusState private var focusedChannel: Int?
 
@@ -66,9 +68,15 @@ struct TVLiveView: View {
         return selected.categories.flatMap { model.channelsByCategory[$0.id] ?? [] }
     }
 
-    /// The channel in the info panel: the one you're on, or what's playing in the background from Home.
+    /// The channel in the info panel: the one you're on, or what's playing.
     private var infoChannel: Channel? {
         if let id = focusedChannelID, let channel = model.channelByID[id] { return channel }
+        return playingChannel
+    }
+
+    /// What the mini player plays: the channel you clicked, or what's still playing from Home.
+    private var playingChannel: Channel? {
+        if let id = playingID { return model.channelByID[id] }
         return model.backgroundChannel
     }
 
@@ -97,10 +105,7 @@ struct TVLiveView: View {
                 if let focusedCategory, focusedCategory != selectedID { selectedID = focusedCategory }
             }
             .onChange(of: focusedChannel) {
-                if let focusedChannel {
-                    focusedChannelID = focusedChannel
-                    model.backgroundChannel = nil
-                }
+                if let focusedChannel { focusedChannelID = focusedChannel }
             }
         }
     }
@@ -164,7 +169,8 @@ struct TVLiveView: View {
 
     private var infoPanel: some View {
         HStack(alignment: .top, spacing: 36) {
-            TVPreview(channel: infoChannel)
+            TVPreview(channel: playingChannel, placeholder: "Click a channel to play it here.\nClick it again for full screen.",
+                      showing: infoChannel)
                 .frame(width: 480, height: 270)
 
             VStack(alignment: .leading, spacing: 12) {
@@ -194,16 +200,16 @@ struct TVLiveView: View {
                             .font(.system(size: 26))
                             .foregroundStyle(Theme.muted)
                     }
-                    Text(model.backgroundChannel != nil && focusedChannelID == nil
-                         ? "Still playing from Home. Pick a channel to change it."
-                         : "Click to watch full screen.")
+                    Text(model.backgroundChannel != nil && playingID == nil
+                         ? "Still playing from Home. Click a channel to change it."
+                         : (channel.id == playingChannel?.id ? "Click again for full screen." : "Click to play it in the mini player."))
                         .font(.system(size: 19))
                         .foregroundStyle(Theme.muted.opacity(0.8))
                 } else {
                     Text("Pick a channel")
                         .font(.system(size: 38, weight: .bold))
                         .foregroundStyle(Theme.text)
-                    Text("Move onto a channel to preview it here. Click to watch full screen.")
+                    Text("Click a channel to play it here. Click it again for full screen.")
                         .font(.system(size: 22))
                         .foregroundStyle(Theme.muted)
                 }
@@ -231,9 +237,14 @@ struct TVLiveView: View {
 
                 ForEach(channels) { channel in
                     Button {
-                        model.play(channel, lineup: channels)
+                        if channel.id == playingChannel?.id {
+                            model.play(channel, lineup: channels)
+                        } else {
+                            playingID = channel.id
+                            model.backgroundChannel = nil
+                        }
                     } label: {
-                        TVChannelRow(channel: channel, playing: channel.id == model.previewChannel?.id)
+                        TVChannelRow(channel: channel, playing: channel.id == playingChannel?.id)
                     }
                     .buttonStyle(TVRowButtonStyle())
                     .focused($focusedChannel, equals: channel.id)

@@ -321,6 +321,7 @@ struct GameDetailView: View {
 /// A stream card for the grid: full name and why it matched (wrapping, never cut off) and badges.
 /// Click plays it in the mini player (the card lights up); double-click goes full screen.
 struct StreamRow: View {
+    @EnvironmentObject var model: AppModel
     let match: StreamMatch
     let previewing: Bool
     let onSelect: () -> Void
@@ -351,6 +352,9 @@ struct StreamRow: View {
                     VStack(alignment: .trailing, spacing: 4) {
                         if !match.quality.isEmpty {
                             Badge(text: match.quality)
+                        }
+                        if let fps = model.measuredFrameRate[match.channel.id] {
+                            Badge(text: PlaybackController.fpsLabel(fps))
                         }
                     }
                     .fixedSize()

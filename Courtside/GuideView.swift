@@ -751,6 +751,9 @@ struct GuidePreview: View {
                 model.recordQuality(channel.id, controller.resolution)
             }
         }
+        .onChange(of: controller.frameRate) {
+            if showsVideo, let channel { model.recordFrameRate(channel.id, controller.frameRate) }
+        }
         .onChange(of: channel?.id) { stopped = false }
         .onAppear { model.miniPlayers += 1 }
         .onDisappear {

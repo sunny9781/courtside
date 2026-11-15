@@ -39,6 +39,8 @@ final class AppModel: ObservableObject {
     @Published var backgroundChannel: Channel?
     /// Real resolutions seen while playing, by channel id, so stream lists show "720p" instead of a guess.
     @Published var measuredQuality: [Int: String] = [:]
+    /// Frame rates seen while playing, by channel id ("60 fps" on stream lists once a stream has been watched).
+    @Published var measuredFrameRate: [Int: Double] = [:]
 
     private var indexed: [Matcher.IndexedChannel] = []
     private var scoreTask: Task<Void, Never>?
@@ -52,6 +54,8 @@ final class AppModel: ObservableObject {
         if DemoData.isOn { loadDemo() }
         let saved = UserDefaults.standard.dictionary(forKey: Prefs.measuredQuality) as? [String: String] ?? [:]
         measuredQuality = Dictionary(uniqueKeysWithValues: saved.compactMap { k, v in Int(k).map { ($0, v) } })
+        let fps = UserDefaults.standard.dictionary(forKey: Prefs.measuredFrameRate) as? [String: Double] ?? [:]
+        measuredFrameRate = Dictionary(uniqueKeysWithValues: fps.compactMap { k, v in Int(k).map { ($0, v) } })
     }
 
     /// Sample data for screenshots (`-demo`), with no network and no real login.
@@ -71,6 +75,13 @@ final class AppModel: ObservableObject {
         guide = d.guide
         savedAt = Date()
         lastRefresh = Date()
+    }
+
+    func recordFrameRate(_ channelID: Int, _ fps: Double) {
+        guard fps > 0, measuredFrameRate[channelID] != fps else { return }
+        measuredFrameRate[channelID] = fps
+        let saved = Dictionary(uniqueKeysWithValues: measuredFrameRate.map { (String($0.key), $0.value) })
+        UserDefaults.standard.set(saved, forKey: Prefs.measuredFrameRate)
     }
 
     func recordQuality(_ channelID: Int, _ label: String) {

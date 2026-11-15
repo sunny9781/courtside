@@ -275,6 +275,9 @@ struct TVPreview: View {
     @AppStorage(Prefs.guidePreview) private var enabled = true
     @ObservedObject private var controller = PlaybackController.shared
     let channel: Channel?
+    var placeholder: String? = nil
+    /// Shown (not played) when nothing is playing, e.g. the channel you're on in the EPG.
+    var showing: Channel? = nil
 
     private var url: URL? {
         channel.flatMap { model.streamURL(for: $0, hls: !PlaybackController.usesVLC) }
@@ -299,13 +302,20 @@ struct TVPreview: View {
                 }
             } else {
                 VStack(spacing: 14) {
-                    TVChannelIcon(url: channel?.icon, size: 90)
-                    if let channel {
-                        Text(channel.name)
+                    TVChannelIcon(url: (channel ?? showing)?.icon, size: 90)
+                    if let shown = channel ?? showing {
+                        Text(shown.name)
                             .font(.system(size: 22, weight: .semibold))
                             .foregroundStyle(Theme.soft)
                             .lineLimit(1)
                             .padding(.horizontal, 20)
+                    }
+                    if channel == nil, let placeholder {
+                        Text(placeholder)
+                            .font(.system(size: 20))
+                            .foregroundStyle(Theme.muted)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 30)
                     }
                 }
             }
@@ -331,6 +341,9 @@ struct TVPreview: View {
             if showsVideo, let channel, !controller.resolution.isEmpty {
                 model.recordQuality(channel.id, controller.resolution)
             }
+        }
+        .onChange(of: controller.frameRate) {
+            if showsVideo, let channel { model.recordFrameRate(channel.id, controller.frameRate) }
         }
         .onAppear { model.miniPlayers += 1 }
         .onDisappear {

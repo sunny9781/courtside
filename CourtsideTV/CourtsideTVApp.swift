@@ -95,10 +95,9 @@ struct TVShell: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .focusSection()
         }
-        .onExitCommand {
-            // Back on EPG or Settings goes to Home first (game screens handle their own Back).
-            if nav.tab != .home { switchTab(.home) }
-        }
+        // Back on EPG or Settings goes to Home. On Home it's left alone, so a game screen goes back to the
+        // list and the Home list leaves the app, as usual on Apple TV.
+        .onExitCommand(perform: nav.tab != .home ? { switchTab(.home) } : nil)
         .task { await model.refresh() }
         .onChange(of: scenePhase) {
             if scenePhase == .active { Task { await model.refresh() } }

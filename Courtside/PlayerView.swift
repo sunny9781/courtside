@@ -92,6 +92,9 @@ struct PlayerView: View {
                 model.recordQuality(item.channel.id, controller.resolution)
             }
         }
+        .onChange(of: controller.frameRate) {
+            model.recordFrameRate(item.channel.id, controller.frameRate)
+        }
         .onDisappear {
             hideTask?.cancel()
             flipTask?.cancel()
@@ -263,6 +266,9 @@ struct PlayerView: View {
 
             if !controller.resolution.isEmpty {
                 Badge(text: controller.resolution)
+            }
+            if controller.frameRate > 0 {
+                Badge(text: PlaybackController.fpsLabel(controller.frameRate))
             }
 
             Button {

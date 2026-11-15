@@ -1,5 +1,7 @@
 import SwiftUI
 import UIKit
+import AVKit
+import CoreMedia
 
 /// Full-screen player.
 /// - Swipe or press up/down: previous/next stream for this game (or channel in this category).
@@ -10,6 +12,7 @@ struct TVPlayerView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
     @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
+    @AppStorage(Prefs.matchFrameRate) private var matchFrameRate = true
     @ObservedObject private var controller = PlaybackController.shared
     @FocusState private var focused: Bool
     @State private var tried: Set<Int> = []
@@ -87,9 +90,14 @@ struct TVPlayerView: View {
                 model.recordQuality(item.channel.id, controller.resolution)
             }
         }
+        .onChange(of: controller.frameRate) {
+            model.recordFrameRate(item.channel.id, controller.frameRate)
+            if matchFrameRate { DisplayMatcher.match(frameRate: controller.frameRate, height: controller.resolution) }
+        }
         .onDisappear {
             hideTask?.cancel()
             flipTask?.cancel()
+            DisplayMatcher.reset()
         }
     }
 
@@ -216,6 +224,9 @@ struct TVPlayerView: View {
             if !controller.resolution.isEmpty {
                 TVBadge(text: controller.resolution)
             }
+            if controller.frameRate > 0 {
+                TVBadge(text: PlaybackController.fpsLabel(controller.frameRate))
+            }
         }
         .padding(.horizontal, 80)
         .padding(.vertical, 44)
@@ -223,5 +234,34 @@ struct TVPlayerView: View {
             LinearGradient(colors: [.clear, .black.opacity(0.85)], startPoint: .top, endPoint: .bottom)
                 .ignoresSafeArea()
         )
+    }
+}
+
+/// Switches the TV to the stream's frame rate (e.g. 50 Hz for UK/European channels, 59.94 for North American
+/// ones) for smoother motion, the way Apple's own apps do. Only works when "Match Content › Match Frame Rate" is
+/// on in the Apple TV's Settings › Video and Audio.
+@MainActor
+enum DisplayMatcher {
+    private static var window: UIWindow? {
+        UIApplication.shared.connectedScenes.compactMap { ($0 as? UIWindowScene)?.keyWindow }.first
+    }
+
+    /// Whether the Apple TV allows apps to switch the frame rate (its own Match Content setting).
+    static var systemAllows: Bool {
+        window?.avDisplayManager.isDisplayCriteriaMatchingEnabled ?? false
+    }
+
+    static func match(frameRate fps: Double, height label: String) {
+        guard fps > 0, let manager = window?.avDisplayManager, manager.isDisplayCriteriaMatchingEnabled else { return }
+        let size: (Int32, Int32) = label == "4K" ? (3840, 2160) : (label == "720p" ? (1280, 720) : (1920, 1080))
+        var format: CMVideoFormatDescription?
+        guard CMVideoFormatDescriptionCreate(allocator: kCFAllocatorDefault, codecType: kCMVideoCodecType_H264,
+                                             width: size.0, height: size.1, extensions: nil,
+                                             formatDescriptionOut: &format) == noErr, let format else { return }
+        manager.preferredDisplayCriteria = AVDisplayCriteria(refreshRate: Float(fps), formatDescription: format)
+    }
+
+    static func reset() {
+        window?.avDisplayManager.preferredDisplayCriteria = nil
     }
 }

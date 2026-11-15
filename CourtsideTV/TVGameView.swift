@@ -65,8 +65,18 @@ struct TVGameView: View {
     /// On-screen order, which is also what swiping up and down flips through while watching.
     private var lineup: [Channel] { streams.map(\.channel) }
 
+    /// The stream playing in the mini player: only one you clicked (nothing plays just by moving around).
     private var previewChannel: Channel? {
-        streams.first { $0.channel.id == previewID }?.channel ?? streams.first?.channel
+        streams.first { $0.channel.id == previewID }?.channel
+    }
+
+    /// Click once to play in the mini player, click the same stream again for full screen.
+    private func select(_ match: StreamMatch, game: Game) {
+        if previewID == match.channel.id {
+            model.play(match.channel, gameTitle: game.title, lineup: lineup)
+        } else {
+            previewID = match.channel.id
+        }
     }
 
     var body: some View {
@@ -88,7 +98,7 @@ struct TVGameView: View {
         }
         .padding(.horizontal, TVLayout.margin)
         .padding(.top, 10)
-        .defaultFocus($focusedStream, previewChannel?.id ?? streams.first?.channel.id)
+        .defaultFocus($focusedStream, previewID ?? streams.first?.channel.id)
         .onAppear {
             // Coming back from another tab: keep showing the stream that was playing.
             if let bg = model.backgroundChannel, allStreams.contains(where: { $0.channel.id == bg.id }) {
@@ -96,16 +106,14 @@ struct TVGameView: View {
             }
             model.backgroundChannel = nil
         }
-        .onChange(of: focusedStream) {
-            if let focusedStream { previewID = focusedStream }
-        }
+        .onExitCommand { if !nav.homePath.isEmpty { nav.homePath.removeLast() } }
     }
 
     // MARK: Top: mini player, score, details
 
     private func hero(_ game: Game) -> some View {
         HStack(alignment: .top, spacing: 44) {
-            TVPreview(channel: previewChannel)
+            TVPreview(channel: previewChannel, placeholder: "Click a stream to play it here.\nClick it again for full screen.")
                 .frame(width: 560, height: 315)
 
             VStack(alignment: .leading, spacing: 18) {
@@ -231,10 +239,11 @@ struct TVGameView: View {
                                   alignment: .leading, spacing: 34) {
                             ForEach(section.streams) { match in
                                 Button {
-                                    model.play(match.channel, gameTitle: game.title, lineup: lineup)
+                                    select(match, game: game)
                                 } label: {
                                     TVStreamCell(match: match,
                                                  quality: model.measuredQuality[match.channel.id] ?? match.quality,
+                                                 frameRate: model.measuredFrameRate[match.channel.id],
                                                  previewing: match.channel.id == previewChannel?.id)
                                 }
                                 .buttonStyle(.card)
@@ -252,10 +261,11 @@ struct TVGameView: View {
                     .font(.system(size: 22, weight: .semibold))
                 }
             }
-            .padding(.vertical, 20)
-            .padding(.horizontal, 16)
+            .padding(.vertical, 24)
+            .padding(.horizontal, 36)
         }
         .scrollClipDisabled()
+        .padding(.horizontal, -36)
     }
 }
 
@@ -264,6 +274,7 @@ struct TVStreamCell: View {
     @EnvironmentObject var model: AppModel
     let match: StreamMatch
     let quality: String
+    var frameRate: Double? = nil
     var previewing = false
 
     var body: some View {
@@ -286,9 +297,14 @@ struct TVStreamCell: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
-            if !quality.isEmpty {
-                TVBadge(text: quality, fill: quality == "4K" ? Theme.accent : Theme.raised,
-                        color: quality == "4K" ? Theme.onAccent : Theme.soft)
+            VStack(alignment: .trailing, spacing: 8) {
+                if !quality.isEmpty {
+                    TVBadge(text: quality, fill: quality == "4K" ? Theme.accent : Theme.raised,
+                            color: quality == "4K" ? Theme.onAccent : Theme.soft)
+                }
+                if let frameRate {
+                    TVBadge(text: PlaybackController.fpsLabel(frameRate))
+                }
             }
         }
         .padding(.horizontal, 24)

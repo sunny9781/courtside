@@ -22,6 +22,8 @@ final class PlaybackController: ObservableObject {
 
     @Published var status: Status = .idle
     @Published var resolution = ""
+    /// Frames per second of the current stream (0 until known), e.g. 59.94.
+    @Published var frameRate: Double = 0
     /// Called when a stream starts or stops (the app uses it to re-check connections in use).
     var onChange: (() -> Void)?
 
@@ -82,6 +84,7 @@ final class PlaybackController: ObservableObject {
         status = .opening
         onChange?()
         resolution = ""
+        frameRate = 0
         #if canImport(VLCKitSPM)
         let media = VLCMedia(url: url)
         media.addOption(":network-caching=\(bufferMs)")
@@ -147,6 +150,7 @@ final class PlaybackController: ObservableObject {
         }
         let size = player.videoSize
         if size.height > 0 { resolution = Self.label(size.height) }
+        if frameRate == 0, let fps = Self.videoFrameRate(player.media) { frameRate = fps }
         #else
         guard let item = player.currentItem else { return }
         switch item.status {
@@ -163,6 +167,31 @@ final class PlaybackController: ObservableObject {
         }
         if item.presentationSize.height > 0 { resolution = Self.label(item.presentationSize.height) }
         #endif
+    }
+
+    #if canImport(VLCKitSPM)
+    /// Reads the video track's frame rate. Interlaced TV streams often report double (100 for 50i), so
+    /// anything over 60 is halved.
+    private static func videoFrameRate(_ media: VLCMedia?) -> Double? {
+        guard let tracks = media?.tracksInformation as? [[AnyHashable: Any]] else { return nil }
+        for track in tracks where (track["type"] as? String) == "video" {
+            let num = (track["frame_rate_num"] as? NSNumber)?.doubleValue ?? 0
+            let den = (track["frame_rate_den"] as? NSNumber)?.doubleValue ?? 0
+            guard num > 0, den > 0 else { continue }
+            var fps = num / den
+            if fps > 61 { fps /= 2 }
+            return fps
+        }
+        return nil
+    }
+    #endif
+
+    /// "60 fps", "59.94 fps", "25 fps".
+    static func fpsLabel(_ fps: Double) -> String {
+        guard fps > 0 else { return "" }
+        let rounded = fps.rounded()
+        if abs(fps - rounded) < 0.05 { return "\(Int(rounded)) fps" }
+        return String(format: "%.2f fps", fps)
     }
 
     private static func label(_ height: CGFloat) -> String {
