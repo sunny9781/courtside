@@ -100,6 +100,8 @@ struct TVShell: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .focusSection()
         }
+        // Use almost the full width of the screen (the content keeps a small margin of its own).
+        .ignoresSafeArea(.container, edges: .horizontal)
         // Back on EPG or Settings goes to Home. On Home it's left alone, so a game screen goes back to the
         // list and the Home list leaves the app, as usual on Apple TV.
         .onExitCommand(perform: nav.tab != .home ? { switchTab(.home) } : nil)
@@ -147,6 +149,11 @@ extension Notification.Name {
 }
 
 /// Home, EPG and Settings in the middle; connections on the left; "Updated 8:15 PM" on the right.
+/// "1.22"
+private var appVersion: String {
+    Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+}
+
 struct TVTopBar: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var nav: TVNav
@@ -201,7 +208,7 @@ struct TVTopBar: View {
             Button {
                 Task { await model.refresh(force: true) }
             } label: {
-                Label("Updated \(saved.formatted(date: .omitted, time: .shortened))", systemImage: "arrow.clockwise")
+                Label("Updated \(saved.formatted(date: .omitted, time: .shortened)) · v\(appVersion)", systemImage: "arrow.clockwise")
                     .font(.system(size: 22, weight: .medium))
             }
             .buttonStyle(TVQuietButtonStyle())

@@ -52,9 +52,16 @@ struct TVPinnedStrip: View {
         .padding(.horizontal, TVLayout.margin)
         .padding(.vertical, 18)
         .task(id: "\(item.channel.id)|\(model.nowPlaying == nil)") {
-            // Already playing this (e.g. back from full screen): play() carries on without reconnecting.
             guard model.nowPlaying == nil, !DemoData.isOn,
                   let url = model.streamURL(for: item.channel, hls: !PlaybackController.usesVLC) else { return }
+            if url == controller.currentURL {
+                // Back from full screen: the TV switching its refresh rate back can leave the picture black, so
+                // once that's settled, open the stream again (a second or so).
+                try? await Task.sleep(for: .milliseconds(900))
+                guard !Task.isCancelled, model.nowPlaying == nil else { return }
+                controller.reload(bufferMs: bufferMs)
+                return
+            }
             controller.play(url, bufferMs: bufferMs)
             model.checkConnectionsSoon()
         }

@@ -61,6 +61,12 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.22", date: "2026-11-15", time: "17:00", title: "Filter in the top bar", changes: [
+            Change(text: "The filter box is in the top bar on the EPG and game screens, and stays put while you type.", apps: mac),
+            Change(text: "The version number is in the top bar.", apps: macTV),
+            Change(text: "Closing full screen reopens the stream in the player at the top, so it no longer goes black.", apps: tv),
+            Change(text: "Almost no border on the left and right: everything uses the full width of the TV.", apps: tv)
+        ]),
         Release(version: "1.21", date: "2026-11-15", time: "16:35", title: "Apple TV Home tidy-up", changes: [
             Change(text: "Home: moving across the league chips (All, NBA, WNBA…) switches straight away, no click needed.", apps: tv),
             Change(text: "Home: the live count line is gone; live games show as an orange number on the league chips and in the left column.", apps: tv),

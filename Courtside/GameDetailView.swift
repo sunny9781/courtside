@@ -5,10 +5,9 @@ struct GameDetailView: View {
     @AppStorage(Prefs.hideSD) private var hideSD = true
     @State private var showLocal = false
     @AppStorage(Prefs.showForeignStreams) private var showForeign = false
-    @State private var search = ""
+    /// The filter box in the top bar.
+    @Binding var search: String
     @State private var listWidth: CGFloat = 800
-    @State private var contentHeight: CGFloat = 0
-    @State private var viewportHeight: CGFloat = 10_000
     /// Sections folded shut (4K, USA, Other…), by name.
     @State private var folded: Set<String> = []
     let game: Game
@@ -64,9 +63,7 @@ struct GameDetailView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if listing.sections.isEmpty && showsFilter {
-                        Color.clear.frame(height: 36)   // room for the filter box
-                    }
+
                     if listing.sections.isEmpty && listing.foreign.isEmpty {
                         Banner(text: search.isEmpty ? "No channels on your provider matched this game yet. If you know which channel has it, find it in the EPG."
                                                     : "No streams match \"\(search)\".",
@@ -98,18 +95,12 @@ struct GameDetailView: View {
                         }
                     }
                 }
-                // The filter box sits in the middle of the first line (the first section's name is on the left).
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { listWidth = $0 }
-                .overlay(alignment: .top) {
-                    if showsFilter { searchField }
-                }
                 .padding(.horizontal, 32)
-                .padding(.top, 6)
+                .padding(.top, 10)
                 .padding(.bottom, 40)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
-            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { viewportHeight = $0 }
         }
         .onAppear {
             // Opening a game plays its first stream in the pinned player, unless one of its streams already is.
@@ -118,13 +109,7 @@ struct GameDetailView: View {
     }
 
     /// A section: its name (click to fold it) and its streams.
-    private var searchField: some View {
-        Field(placeholder: "Filter", text: $search)
-            .frame(width: 240)
-    }
 
-    /// The filter only appears when the streams don't all fit on screen (or you're already filtering).
-    private var showsFilter: Bool { !search.isEmpty || contentHeight > viewportHeight + 1 }
 
     private func sectionView(_ section: StreamSections.Section) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -145,7 +130,7 @@ struct GameDetailView: View {
                 }
                 .foregroundStyle(Theme.muted)
                 .padding(.leading, 4)
-                .frame(height: 36)   // room for the filter box on the first line
+                .frame(height: 30)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

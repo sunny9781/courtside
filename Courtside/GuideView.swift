@@ -8,7 +8,8 @@ struct GuideView: View {
     @AppStorage(Prefs.guideHours) private var guideHours = 6
     @AppStorage(Prefs.guideCategory) private var categoryID = ""
     @AppStorage(Prefs.guideGrouped) private var grouped = true
-    @State private var categorySearch = ""
+    /// The filter box in the top bar.
+    @Binding var categorySearch: String
     @State private var channelSearch = ""
     /// Results of the one search box (categories and channels), worked out a moment after typing stops.
     @State private var hits: [EPGSearch.Hit] = []
@@ -153,8 +154,6 @@ struct GuideView: View {
         let query = categorySearch.trimmingCharacters(in: .whitespaces).lowercased()
 
         return VStack(alignment: .leading, spacing: 12) {
-            Field(placeholder: "Filter", text: $categorySearch)
-
             Toggle(isOn: $grouped) {
                 Text("Group similar categories")
                     .font(.system(size: 12, weight: .medium))

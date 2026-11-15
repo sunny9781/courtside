@@ -11,6 +11,8 @@ enum Route: Hashable {
 /// Top bar plus the selected screen, with the player covering everything when a stream is open.
 struct ShellView: View {
     @EnvironmentObject var model: AppModel
+    /// What's typed in the top bar's filter box (EPG and game screens); cleared when you move on.
+    @State private var filter = ""
     @State private var route: Route = .home
     @State private var openGameID: String?
     /// The sport picked in Home's left column; nil means "All sports".
@@ -20,7 +22,8 @@ struct ShellView: View {
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
-                TopBar(route: route, onBack: onHome && openGameID != nil ? { openGameID = nil } : nil) { navigate(to: $0) }
+                TopBar(route: route, onBack: onHome && openGameID != nil ? { openGameID = nil } : nil,
+                       filter: showsFilter ? $filter : nil) { navigate(to: $0) }
                 // The pinned player: only while something is playing, in the same spot on every screen.
                 if let item = model.pinned {
                     PinnedPlayerBar(item: item, hidden: model.nowPlaying != nil, game: pinnedGame)
@@ -58,6 +61,8 @@ struct ShellView: View {
         .task {
             await model.refresh()
         }
+        .onChange(of: route) { filter = "" }
+        .onChange(of: openGameID) { filter = "" }
         .onReceive(NotificationCenter.default.publisher(for: .openGame)) { note in
             guard let id = note.object as? String, let game = model.games.first(where: { $0.id == id }) else { return }
             selectedSport = game.league.sport
@@ -66,6 +71,9 @@ struct ShellView: View {
             openGameID = id
         }
     }
+
+    /// The filter box in the top bar shows on the EPG and on game screens.
+    private var showsFilter: Bool { route == .guide || (onHome && openGameID != nil) }
 
     /// The game the player's stream was started from, so its score stays in the player strip on every screen
     /// (EPG and Settings too) for as long as that stream plays.
@@ -99,7 +107,7 @@ struct ShellView: View {
         switch route {
         case .home, .sport:
             if let id = openGameID, let game = model.games.first(where: { $0.id == id }) {
-                GameDetailView(game: game) {
+                GameDetailView(search: $filter, game: game) {
                     openGameID = nil
                 }
             } else {
@@ -108,7 +116,7 @@ struct ShellView: View {
                 }
             }
         case .guide:
-            GuideView { gameID in
+            GuideView(categorySearch: $filter) { gameID in
                 if let game = model.games.first(where: { $0.id == gameID }) {
                     selectedSport = game.league.sport
                     selectedLeague = nil
@@ -128,8 +136,10 @@ struct TopBar: View {
     @EnvironmentObject var model: AppModel
     @ObservedObject private var updater = AppUpdater.shared
     let route: Route
-    /// Set on a game screen: a back arrow left of the connection count.
+    /// Set on a game screen: a back arrow on the left.
     var onBack: (() -> Void)? = nil
+    /// Set on the EPG and game screens: the filter box, on the right.
+    var filter: Binding<String>? = nil
     let onNavigate: (Route) -> Void
 
     private var onHome: Bool {
@@ -154,10 +164,17 @@ struct TopBar: View {
                         .padding(.leading, 88)
                 }
                 Spacer()
+                if let filter {
+                    Field(placeholder: "Filter", text: filter)
+                        .frame(width: 220)
+                }
                 if case .ready(let version) = updater.state {
                     UpdateReadyButton(version: version) { updater.restartToUpdate() }
                 }
                 status
+                Text("v\(updater.currentVersion)")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Theme.muted)
                     .padding(.trailing, 20)
             }
         }

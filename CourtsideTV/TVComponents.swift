@@ -2,7 +2,7 @@ import SwiftUI
 
 enum TVLayout {
     /// Left and right margin on every screen (TVs crop the edges).
-    static let margin: CGFloat = 80
+    static let margin: CGFloat = 28
     /// Width of the left column on Home, EPG and Settings.
     static let sidebar: CGFloat = 470
     static let corner: CGFloat = 20

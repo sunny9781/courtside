@@ -102,6 +102,14 @@ final class PlaybackController: ObservableObject {
         startPolling()
     }
 
+    /// Opens the current stream again from scratch (Apple TV: after full screen, when the TV switching its
+    /// refresh rate back can leave the picture black).
+    func reload(bufferMs: Int) {
+        guard let url = currentURL else { return }
+        currentURL = nil
+        play(url, bufferMs: bufferMs)
+    }
+
     func togglePause() {
         #if canImport(VLCKitSPM)
         if player.isPlaying { player.pause() } else { player.play() }
