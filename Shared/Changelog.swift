@@ -23,17 +23,23 @@ enum Changelog {
     }
 
     struct Release: Identifiable, Hashable {
+        /// Goes up by one with every release: "1.16".
+        let version: String
         let date: String          // yyyy-MM-dd
+        let time: String          // HH:mm, Eastern time
         let title: String
         let changes: [Change]
-        var id: String { date + title }
+        var id: String { version }
 
-        /// "Sun, Nov 15"
+        /// "v1.16 · Sun, Nov 15 · 12:35 PM"
         var dateLabel: String {
             let parse = DateFormatter()
-            parse.dateFormat = "yyyy-MM-dd"
-            guard let d = parse.date(from: date) else { return date }
-            return d.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+            parse.dateFormat = "yyyy-MM-dd HH:mm"
+            parse.timeZone = TimeZone(identifier: "America/Toronto")
+            guard let d = parse.date(from: "\(date) \(time)") else { return "v\(version) · \(date)" }
+            let day = d.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+            let hour = d.formatted(.dateTime.hour().minute())
+            return "v\(version) · \(day) · \(hour)"
         }
     }
 
@@ -50,36 +56,37 @@ enum Changelog {
         let app = App.current
         return releases.compactMap { r in
             let mine = r.changes.filter { $0.apps.contains(app) }
-            return mine.isEmpty ? nil : Release(date: r.date, title: r.title, changes: mine)
+            return mine.isEmpty ? nil : Release(version: r.version, date: r.date, time: r.time, title: r.title, changes: mine)
         }
     }
 
     static let releases: [Release] = [
-        Release(date: "2026-11-15", title: "Score stays with the player", changes: [
+        Release(version: "1.16", date: "2026-11-15", time: "12:35", title: "Score stays with the player", changes: [
             Change(text: "The score stays in the player strip when you move to the EPG or Settings while a game's stream plays.", apps: mac),
-            Change(text: "The connection count is gone from the top bar; Settings shows it exactly as your provider reports it.", apps: all)
+            Change(text: "The connection count is gone from the top bar; Settings shows it exactly as your provider reports it.", apps: all),
+            Change(text: "What's new shows each update's version number and the time it came out.", apps: all)
         ]),
-        Release(date: "2026-11-15", title: "French streams", changes: [
+        Release(version: "1.15", date: "2026-11-15", time: "12:23", title: "French streams", changes: [
             Change(text: "Game screen: French-language channels (\"CA | French\", RDS, TVA) and Spanish ones in US categories go in Foreign streams, grouped by language.", apps: all)
         ]),
-        Release(date: "2026-11-15", title: "Score in the player", changes: [
+        Release(version: "1.14", date: "2026-11-15", time: "12:17", title: "Score in the player", changes: [
             Change(text: "Game screen: the score and game info sit in the player strip, to the right of the video, while one of the game's streams plays.", apps: mac),
             Change(text: "Player: resolution and frame rate are under the channel name instead of on the video.", apps: mac),
             Change(text: "The player strip is the same size on every screen; on game screens the score shrinks to fit (and grows when you drag the player bigger).", apps: mac)
         ]),
-        Release(date: "2026-11-15", title: "Player strip everywhere and better updates", changes: [
+        Release(version: "1.13", date: "2026-11-15", time: "11:46", title: "Player strip everywhere and better updates", changes: [
             Change(text: "The player is the strip under the top bar on every screen, game screens included.", apps: mac),
             Change(text: "Drag the handle under the player to resize it again, on every screen (it stays 16:9).", apps: mac),
             Change(text: "\"Foreign languages\" is now \"Foreign streams\"; English-language Canadian channels are never in it.", apps: all),
             Change(text: "Updates: \"Restart to update\" always installs the newest version, even if several came out since you last restarted. The app checks every 15 minutes.", apps: mac)
         ]),
-        Release(date: "2026-11-15", title: "Tidier game screen and player", changes: [
+        Release(version: "1.12", date: "2026-11-15", time: "11:38", title: "Tidier game screen and player", changes: [
             Change(text: "Player: the quality and buttons sit over the bottom of the video and only show when you hover over it.", apps: mac),
             Change(text: "Game screen: foreign-language streams (Spain, Latino, Mexico…) are folded into one \"Foreign languages\" group near the bottom; click it to open it.", apps: all),
             Change(text: "Game screen: local stations and likely channels are a group at the very bottom.", apps: all),
             Change(text: "Game screen: the \"streams found\" line is gone.", apps: mac)
         ]),
-        Release(date: "2026-11-15", title: "Game screen streams and a slimmer player", changes: [
+        Release(version: "1.11", date: "2026-11-15", time: "11:14", title: "Game screen streams and a slimmer player", changes: [
             Change(text: "Game screen: streams are ordered 4K, then the league's own channels (like NFL Sunday Ticket), then the official broadcasters from the league's home country (USA for the NFL and NBA, Canada then USA for the NHL, UK for the Premier League), then other countries.", apps: all),
             Change(text: "Game screen: foreign-language streams (Latino, Spanish, French…) are hidden unless you switch them on.", apps: all),
             Change(text: "Game screen: click a section (4K, USA, Canada…) to fold it shut or open it.", apps: all),
@@ -92,7 +99,7 @@ enum Changelog {
             Change(text: "Home: live badges show live out of today's games (\"2/5 LIVE\"), and the date is gone.", apps: all),
             Change(text: "Pop-out player: a separate window for the stream, like a second screen. The app's player shrinks to a slim bar, picking a stream in the app plays it in that window, and full screen puts that window full screen.", apps: mac)
         ]),
-        Release(date: "2026-11-15", title: "What's new and smarter EPG groups", changes: [
+        Release(version: "1.10", date: "2026-11-15", time: "10:36", title: "What's new and smarter EPG groups", changes: [
             Change(text: "What's new: this list of changes, in Settings › Updates.", apps: all),
             Change(text: "Player bar: the buttons now sit right under the video: hide video (keeps the sound), full screen and stop.", apps: macIOS),
             Change(text: "Player bar: Stop ends the stream, so it frees a connection right away. The up/down arrows and pause are gone.", apps: macIOS),
@@ -108,30 +115,30 @@ enum Changelog {
             Change(text: "EPG: an open group starts with \"All … channels\" to see every channel in it at once.", apps: ios),
             Change(text: "Streams no longer reshuffle while you tap through them.", apps: all)
         ]),
-        Release(date: "2026-11-15", title: "Pinned player", changes: [
+        Release(version: "1.9", date: "2026-11-15", time: "09:38", title: "Pinned player", changes: [
             Change(text: "The player is pinned at the top of every screen while something plays, and keeps playing as you move between Home, games, EPG and Settings. It's hidden when nothing is playing.", apps: macIOS),
             Change(text: "Closing full screen leaves the stream playing in the pinned player.", apps: macIOS),
             Change(text: "Tapping the video in full screen brings back the resolution, frame rate and controls.", apps: tvIOS),
             Change(text: "Streams that played sound over a black screen (some 4K channels) now switch to the VLC player automatically, and it remembers those channels.", apps: ios),
             Change(text: "One shortcut on the Mac updates both the Apple TV and the iPhone.", apps: tvIOS)
         ]),
-        Release(date: "2026-11-15", title: "Score cards that fit", changes: [
+        Release(version: "1.8", date: "2026-11-15", time: "09:21", title: "Score cards that fit", changes: [
             Change(text: "Score cards are sized per sport so every team name and score fits.", apps: all),
             Change(text: "Long scores (cricket) get their own line.", apps: all),
             Change(text: "Opening a game plays its first stream; after that, only clicking plays something else.", apps: all)
         ]),
-        Release(date: "2026-11-15", title: "Cricket, pickleball, Chromecast and AirPlay", changes: [
+        Release(version: "1.7", date: "2026-11-15", time: "01:17", title: "Cricket, pickleball, Chromecast and AirPlay", changes: [
             Change(text: "New sports: cricket (current matches in major series) and pickleball (events from the TV guide).", apps: all),
             Change(text: "Apple's player first, with automatic Picture in Picture when you swipe home, and AirPlay.", apps: ios),
             Change(text: "Chromecast support.", apps: ios),
             Change(text: "EPG: cleaner layout, with \"Group\" as a filter beside search.", apps: ios),
             Change(text: "Connection count and last-updated time on the Home page.", apps: ios)
         ]),
-        Release(date: "2026-11-15", title: "iPhone and iPad app", changes: [
+        Release(version: "1.6", date: "2026-11-15", time: "00:34", title: "iPhone and iPad app", changes: [
             Change(text: "Courtside for iPhone and iPad: Home, game screens, EPG, Settings and a full-screen player (swipe up/down to change stream).", apps: ios),
             Change(text: "Picture in Picture (stops when the phone locks).", apps: ios)
         ]),
-        Release(date: "2026-11-14", title: "Navigation and filters", changes: [
+        Release(version: "1.5", date: "2026-11-15", time: "00:03", title: "Navigation and filters", changes: [
             Change(text: "Pressing down from the top tabs starts on the left column on every page.", apps: tv),
             Change(text: "Fixed a crash when leaving full screen.", apps: tv),
             Change(text: "Hide adult categories (on by default) in Settings › EPG.", apps: all),
@@ -139,7 +146,7 @@ enum Changelog {
             Change(text: "Home: a sports-only menu, with league filters above the games.", apps: tv),
             Change(text: "EPG: groups open one level at a time.", apps: tv)
         ]),
-        Release(date: "2026-11-14", title: "Frame rates and Back everywhere", changes: [
+        Release(version: "1.4", date: "2026-11-14", time: "23:10", title: "Frame rates and Back everywhere", changes: [
             Change(text: "Frame rates on every stream and in full screen.", apps: all),
             Change(text: "Match the TV's refresh rate to the stream (Settings › Player).", apps: tv),
             Change(text: "Click a stream to preview it, click again for full screen; scrolling no longer starts streams.", apps: tv),
@@ -149,22 +156,22 @@ enum Changelog {
             Change(text: "No repeated \"Live Now\" heading; no icon on the Home tab.", apps: macTV),
             Change(text: "Group similar categories toggle and a working refresh button.", apps: tv)
         ]),
-        Release(date: "2026-11-14", title: "Apple TV redesign", changes: [
+        Release(version: "1.3", date: "2026-11-14", time: "22:50", title: "Apple TV redesign", changes: [
             Change(text: "Redesigned to match the Mac: sports down the left, back buttons and better alignment.", apps: tv),
             Change(text: "Your login is kept when the app updates.", apps: tv),
             Change(text: "Live connection count at the top left, checked every 30 seconds and after streams start or stop.", apps: macTV)
         ]),
-        Release(date: "2026-11-14", title: "Streams and tabs", changes: [
+        Release(version: "1.2", date: "2026-11-14", time: "20:23", title: "Streams and tabs", changes: [
             Change(text: "Each stream shows the category it comes from.", apps: macTV),
             Change(text: "Live TV is now called EPG.", apps: macTV),
             Change(text: "Tied scores are both green.", apps: macTV),
             Change(text: "Home cards show a 4K badge when a 4K stream is available, instead of the network.", apps: macTV),
             Change(text: "A game keeps playing while you look around other tabs, and Home goes back to where you were.", apps: macTV)
         ]),
-        Release(date: "2026-11-14", title: "First Apple TV version", changes: [
+        Release(version: "1.1", date: "2026-11-14", time: "19:55", title: "First Apple TV version", changes: [
             Change(text: "Courtside for Apple TV: Home, game streams, player, Live TV and Settings.", apps: tv)
         ]),
-        Release(date: "2026-11-14", title: "First Mac version", changes: [
+        Release(version: "1.0", date: "2026-11-14", time: "19:37", title: "First Mac version", changes: [
             Change(text: "Courtside for Mac, with updates installed from inside the app.", apps: mac),
             Change(text: "Basketball app icon; built for Apple Silicon Macs.", apps: mac),
             Change(text: "The Courtside tab is now called Home.", apps: mac)

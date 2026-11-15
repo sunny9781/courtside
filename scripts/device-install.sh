@@ -112,6 +112,9 @@ fi
 
 # 4. Build and sign.
 BUILD=$((BUILD_NUMBER + 1))
+# The version is the newest one in What's new (Shared/Changelog.swift), so they always match.
+VERSION=$(grep -o 'Release(version: "[0-9.]*"' Shared/Changelog.swift | head -1 | grep -o '[0-9][0-9.]*' || true)
+VERSION=${VERSION:-1.0}
 set -o pipefail
 xcodebuild \
   -project Courtside.xcodeproj \
@@ -124,7 +127,7 @@ xcodebuild \
   DEVELOPMENT_TEAM="$TEAM_ID" \
   CODE_SIGN_STYLE=Automatic \
   CURRENT_PROJECT_VERSION="$BUILD" \
-  MARKETING_VERSION="1.0.$BUILD" \
+  MARKETING_VERSION="$VERSION" \
   build > "$LOG" 2>&1 || { grep -E "error:" "$LOG" | sort -u | head -40; tail -30 "$LOG"; exit 1; }
 
 echo "$PWD" > $BUILD_DIR/.location
