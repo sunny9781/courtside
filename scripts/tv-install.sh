@@ -69,6 +69,15 @@ for dir in "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" "$HOME
   grep -l "$BUNDLE_ID" "$dir"/*.mobileprovision 2>/dev/null | while read -r f; do rm -f "$f"; done || true
 done
 
+# The build cache remembers where this folder was; if it has moved, start the cache fresh.
+if [ -f build-tv/.location ] && [ "$(cat build-tv/.location)" != "$PWD" ]; then
+  echo "This folder moved, so clearing the old build cache (the next build re-downloads the video player library)…"
+  rm -rf build-tv
+elif [ -d build-tv ] && [ ! -f build-tv/.location ]; then
+  echo "Starting the build cache fresh (one time; re-downloads the video player library)…"
+  rm -rf build-tv
+fi
+
 # 4. Build and sign.
 BUILD=$((BUILD_NUMBER + 1))
 set -o pipefail
@@ -86,6 +95,7 @@ xcodebuild \
   MARKETING_VERSION="1.0.$BUILD" \
   build > tv-build.log 2>&1 || { grep -E "error:" tv-build.log | sort -u | head -40; tail -30 tv-build.log; exit 1; }
 
+echo "$PWD" > build-tv/.location
 APP="build-tv/Build/Products/Release-appletvos/CourtsideTV.app"
 test -d "$APP"
 
