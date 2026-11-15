@@ -57,12 +57,12 @@ enum Changelog {
     static let releases: [Release] = [
         Release(date: "2026-11-15", title: "Player strip everywhere and better updates", changes: [
             Change(text: "The player is the strip under the top bar on every screen, game screens included.", apps: mac),
+            Change(text: "Drag the handle under the player to resize it again, on every screen (it stays 16:9).", apps: mac),
             Change(text: "\"Foreign languages\" is now \"Foreign streams\"; Canadian channels (French ones included) are never in it.", apps: all),
             Change(text: "Updates: \"Restart to update\" always installs the newest version, even if several came out since you last restarted. The app checks every 15 minutes.", apps: mac)
         ]),
         Release(date: "2026-11-15", title: "Tidier game screen and player", changes: [
             Change(text: "Player: the quality and buttons sit over the bottom of the video and only show when you hover over it.", apps: mac),
-            Change(text: "Player: no more dragging to resize.", apps: mac),
             Change(text: "Game screen: foreign-language streams (Spain, Latino, Mexico…) are folded into one \"Foreign languages\" group near the bottom; click it to open it.", apps: all),
             Change(text: "Game screen: local stations and likely channels are a group at the very bottom.", apps: all),
             Change(text: "Game screen: the \"streams found\" line is gone.", apps: mac)

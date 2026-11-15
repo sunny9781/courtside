@@ -7,7 +7,7 @@ import AppKit
 ///
 /// Hovering over the video shows a see-through bar along its bottom: resolution and frame rate, then shrink to a
 /// slim bar (keeps the sound), full screen, pop out to its own window, and stop (ends the stream, so it stops
-/// using a connection). Click the video for full screen.
+/// using a connection). Click the video for full screen. Drag the handle under it to resize (it stays 16:9).
 struct PinnedPlayerBar<Details: View>: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
@@ -16,6 +16,8 @@ struct PinnedPlayerBar<Details: View>: View {
     @Environment(\.dismissWindow) private var dismissWindow
     @ObservedObject private var controller = PlaybackController.shared
     @State private var hovering = false
+    @State private var dragStart: Double?
+    @AppStorage(Prefs.pinnedVideoHeight) private var videoHeight: Double = 190
     let item: NowPlaying
     /// True while full screen is showing the stream (the video can only be in one place).
     let hidden: Bool
@@ -25,7 +27,9 @@ struct PinnedPlayerBar<Details: View>: View {
     var slimTitle: String? = nil
     @ViewBuilder let details: () -> Details
 
-    private let videoHeight: CGFloat = 190
+    /// Smallest size where the quality and buttons still fit on one line over the video.
+    static var minHeight: Double { 165 }
+    static var maxHeight: Double { 620 }
 
     /// Collapsed, or showing in its own window: the whole panel shrinks to one slim row.
     private var slim: Bool { collapsed || model.poppedOut }
@@ -43,7 +47,9 @@ struct PinnedPlayerBar<Details: View>: View {
                         .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
                 .padding(.horizontal, card ? 20 : 24)
-                .padding(.vertical, card ? 20 : 12)
+                .padding(.top, card ? 20 : 12)
+                .padding(.bottom, 2)
+                resizeHandle
             }
         }
         .background {
@@ -151,6 +157,34 @@ struct PinnedPlayerBar<Details: View>: View {
             Spacer(minLength: 8)
             buttons(glass: false)
         }
+    }
+
+    /// Drag down for a bigger player, up for a smaller one (it stays 16:9). Past the smallest size it shrinks to
+    /// the slim bar.
+    private var resizeHandle: some View {
+        Capsule()
+            .fill(Theme.muted.opacity(dragStart == nil ? 0.45 : 0.9))
+            .frame(width: 44, height: 5)
+            .frame(maxWidth: .infinity)
+            .frame(height: 16)
+            .contentShape(Rectangle())
+            .onHover { inside in
+                if inside { NSCursor.resizeUpDown.push() } else { NSCursor.pop() }
+            }
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        if dragStart == nil { dragStart = videoHeight }
+                        videoHeight = min(Self.maxHeight, max(Self.minHeight, (dragStart ?? videoHeight) + value.translation.height))
+                    }
+                    .onEnded { value in
+                        if (dragStart ?? videoHeight) + value.translation.height < Self.minHeight - 40 {
+                            withAnimation(.easeOut(duration: 0.2)) { collapsed = true }
+                        }
+                        dragStart = nil
+                    }
+            )
+            .help("Drag to resize the player")
     }
 
     /// Full screen covers the app, or, when the player has its own window, puts that window full screen
