@@ -1,18 +1,18 @@
 import SwiftUI
 import UIKit
-import AVKit
-import AVFoundation
 
 /// Full-screen player.
 /// - Swipe up/down (or the arrows): next/previous stream for this game, or channel in this category.
-/// - Tap: show or hide the controls. Picture in Picture button: keep watching over other apps.
+/// - Tap: show or hide the controls.
+/// - Swipe up to leave the app and it keeps playing in Picture in Picture (or use the PiP button).
+/// - AirPlay and Chromecast buttons send it to a TV.
 /// A stream that fails, stops, or buffers for 10 seconds switches to the next one (USA and Canada first).
 struct IOSPlayerView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
     @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
-    @ObservedObject private var controller = PlaybackController.shared
-    @ObservedObject private var pip = PiPManager.shared
+    @ObservedObject private var playback = IOSPlayback.shared
+    @ObservedObject private var cast = CastManager.shared
     @State private var tried: Set<Int> = []
     @State private var stalledSince: Date?
     @State private var switchingAutomatically = false
@@ -29,8 +29,9 @@ struct IOSPlayerView: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            IOSVideoSurface(view: controller.view)
-                .ignoresSafeArea()
+            if !cast.isCasting {
+                IOSVideo().ignoresSafeArea()
+            }
 
             statusOverlay
 
@@ -77,15 +78,15 @@ struct IOSPlayerView: View {
                 }
             }
         }
-        .onChange(of: controller.resolution) {
-            if !controller.resolution.isEmpty { model.recordQuality(item.channel.id, controller.resolution) }
+        .onChange(of: cast.deviceName) {
+            // A Chromecast connected or disconnected while watching: move the stream there, or back here.
+            start()
         }
-        .onChange(of: controller.frameRate) {
-            model.recordFrameRate(item.channel.id, controller.frameRate)
+        .onChange(of: playback.resolution) {
+            if !playback.resolution.isEmpty { model.recordQuality(item.channel.id, playback.resolution) }
         }
-        .onChange(of: pip.active) {
-            // Picture in Picture took over: close full screen so you're back in the app.
-            if pip.active { model.closePlayer() }
+        .onChange(of: playback.frameRate) {
+            model.recordFrameRate(item.channel.id, playback.frameRate)
         }
         .onDisappear {
             hideTask?.cancel()
@@ -96,20 +97,26 @@ struct IOSPlayerView: View {
     // MARK: Playback
 
     private func start() {
-        guard !pip.active, !pip.starting,
-              let url = model.streamURL(for: item.channel, hls: !PlaybackController.usesVLC) else { return }
-        controller.play(url, bufferMs: bufferMs)
+        if cast.isCasting {
+            playback.stop()
+            if let url = model.streamURL(for: item.channel, hls: true) {
+                cast.cast(url, title: model.playerTitle(item), subtitle: item.channel.name)
+            }
+        } else {
+            playback.play(item.channel, model: model, bufferMs: bufferMs)
+        }
         poke()
     }
 
     private func checkForStall() {
-        guard autoSwitch, item.lineup.count > 1, !pip.starting else { return }
-        switch controller.status {
+        guard autoSwitch, item.lineup.count > 1, !cast.isCasting, !playback.av.pipStarting else { return }
+        switch playback.status {
         case .failed, .ended:
             switchToNext(reason: "The stream stopped")
         case .buffering, .opening:
             if let since = stalledSince {
-                if Date().timeIntervalSince(since) >= 10 { switchToNext(reason: "The stream stalled") }
+                // 18 seconds: allows for the 8-second try with Apple's player before VLC takes over.
+                if Date().timeIntervalSince(since) >= 18 { switchToNext(reason: "The stream stalled") }
             } else {
                 stalledSince = Date()
             }
@@ -128,22 +135,14 @@ struct IOSPlayerView: View {
         }
         tried.insert(next.id)
         switchingAutomatically = true
-        controller.stop()
+        playback.stop()
         model.switchStream(to: next)
         flipMessage("\(reason). Switched to \(next.name)")
     }
 
-    /// Hands the stream to Apple's player (using the provider's HLS version of the channel) and floats it.
-    private func startPictureInPicture() {
-        guard let url = model.streamURL(for: item.channel, hls: true) else { return }
-        controller.stop()
-        let current = item
-        pip.start(url: url, channel: current.channel) { [model] in
-            // Tapping the "back to app" button on the floating window: full screen again, with the usual player.
-            model.play(current.channel, gameTitle: current.gameTitle, lineup: current.lineup)
-        } onFail: {
-            start()   // HLS didn't work for this channel: carry on in full screen
-        }
+    private func close() {
+        model.closePlayer()
+        if model.miniPlayers == 0 { playback.stop() }
     }
 
     // MARK: Overlays
@@ -161,7 +160,7 @@ struct IOSPlayerView: View {
         hideTask?.cancel()
         hideTask = Task {
             try? await Task.sleep(for: .seconds(4))
-            if !Task.isCancelled, controller.status == .playing {
+            if !Task.isCancelled, playback.status == .playing {
                 withAnimation(.easeOut(duration: 0.3)) { showControls = false }
             }
         }
@@ -178,29 +177,35 @@ struct IOSPlayerView: View {
 
     @ViewBuilder
     private var statusOverlay: some View {
-        if pip.starting {
+        if let device = cast.deviceName {
             VStack(spacing: 12) {
-                ProgressView().tint(.white)
-                Text("Starting picture in picture…").foregroundStyle(.white.opacity(0.8))
+                Image(systemName: "tv.and.mediabox").font(.system(size: 44)).foregroundStyle(Theme.accent)
+                Text("Playing on \(device)").font(.headline).foregroundStyle(.white)
+                Text(item.channel.name).font(.subheadline).foregroundStyle(.white.opacity(0.7))
+            }
+        } else if playback.av.pipActive {
+            VStack(spacing: 10) {
+                Image(systemName: "pip").font(.system(size: 40)).foregroundStyle(.white.opacity(0.7))
+                Text("Playing in picture in picture").foregroundStyle(.white.opacity(0.8))
             }
         } else {
-            switch controller.status {
+            switch playback.status {
             case .opening, .buffering, .idle:
                 VStack(spacing: 12) {
                     ProgressView().tint(.white)
-                    Text(controller.status == .buffering ? "Buffering…" : "Opening \(item.channel.name)…")
+                    Text(playback.status == .buffering ? "Buffering…" : "Opening \(item.channel.name)…")
                         .foregroundStyle(.white.opacity(0.8))
                 }
             case .failed(let why):
                 VStack(spacing: 12) {
                     Image(systemName: "exclamationmark.triangle.fill").font(.largeTitle).foregroundStyle(Theme.accent)
                     Text(why).foregroundStyle(.white.opacity(0.8)).multilineTextAlignment(.center).padding(.horizontal, 40)
-                    Button("Try again") { controller.stop(); start() }.buttonStyle(.borderedProminent)
+                    Button("Try again") { playback.stop(); start() }.buttonStyle(.borderedProminent)
                 }
             case .ended:
                 VStack(spacing: 12) {
                     Text("The stream stopped.").foregroundStyle(.white.opacity(0.8))
-                    Button("Reconnect") { controller.stop(); start() }.buttonStyle(.borderedProminent)
+                    Button("Reconnect") { playback.stop(); start() }.buttonStyle(.borderedProminent)
                 }
             case .paused:
                 Image(systemName: "pause.fill").font(.system(size: 50)).foregroundStyle(.white.opacity(0.85))
@@ -213,14 +218,22 @@ struct IOSPlayerView: View {
     private var controls: some View {
         VStack {
             HStack(spacing: 14) {
-                circleButton("xmark") { model.closePlayer() }
+                circleButton("xmark") { close() }
                 Spacer()
-                if PiPManager.isSupported {
-                    circleButton("pip.enter") { startPictureInPicture() }
+                CastButton()
+                    .frame(width: 42, height: 42)
+                    .background(Circle().fill(.black.opacity(0.5)))
+                AirPlayButton()
+                    .frame(width: 42, height: 42)
+                    .background(Circle().fill(.black.opacity(0.5)))
+                if playback.canPictureInPicture && !cast.isCasting {
+                    circleButton("pip.enter") { playback.av.startPictureInPicture() }
                 }
-                circleButton(controller.status == .paused ? "play.fill" : "pause.fill") {
-                    controller.togglePause()
-                    poke()
+                if !cast.isCasting {
+                    circleButton(playback.status == .paused ? "play.fill" : "pause.fill") {
+                        playback.togglePause()
+                        poke()
+                    }
                 }
             }
             .padding(.horizontal, 20)
@@ -241,8 +254,8 @@ struct IOSPlayerView: View {
                 }
                 .lineLimit(1)
                 Spacer()
-                if !controller.resolution.isEmpty { IOSBadge(text: controller.resolution) }
-                if controller.frameRate > 0 { IOSBadge(text: PlaybackController.fpsLabel(controller.frameRate)) }
+                if !playback.resolution.isEmpty { IOSBadge(text: playback.resolution) }
+                if playback.frameRate > 0 { IOSBadge(text: PlaybackController.fpsLabel(playback.frameRate)) }
                 if item.lineup.count > 1 {
                     circleButton("chevron.up") { model.step(-1) }
                     circleButton("chevron.down") { model.step(1) }
@@ -267,126 +280,5 @@ struct IOSPlayerView: View {
                 .frame(width: 42, height: 42)
                 .background(Circle().fill(.black.opacity(0.5)))
         }
-    }
-}
-
-// MARK: Picture in Picture
-
-/// A view whose layer is an AVPlayerLayer, for Picture in Picture.
-final class PlayerLayerView: UIView {
-    override class var layerClass: AnyClass { AVPlayerLayer.self }
-    var playerLayer: AVPlayerLayer { layer as! AVPlayerLayer }
-}
-
-/// Keeps Apple's player view in the window at all times (behind the app), which Picture in Picture needs.
-struct PiPLayerHost: UIViewRepresentable {
-    func makeUIView(context: Context) -> PlayerLayerView { PiPManager.shared.layerView }
-    func updateUIView(_ uiView: PlayerLayerView, context: Context) {}
-}
-
-/// VLC can't do Picture in Picture, so for PiP the stream is handed to Apple's player using the provider's HLS
-/// (.m3u8) version of the same channel. Some providers don't offer HLS for every channel; then it says so and
-/// full screen carries on.
-@MainActor
-final class PiPManager: NSObject, ObservableObject, AVPictureInPictureControllerDelegate {
-    static let shared = PiPManager()
-
-    @Published private(set) var active = false
-    @Published private(set) var starting = false
-    @Published var message: String?
-
-    let layerView = PlayerLayerView()
-    private var player: AVPlayer?
-    private var controller: AVPictureInPictureController?
-    private var possibleObservation: NSKeyValueObservation?
-    private var onRestore: (() -> Void)?
-    private var onFail: (() -> Void)?
-    private var timeout: Task<Void, Never>?
-
-    static var isSupported: Bool { AVPictureInPictureController.isPictureInPictureSupported() }
-
-    func start(url: URL, channel: Channel, onRestore: @escaping () -> Void, onFail: @escaping () -> Void) {
-        stop()
-        self.onRestore = onRestore
-        self.onFail = onFail
-        starting = true
-
-        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
-        try? AVAudioSession.sharedInstance().setActive(true)
-
-        let player = AVPlayer(url: url)
-        player.automaticallyWaitsToMinimizeStalling = true
-        self.player = player
-        layerView.playerLayer.player = player
-        layerView.playerLayer.videoGravity = .resizeAspect
-
-        guard let pip = AVPictureInPictureController(playerLayer: layerView.playerLayer) else {
-            fail("Picture in picture isn't available on this device.")
-            return
-        }
-        pip.delegate = self
-        controller = pip
-        player.play()
-
-        // Start as soon as iOS says the video is ready for it.
-        possibleObservation = pip.observe(\.isPictureInPicturePossible, options: [.initial, .new]) { pip, _ in
-            Task { @MainActor in
-                guard PiPManager.shared.starting, pip.isPictureInPicturePossible, !pip.isPictureInPictureActive else { return }
-                pip.startPictureInPicture()
-            }
-        }
-        timeout = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(15))
-            guard let self, !Task.isCancelled, self.starting else { return }
-            self.fail("This channel can't play in picture in picture.")
-        }
-    }
-
-    func stop() {
-        timeout?.cancel()
-        possibleObservation = nil
-        if controller?.isPictureInPictureActive == true { controller?.stopPictureInPicture() }
-        player?.pause()
-        layerView.playerLayer.player = nil
-        player = nil
-        controller = nil
-        active = false
-        starting = false
-    }
-
-    private func fail(_ text: String) {
-        let retry = onFail
-        stop()
-        message = text
-        retry?()
-    }
-
-    // MARK: AVPictureInPictureControllerDelegate
-
-    nonisolated func pictureInPictureControllerDidStartPictureInPicture(_ c: AVPictureInPictureController) {
-        Task { @MainActor in
-            self.timeout?.cancel()
-            self.starting = false
-            self.active = true
-        }
-    }
-
-    nonisolated func pictureInPictureController(_ c: AVPictureInPictureController,
-                                                failedToStartPictureInPictureWithError error: Error) {
-        Task { @MainActor in self.fail("Picture in picture couldn't start for this channel.") }
-    }
-
-    nonisolated func pictureInPictureController(_ c: AVPictureInPictureController,
-                                                restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void) {
-        Task { @MainActor in
-            let restore = self.onRestore
-            self.onRestore = nil
-            restore?()
-            completionHandler(true)
-        }
-    }
-
-    nonisolated func pictureInPictureControllerDidStopPictureInPicture(_ c: AVPictureInPictureController) {
-        Task { @MainActor in self.stop() }
     }
 }

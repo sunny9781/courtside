@@ -1,132 +1,207 @@
 import SwiftUI
 
-/// EPG: groups (Sports, Country, 24/7…) you tap into, then a category's channels with what's on now and next.
-/// Search finds categories; inside a category it finds channels. Tap a channel to watch full screen, where
-/// swiping up and down flips through that category.
+/// EPG: the mini player pinned at the top (it carries on with whatever was playing on Home), a search field with a
+/// "Group" filter, then groups → categories → channels, opened in place so the player stays put.
+/// Tap a channel to play it in the mini player; tap it again for full screen (swipe up/down flips the category).
 struct IOSEPGView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.guideGrouped) private var grouped = true
     @State private var search = ""
+    /// Opened groups (node ids), then possibly a category ("cat:<id>") at the end.
+    @State private var path: [String] = []
+    @State private var playingID: Int?
 
-    private var allLeaves: [CategoryGrouping.Node] {
-        func leaves(_ nodes: [CategoryGrouping.Node]) -> [CategoryGrouping.Node] {
-            nodes.flatMap { $0.isGroup ? leaves($0.children) : [$0] }
-        }
-        return leaves(model.categoryTree)
-    }
-
-    var body: some View {
-        NavigationStack {
-            Group {
-                if model.channels.isEmpty {
-                    ContentUnavailableView(model.downloadingChannels ? "Downloading channels…" : "No channels yet",
-                                           systemImage: "tv",
-                                           description: Text(model.errorMessage ?? ""))
-                } else if !search.isEmpty {
-                    List(allCategories.filter { $0.name.localizedCaseInsensitiveContains(search) }) { cat in
-                        NavigationLink(cat.name) { IOSChannelList(title: cat.name, categories: [cat]) }
-                    }
-                } else if grouped {
-                    IOSCategoryLevel(nodes: model.categoryTree, title: "EPG")
-                } else {
-                    List(allCategories) { cat in
-                        NavigationLink {
-                            IOSChannelList(title: cat.name, categories: [cat])
-                        } label: {
-                            categoryLabel(cat.name, count: model.channelsByCategory[cat.id]?.count ?? 0)
-                        }
-                    }
-                    .navigationTitle("EPG")
-                }
-            }
-            .searchable(text: $search, prompt: "Search categories")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Menu {
-                        Toggle("Group similar categories", isOn: $grouped)
-                    } label: {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
-                    }
-                }
-            }
-        }
-    }
+    // MARK: Data
 
     private var allCategories: [ChannelCategory] {
         model.categories.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
     }
-}
 
-private func categoryLabel(_ name: String, count: Int, group: Bool = false) -> some View {
-    HStack {
-        if group {
-            Image(systemName: "folder.fill").foregroundStyle(Theme.accent)
+    private var openNodes: [CategoryGrouping.Node] {
+        var out: [CategoryGrouping.Node] = []
+        var level = model.categoryTree
+        for id in path where !id.hasPrefix("cat:") {
+            guard let node = level.first(where: { $0.id == id }) else { break }
+            out.append(node)
+            level = node.children
         }
-        Text(name)
-        Spacer()
-        Text("\(count)").foregroundStyle(Theme.muted).font(.subheadline)
+        return out
     }
-}
 
-/// One level of the grouped category tree.
-struct IOSCategoryLevel: View {
-    @EnvironmentObject var model: AppModel
-    let nodes: [CategoryGrouping.Node]
-    let title: String
-
-    var body: some View {
-        List(nodes) { node in
-            if node.isGroup {
-                NavigationLink {
-                    IOSCategoryLevel(nodes: node.children, title: node.name)
-                } label: {
-                    categoryLabel(node.name, count: node.categories.count, group: true)
-                }
-            } else {
-                NavigationLink {
-                    IOSChannelList(title: node.name, categories: node.categories)
-                } label: {
-                    categoryLabel(node.name, count: node.categories.reduce(0) { $0 + (model.channelsByCategory[$1.id]?.count ?? 0) })
-                }
-            }
+    /// The category whose channels are showing, if one is open.
+    private var openCategory: (name: String, categories: [ChannelCategory])? {
+        guard let last = path.last, last.hasPrefix("cat:") else { return nil }
+        let id = String(last.dropFirst(4))
+        if grouped {
+            let level = openNodes.last?.children ?? model.categoryTree
+            if let node = level.first(where: { $0.id == id }) { return (node.name, node.categories) }
         }
-        .navigationTitle(title)
+        if let cat = model.categories.first(where: { $0.id == id }) { return (cat.name, [cat]) }
+        return nil
     }
-}
-
-/// A category's channels.
-struct IOSChannelList: View {
-    @EnvironmentObject var model: AppModel
-    @State private var search = ""
-    let title: String
-    let categories: [ChannelCategory]
 
     private var channels: [Channel] {
-        categories.flatMap { model.channelsByCategory[$0.id] ?? [] }
+        guard let open = openCategory else { return [] }
+        let list = open.categories.flatMap { model.channelsByCategory[$0.id] ?? [] }
+        return search.isEmpty ? list : list.filter { $0.name.localizedCaseInsensitiveContains(search) }
     }
 
-    private var shown: [Channel] {
-        search.isEmpty ? channels : channels.filter { $0.name.localizedCaseInsensitiveContains(search) }
+    private var playing: Channel? {
+        if let playingID { return model.channelByID[playingID] }
+        return model.backgroundChannel
     }
+
+    // MARK: Layout
 
     var body: some View {
-        List(shown) { channel in
-            Button {
-                model.play(channel, lineup: channels)
-            } label: {
-                IOSChannelRow(channel: channel)
+        VStack(spacing: 0) {
+            IOSMiniPlayer(channel: playing,
+                          placeholder: "Tap a channel to play it here. Tap it again for full screen.",
+                          onExpand: playing == nil ? nil : { fullScreen(playing!) })
+                .padding(.horizontal)
+                .padding(.top, 8)
+
+            HStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(Theme.muted)
+                    TextField(openCategory == nil ? "Search categories" : "Search channels", text: $search)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    if !search.isEmpty {
+                        Button { search = "" } label: {
+                            Image(systemName: "xmark.circle.fill").foregroundStyle(Theme.muted)
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .frame(height: 38)
+                .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
+
+                IOSChip(selected: grouped, action: { grouped.toggle(); path = [] }) {
+                    Label("Group", systemImage: "square.stack.3d.up")
+                }
             }
-            .buttonStyle(.plain)
+            .padding(.horizontal)
+            .padding(.vertical, 10)
+
+            if !path.isEmpty {
+                Button {
+                    path.removeLast()
+                    search = ""
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.left").font(.subheadline.weight(.semibold))
+                        Text(breadcrumb).font(.subheadline.weight(.semibold)).lineLimit(1)
+                        Spacer()
+                    }
+                    .foregroundStyle(Theme.accent)
+                    .padding(.horizontal)
+                    .padding(.bottom, 6)
+                }
+            }
+
+            if model.channels.isEmpty {
+                Spacer()
+                Text(model.downloadingChannels ? "Downloading channels…" : (model.errorMessage ?? "No channels yet."))
+                    .foregroundStyle(Theme.muted)
+                Spacer()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        if openCategory != nil {
+                            ForEach(channels) { channel in
+                                Button { tap(channel) } label: {
+                                    IOSChannelRow(channel: channel, playing: channel.id == playing?.id)
+                                }
+                                .buttonStyle(.plain)
+                                Divider().overlay(Theme.raised).padding(.leading, 62)
+                            }
+                        } else if !search.isEmpty {
+                            ForEach(allCategories.filter { $0.name.localizedCaseInsensitiveContains(search) }) { cat in
+                                categoryRow(cat.name, count: model.channelsByCategory[cat.id]?.count ?? 0, group: false) {
+                                    open("cat:" + cat.id)
+                                }
+                            }
+                        } else if grouped {
+                            ForEach(openNodes.last?.children ?? model.categoryTree) { node in
+                                if node.isGroup {
+                                    categoryRow(node.name, count: node.categories.count, group: true) { open(node.id) }
+                                } else {
+                                    categoryRow(node.name, count: count(node.categories), group: false) { open("cat:" + node.id) }
+                                }
+                            }
+                        } else {
+                            ForEach(allCategories) { cat in
+                                categoryRow(cat.name, count: model.channelsByCategory[cat.id]?.count ?? 0, group: false) {
+                                    open("cat:" + cat.id)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.bottom, 30)
+                }
+            }
         }
-        .navigationTitle(title)
-        .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $search, prompt: "Search channels")
+        .background(Theme.bg)
+        .onAppear {
+            // Carry on with what was playing on Home.
+            if playingID == nil, let bg = model.backgroundChannel { playingID = bg.id }
+            model.backgroundChannel = nil
+        }
+    }
+
+    private var breadcrumb: String {
+        var names = openNodes.map(\.name)
+        if let open = openCategory { names.append(open.name) }
+        return names.joined(separator: " › ")
+    }
+
+    private func count(_ categories: [ChannelCategory]) -> Int {
+        categories.reduce(0) { $0 + (model.channelsByCategory[$1.id]?.count ?? 0) }
+    }
+
+    private func open(_ id: String) {
+        path.append(id)
+        search = ""
+    }
+
+    private func tap(_ channel: Channel) {
+        if channel.id == playing?.id {
+            fullScreen(channel)
+        } else {
+            playingID = channel.id
+        }
+    }
+
+    private func fullScreen(_ channel: Channel) {
+        let lineup = openCategory.map { $0.categories.flatMap { model.channelsByCategory[$0.id] ?? [] } } ?? [channel]
+        model.play(channel, lineup: lineup.isEmpty ? [channel] : lineup)
+    }
+
+    private func categoryRow(_ name: String, count: Int, group: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: group ? "folder.fill" : "list.bullet")
+                    .foregroundStyle(group ? Theme.accent : Theme.muted)
+                    .frame(width: 24)
+                Text(name).foregroundStyle(Theme.text).lineLimit(1)
+                Spacer()
+                Text("\(count)").font(.subheadline).foregroundStyle(Theme.muted)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
+            }
+            .padding(.horizontal)
+            .frame(height: 48)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .bottom) { Divider().overlay(Theme.raised).padding(.leading, 52) }
     }
 }
 
 struct IOSChannelRow: View {
     @EnvironmentObject var model: AppModel
     let channel: Channel
+    var playing = false
 
     var body: some View {
         let now = model.currentProgramme(channel)
@@ -135,7 +210,13 @@ struct IOSChannelRow: View {
             IOSChannelIcon(url: channel.icon, size: 38)
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text(channel.name).font(.subheadline.weight(.semibold)).foregroundStyle(Theme.text).lineLimit(1)
+                    Text(channel.name)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(playing ? Theme.accent : Theme.text)
+                        .lineLimit(1)
+                    if playing {
+                        Image(systemName: "speaker.wave.2.fill").font(.caption).foregroundStyle(Theme.accent)
+                    }
                     Spacer()
                     if let q = model.measuredQuality[channel.id] { IOSBadge(text: q) }
                 }
@@ -149,6 +230,8 @@ struct IOSChannelRow: View {
                 }
             }
         }
+        .padding(.horizontal)
+        .padding(.vertical, 10)
         .contentShape(Rectangle())
     }
 

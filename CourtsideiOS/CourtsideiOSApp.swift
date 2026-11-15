@@ -8,6 +8,7 @@ struct CourtsideiOSApp: App {
 
     init() {
         Prefs.register()
+        CastManager.setUp()
     }
 
     var body: some Scene {
@@ -63,9 +64,6 @@ struct IOSRootView: View {
 
     var body: some View {
         ZStack {
-            // Apple's player for Picture in Picture lives here, behind everything, so it's always on screen.
-            PiPLayerHost()
-                .ignoresSafeArea()
             Theme.bg.ignoresSafeArea()
             if model.credentials == nil {
                 IOSLoginView()
@@ -79,7 +77,7 @@ struct IOSRootView: View {
 struct IOSShell: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var nav: IOSNav
-    @ObservedObject private var pip = PiPManager.shared
+    @ObservedObject private var playback = IOSPlayback.shared
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -100,10 +98,14 @@ struct IOSShell: View {
             case .active:
                 Task { await model.refresh() }
             case .background:
-                // Leaving the app or locking the phone stops the sound, unless Picture in Picture is showing.
-                if !pip.active {
-                    model.closePlayer()
-                    PlaybackController.shared.stop()
+                // Leaving the app stops the sound unless it went into Picture in Picture (which starts on its own
+                // as you swipe up). Checked a moment later so Picture in Picture has time to start.
+                Task {
+                    try? await Task.sleep(for: .seconds(1.5))
+                    if scenePhase == .background, !playback.av.pipActive, !playback.av.pipStarting {
+                        playback.stop()
+                        model.closePlayer()
+                    }
                 }
             default:
                 break
@@ -111,8 +113,8 @@ struct IOSShell: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.protectedDataWillBecomeUnavailableNotification)) { _ in
             // The phone locked: no sound while locked, not even from Picture in Picture.
-            pip.stop()
-            PlaybackController.shared.stop()
+            playback.stop()
+            model.closePlayer()
         }
         .fullScreenCover(isPresented: Binding(
             get: { model.nowPlaying != nil },
@@ -123,8 +125,23 @@ struct IOSShell: View {
                     .environmentObject(model)
             }
         }
+        .onChange(of: nav.tab) {
+            // Switching tabs keeps the mini player's stream going; the next screen's mini player picks it up.
+            model.backgroundChannel = playback.isActive && model.nowPlaying == nil ? model.previewChannel : nil
+        }
+        .onAppear {
+            // Picture in Picture: "back to app" reopens full screen; closing the floating window stops it.
+            playback.av.onPiPRestore = { [weak model] in
+                guard let model, model.nowPlaying == nil, let channel = model.previewChannel else { return }
+                model.play(channel, lineup: [channel])
+            }
+            playback.av.onPiPClosed = { [weak model] in
+                IOSPlayback.shared.stop()
+                model?.closePlayer()
+            }
+        }
         .overlay(alignment: .bottom) {
-            if let message = pip.message ?? model.notice {
+            if let message = model.notice {
                 Text(message)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Theme.text)
@@ -134,7 +151,6 @@ struct IOSShell: View {
                     .padding(.bottom, 70)
                     .task {
                         try? await Task.sleep(for: .seconds(4))
-                        pip.message = nil
                         model.notice = nil
                     }
             }

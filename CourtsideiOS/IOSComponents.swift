@@ -144,47 +144,48 @@ struct IOSVideoSurface: UIViewRepresentable {
     func updateUIView(_ uiView: UIView, context: Context) {}
 }
 
-/// The mini player on the game screen. Plays only the stream you tapped, and hands over to full screen without
-/// reconnecting. Nothing plays here while Picture in Picture is showing (that would use a second connection).
+/// The mini player (game and EPG screens). Plays only what you tapped, keeps going when you switch tabs, and
+/// hands over to full screen without reconnecting. Swiping up to leave the app floats it in Picture in Picture.
 struct IOSMiniPlayer: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
     @AppStorage(Prefs.guidePreview) private var enabled = true
-    @ObservedObject private var controller = PlaybackController.shared
-    @ObservedObject private var pip = PiPManager.shared
+    @ObservedObject private var playback = IOSPlayback.shared
+    @ObservedObject private var cast = CastManager.shared
     let channel: Channel?
+    var placeholder = "Tap a stream to play it here. Tap it again for full screen."
     var onExpand: (() -> Void)?
 
-    private var url: URL? {
-        channel.flatMap { model.streamURL(for: $0, hls: !PlaybackController.usesVLC) }
-    }
-
     private var showsVideo: Bool {
-        enabled && channel != nil && model.nowPlaying == nil && !pip.active && !DemoData.isOn
+        enabled && channel != nil && model.nowPlaying == nil && !cast.isCasting && !DemoData.isOn
     }
 
     var body: some View {
         ZStack {
             Color.black
             if showsVideo {
-                IOSVideoSurface(view: controller.view)
-                switch controller.status {
-                case .opening, .buffering:
-                    ProgressView()
-                case .failed:
-                    Text("This stream couldn't be opened")
+                IOSVideo()
+                if playback.av.pipActive {
+                    Label("Playing in picture in picture", systemImage: "pip")
                         .font(.footnote)
                         .foregroundStyle(Theme.muted)
-                default:
-                    EmptyView()
+                } else {
+                    switch playback.status {
+                    case .opening, .buffering:
+                        ProgressView()
+                    case .failed:
+                        Text("This stream couldn't be opened").font(.footnote).foregroundStyle(Theme.muted)
+                    default:
+                        EmptyView()
+                    }
                 }
             } else {
                 VStack(spacing: 8) {
-                    Image(systemName: pip.active ? "pip" : "play.rectangle")
+                    Image(systemName: cast.isCasting ? "tv.and.mediabox" : "play.rectangle")
                         .font(.system(size: 30))
                         .foregroundStyle(Theme.muted)
-                    Text(pip.active ? "Playing in picture in picture"
-                         : (channel?.name ?? "Tap a stream to play it here. Tap it again for full screen."))
+                    Text(cast.deviceName.map { "Connected to \($0). Tap a stream to play it there." }
+                         ?? (channel?.name ?? placeholder))
                         .font(.footnote)
                         .foregroundStyle(Theme.muted)
                         .multilineTextAlignment(.center)
@@ -213,27 +214,35 @@ struct IOSMiniPlayer: View {
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .contentShape(Rectangle())
         .onTapGesture(count: 2) { onExpand?() }
-        .task(id: "\(channel?.id ?? 0)|\(model.nowPlaying == nil)|\(enabled)|\(pip.active)") {
-            guard model.nowPlaying == nil, !pip.active, !DemoData.isOn else { return }
-            guard enabled, channel != nil, let url else {
-                if model.backgroundChannel == nil { controller.stop() }
+        .task(id: "\(channel?.id ?? 0)|\(model.nowPlaying == nil)|\(enabled)|\(cast.isCasting)") {
+            guard model.nowPlaying == nil, !DemoData.isOn else { return }
+            guard let channel else { return }
+            if cast.isCasting {
+                // Connected to a Chromecast: the stream goes there.
+                if let url = model.streamURL(for: channel, hls: true) {
+                    cast.cast(url, title: channel.name, subtitle: "Courtside")
+                }
                 return
             }
-            controller.play(url, bufferMs: bufferMs)
+            guard enabled else { return }
+            playback.play(channel, model: model, bufferMs: bufferMs)
             model.previewChannel = channel
         }
-        .onChange(of: controller.resolution) {
-            if showsVideo, let channel, !controller.resolution.isEmpty {
-                model.recordQuality(channel.id, controller.resolution)
+        .onChange(of: playback.resolution) {
+            if showsVideo, let channel, !playback.resolution.isEmpty {
+                model.recordQuality(channel.id, playback.resolution)
             }
         }
-        .onChange(of: controller.frameRate) {
-            if showsVideo, let channel { model.recordFrameRate(channel.id, controller.frameRate) }
+        .onChange(of: playback.frameRate) {
+            if showsVideo, let channel { model.recordFrameRate(channel.id, playback.frameRate) }
         }
         .onAppear { model.miniPlayers += 1 }
         .onDisappear {
             model.miniPlayers -= 1
-            if model.nowPlaying == nil { controller.stop() }
+            // Switching tabs keeps it playing (the next screen picks it up); leaving the game stops it.
+            if model.nowPlaying == nil && model.backgroundChannel == nil && !playback.av.pipActive {
+                playback.stop()
+            }
         }
     }
 }
