@@ -63,7 +63,8 @@ enum Changelog {
     static let releases: [Release] = [
         Release(version: "1.27", date: "2026-11-15", time: "18:35", title: "Picture in Picture and swiping", changes: [
             Change(text: "Closing the Picture in Picture window no longer ends everything: open the app again and the stream carries on in the player at the top.", apps: ios),
-            Change(text: "Full screen: swiping goes back to the player at the top instead of changing stream (the arrows still switch streams).", apps: ios)
+            Change(text: "Full screen: swiping goes back to the player at the top instead of changing stream (the arrows still switch streams).", apps: ios),
+            Change(text: "Back after leaving full screen on a game screen goes back to Home instead of leaving the app.", apps: tv)
         ]),
         Release(version: "1.26", date: "2026-11-15", time: "18:30", title: "Apple TV focus fixes", changes: [
             Change(text: "Move up from a page onto the player's video and click it for full screen.", apps: tv),

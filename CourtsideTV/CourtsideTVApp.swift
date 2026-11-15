@@ -123,9 +123,10 @@ struct TVShell: View {
         }
         // Use almost the full width of the screen (the content keeps a small margin of its own).
         .ignoresSafeArea(.container, edges: .horizontal)
-        // Back on EPG or Settings goes to Home. On Home it's left alone, so a game screen goes back to the
-        // list and the Home list leaves the app, as usual on Apple TV.
-        .onExitCommand(perform: nav.tab != .home ? { switchTab(.home) } : nil)
+        // Back on EPG or Settings goes to Home; on a game screen it goes back to the Home list (also when focus
+        // isn't inside the game screen, e.g. right after full screen); on the Home list it leaves the app, as
+        // usual on Apple TV.
+        .onExitCommand(perform: exitAction)
         // Play/Pause on the remote stops the player at the top (and frees the connection).
         .onPlayPauseCommand {
             guard model.nowPlaying == nil, model.pinned != nil else { return }
@@ -141,6 +142,12 @@ struct TVShell: View {
         .onReceive(NotificationCenter.default.publisher(for: .tvSwitchTab)) { note in
             if let tab = note.object as? TVTab { switchTab(tab) }
         }
+    }
+
+    private var exitAction: (() -> Void)? {
+        if nav.tab != .home { return { switchTab(.home) } }
+        if !nav.homePath.isEmpty { return { nav.homePath.removeLast() } }
+        return nil
     }
 
     /// The player at the top keeps playing while you look at another tab.
