@@ -253,7 +253,9 @@ struct TVGameView: View {
                 }
             }
             .padding(.vertical, 20)
+            .padding(.horizontal, 16)
         }
+        .scrollClipDisabled()
     }
 }
 

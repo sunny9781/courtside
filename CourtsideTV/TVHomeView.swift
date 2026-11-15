@@ -8,13 +8,15 @@ struct TVHomeView: View {
 
     var body: some View {
         NavigationStack(path: $nav.homePath) {
-            HStack(alignment: .top, spacing: 50) {
+            HStack(alignment: .top, spacing: 30) {
                 TVSportList()
                     .frame(width: TVLayout.sidebar)
                     .focusSection()
+                    .zIndex(0)
                 TVGamesPane()
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .focusSection()
+                    .zIndex(1)
             }
             .padding(.horizontal, TVLayout.margin)
             .toolbar(.hidden, for: .navigationBar)
@@ -255,8 +257,8 @@ struct TVGamesPane: View {
                                 .font(.system(size: 30, weight: .bold))
                                 .foregroundStyle(Theme.text)
                         }
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 380, maximum: 460), spacing: 36, alignment: .top)],
-                                  alignment: .leading, spacing: 36) {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 32, alignment: .top), count: 3),
+                                  alignment: .leading, spacing: 32) {
                             ForEach(section.games) { game in
                                 Button {
                                     nav.homePath.append(game.id)
@@ -269,9 +271,11 @@ struct TVGamesPane: View {
                     }
                 }
             }
-            .padding(.vertical, 20)
-            .padding(.trailing, 10)
+            // Room around the cards so the focus zoom never slides under the left column or off screen.
+            .padding(.vertical, 24)
+            .padding(.horizontal, 24)
         }
+        .scrollClipDisabled()
     }
 
     private var subtitle: String {
