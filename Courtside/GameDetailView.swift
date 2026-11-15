@@ -3,7 +3,6 @@ import SwiftUI
 struct GameDetailView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.hideSD) private var hideSD = true
-    @State private var previewID: Int?
     @State private var showLocal = false
     let game: Game
     let onBack: () -> Void
@@ -66,20 +65,20 @@ struct GameDetailView: View {
 
     private var title: String { game.title }
 
-    /// The stream in the mini player: the one you clicked, or the best match.
+    /// The stream in the pinned player, if it's one of this game's.
     private var previewChannel: Channel? {
-        streams.first { $0.channel.id == previewID }?.channel ?? streams.first?.channel
+        guard let pinned = model.pinned?.channel, allStreams.contains(where: { $0.channel.id == pinned.id }) else { return nil }
+        return pinned
     }
 
-    /// Coming back to this game from another tab: keep showing the stream that was playing.
-    private func adoptBackgroundStream() {
-        if let bg = model.backgroundChannel, allStreams.contains(where: { $0.channel.id == bg.id }) {
-            previewID = bg.id
-        }
+    /// Click: play in the pinned player at the top.
+    private func preview(_ channel: Channel) {
+        model.pin(channel, gameTitle: title, lineup: streams.map(\.channel))
     }
 
+    /// Double-click: full screen.
     private func watch(_ channel: Channel) {
-        previewID = channel.id
+        model.pin(channel, gameTitle: title, lineup: streams.map(\.channel))
         model.play(channel, gameTitle: title, lineup: streams.map(\.channel))
     }
 
@@ -134,7 +133,7 @@ struct GameDetailView: View {
                                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 400), spacing: 10)], spacing: 10) {
                                     ForEach(section.streams) { match in
                                         StreamRow(match: match, previewing: match.channel.id == previewChannel?.id,
-                                                  onSelect: { previewID = match.channel.id },
+                                                  onSelect: { preview(match.channel) },
                                                   onWatch: { watch(match.channel) })
                                     }
                                 }
@@ -152,28 +151,14 @@ struct GameDetailView: View {
                 .padding(.bottom, 40)
             }
         }
-        .onChange(of: model.lastPlayedChannelID) {
-            if let id = model.lastPlayedChannelID, streams.contains(where: { $0.channel.id == id }) {
-                previewID = id
-            }
+        .onAppear {
+            // Opening a game plays its first stream in the pinned player, unless one of its streams already is.
+            if previewChannel == nil, let first = streams.first { preview(first.channel) }
         }
     }
 
     private var hero: some View {
         HStack(alignment: .top, spacing: 28) {
-            VStack(alignment: .leading, spacing: 8) {
-                GuidePreview(channel: previewChannel, onExpand: previewChannel.map { ch -> () -> Void in { watch(ch) } })
-                    .onAppear { adoptBackgroundStream() }
-                    .frame(width: 400, height: 225)
-                if let channel = previewChannel {
-                    Text("\(channel.name) · double-click for full screen")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Theme.muted)
-                        .lineLimit(1)
-                        .frame(width: 400, alignment: .leading)
-                }
-            }
-
             VStack(alignment: .leading, spacing: 14) {
                 Text(statusLine)
                     .font(.system(size: 12, weight: .semibold))

@@ -21,6 +21,11 @@ struct ShellView: View {
         ZStack {
             VStack(spacing: 0) {
                 TopBar(route: route) { navigate(to: $0) }
+                // The pinned player: only while something is playing, in the same spot on every screen.
+                if let item = model.pinned {
+                    PinnedPlayerBar(item: item, hidden: model.nowPlaying != nil)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
                 content
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -34,6 +39,7 @@ struct ShellView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: model.nowPlaying)
+        .animation(.easeOut(duration: 0.25), value: model.pinned == nil)
         .overlay(alignment: .bottom) {
             if let notice = model.notice {
                 Text(notice)
@@ -64,13 +70,10 @@ struct ShellView: View {
     private func navigate(to target: Route) {
         let goingHome = target == .home
         if goingHome && onHome {
-            model.backgroundChannel = nil
             openGameID = nil
             return
         }
         if target == route { return }
-        let playing = PlaybackController.shared.currentURL != nil && model.nowPlaying == nil
-        model.backgroundChannel = playing ? model.previewChannel : nil
         route = target
     }
 
@@ -80,7 +83,6 @@ struct ShellView: View {
         case .home, .sport:
             if let id = openGameID, let game = model.games.first(where: { $0.id == id }) {
                 GameDetailView(game: game) {
-                    model.backgroundChannel = nil
                     openGameID = nil
                 }
             } else {
@@ -93,8 +95,6 @@ struct ShellView: View {
                 if let game = model.games.first(where: { $0.id == gameID }) {
                     selectedSport = game.league.sport
                     selectedLeague = nil
-                    let playing = PlaybackController.shared.currentURL != nil && model.nowPlaying == nil
-                    model.backgroundChannel = playing ? model.previewChannel : nil
                     route = .home
                     openGameID = gameID
                 }

@@ -35,6 +35,7 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
     override init() {
         super.init()
         view.backgroundColor = .black
+        view.isUserInteractionEnabled = false
         view.playerLayer.player = player
         view.playerLayer.videoGravity = .resizeAspect
         player.allowsExternalPlayback = true                      // AirPlay video
@@ -198,15 +199,17 @@ final class IOSPlayback: ObservableObject {
         guard let hls = model.streamURL(for: channel, hls: true) else { return }
         usingVLC = false
         av.play(hls, bufferMs: bufferMs)
-        // If Apple's player can't get going within 8 seconds, use VLC for this channel from now on.
+        // If Apple's player can't show a picture within 8 seconds (fails, never starts, or plays sound over a black
+        // screen because it can't decode the video, as with some 4K channels), use VLC for this channel from now on.
         fallback = Task { [weak self] in
             for _ in 0..<16 {
                 try? await Task.sleep(for: .milliseconds(500))
                 guard let self, !Task.isCancelled, self.channelID == channel.id else { return }
-                if self.av.status == .playing { return }
+                if self.av.status == .playing && !self.av.resolution.isEmpty { return }
                 if case .failed = self.av.status { break }
             }
-            guard let self, !Task.isCancelled, self.channelID == channel.id, self.av.status != .playing else { return }
+            guard let self, !Task.isCancelled, self.channelID == channel.id,
+                  !(self.av.status == .playing && !self.av.resolution.isEmpty) else { return }
             self.vlcOnly.insert(channel.id)
             UserDefaults.standard.set(Array(self.vlcOnly), forKey: "vlcOnlyChannels")
             self.av.stop()

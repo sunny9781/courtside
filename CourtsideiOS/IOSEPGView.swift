@@ -1,15 +1,14 @@
 import SwiftUI
 
-/// EPG: the mini player pinned at the top (it carries on with whatever was playing on Home), a search field with a
-/// "Group" filter, then groups → categories → channels, opened in place so the player stays put.
-/// Tap a channel to play it in the mini player; tap it again for full screen (swipe up/down flips the category).
+/// EPG: a search field with a "Group" filter, then groups → categories → channels, opened in place.
+/// Tap a channel to play it in the pinned player at the top; tap it again for full screen (swipe up/down flips
+/// through the category).
 struct IOSEPGView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.guideGrouped) private var grouped = true
     @State private var search = ""
     /// Opened groups (node ids), then possibly a category ("cat:<id>") at the end.
     @State private var path: [String] = []
-    @State private var playingID: Int?
 
     // MARK: Data
 
@@ -46,21 +45,13 @@ struct IOSEPGView: View {
         return search.isEmpty ? list : list.filter { $0.name.localizedCaseInsensitiveContains(search) }
     }
 
-    private var playing: Channel? {
-        if let playingID { return model.channelByID[playingID] }
-        return model.backgroundChannel
-    }
+    /// What's in the pinned player.
+    private var playing: Channel? { model.pinned?.channel }
 
     // MARK: Layout
 
     var body: some View {
         VStack(spacing: 0) {
-            IOSMiniPlayer(channel: playing,
-                          placeholder: "Tap a channel to play it here. Tap it again for full screen.",
-                          onExpand: playing == nil ? nil : { fullScreen(playing!) })
-                .padding(.horizontal)
-                .padding(.top, 8)
-
             HStack(spacing: 10) {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass").foregroundStyle(Theme.muted)
@@ -143,11 +134,6 @@ struct IOSEPGView: View {
             }
         }
         .background(Theme.bg)
-        .onAppear {
-            // Carry on with what was playing on Home.
-            if playingID == nil, let bg = model.backgroundChannel { playingID = bg.id }
-            model.backgroundChannel = nil
-        }
     }
 
     private var breadcrumb: String {
@@ -165,17 +151,22 @@ struct IOSEPGView: View {
         search = ""
     }
 
+    /// Tap once to play it in the pinned player at the top, tap again for full screen.
     private func tap(_ channel: Channel) {
         if channel.id == playing?.id {
             fullScreen(channel)
         } else {
-            playingID = channel.id
+            model.pin(channel, lineup: currentLineup(channel))
         }
     }
 
+    private func currentLineup(_ channel: Channel) -> [Channel] {
+        let list = openCategory.map { $0.categories.flatMap { model.channelsByCategory[$0.id] ?? [] } } ?? []
+        return list.isEmpty ? [channel] : list
+    }
+
     private func fullScreen(_ channel: Channel) {
-        let lineup = openCategory.map { $0.categories.flatMap { model.channelsByCategory[$0.id] ?? [] } } ?? [channel]
-        model.play(channel, lineup: lineup.isEmpty ? [channel] : lineup)
+        model.play(channel, gameTitle: model.pinned?.gameTitle, lineup: model.pinned?.lineup ?? currentLineup(channel))
     }
 
     private func categoryRow(_ name: String, count: Int, group: Bool, action: @escaping () -> Void) -> some View {

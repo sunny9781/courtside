@@ -32,7 +32,7 @@ struct GuideView: View {
                 categoryList
 
                 VStack(alignment: .leading, spacing: 16) {
-                    infoPanel(selected ?? model.backgroundChannel, now: now)
+                    infoPanel(selected, now: now)
 
                     if let status = model.guideStatus {
                         Banner(text: status, icon: "tablecells")
@@ -56,7 +56,8 @@ struct GuideView: View {
             }
         }
         .onChange(of: selectedID) {
-            if selectedID != nil { model.backgroundChannel = nil }
+            // The channel you pick plays in the pinned player at the top.
+            if let id = selectedID, let channel = model.channelByID[id] { model.pin(channel, lineup: rows) }
         }
         .onAppear {
             pickDefaultCategory()
@@ -248,15 +249,12 @@ struct GuideView: View {
     @ViewBuilder
     private func infoPanel(_ channel: Channel?, now: Date) -> some View {
         HStack(alignment: .top, spacing: 24) {
-            GuidePreview(channel: channel, onExpand: channel.map { ch -> () -> Void in { watch(ch, rows) } })
-                .frame(width: 340, height: 191)
-
             if channel == nil {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Pick a channel")
                         .font(Theme.display(26))
                         .foregroundStyle(Theme.text)
-                    Text("Click a channel to preview it here. Double-click or press Return to watch full screen.")
+                    Text("Click a channel to play it in the player at the top. Double-click or press Return to watch full screen.")
                         .font(.system(size: 13))
                         .foregroundStyle(Theme.muted)
                         .fixedSize(horizontal: false, vertical: true)

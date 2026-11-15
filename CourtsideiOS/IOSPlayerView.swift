@@ -140,9 +140,10 @@ struct IOSPlayerView: View {
         flipMessage("\(reason). Switched to \(next.name)")
     }
 
+    /// Closing full screen leaves the stream playing in the pinned player at the top.
     private func close() {
+        if model.pinned == nil, let current = model.nowPlaying { model.pinned = current }
         model.closePlayer()
-        if model.miniPlayers == 0 { playback.stop() }
     }
 
     // MARK: Overlays

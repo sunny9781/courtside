@@ -27,6 +27,8 @@ final class AppModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var lastRefresh: Date?
     @Published var nowPlaying: NowPlaying?
+    /// What the pinned player at the top is playing (iPhone/iPad and Mac). Nil hides it.
+    @Published var pinned: NowPlaying?
     @Published var notice: String?
     /// The channel that was playing when full screen closed, so the mini player can pick it up.
     @Published var lastPlayedChannelID: Int?
@@ -460,6 +462,22 @@ final class AppModel: ObservableObject {
         nowPlaying = NowPlaying(channel: channel, gameTitle: gameTitle, lineup: lineup.isEmpty ? [channel] : lineup)
     }
 
+    /// Plays a stream in the pinned player at the top.
+    func pin(_ channel: Channel, gameTitle: String? = nil, lineup: [Channel] = []) {
+        remember(channel.id)
+        pinned = NowPlaying(channel: channel, gameTitle: gameTitle, lineup: lineup.isEmpty ? [channel] : lineup)
+    }
+
+    /// Previous/next stream in the pinned player.
+    func stepPinned(_ delta: Int) {
+        guard let current = pinned, current.lineup.count > 1 else { return }
+        let index = current.lineup.firstIndex(where: { $0.id == current.channel.id }) ?? 0
+        let count = current.lineup.count
+        let next = current.lineup[((index + delta) % count + count) % count]
+        remember(next.id)
+        pinned = NowPlaying(channel: next, gameTitle: current.gameTitle, lineup: current.lineup)
+    }
+
     func switchStream(to channel: Channel) {
         guard let current = nowPlaying, channel.id != current.channel.id else { return }
         remember(channel.id)
@@ -486,7 +504,13 @@ final class AppModel: ObservableObject {
 
     func closePlayer() {
         lastPlayedChannelID = nowPlaying?.channel.id
+        let closing = nowPlaying
         nowPlaying = nil
+        // With the pinned player showing, the stream you were last on carries on there.
+        if pinned != nil, let closing {
+            pinned = closing
+            return
+        }
         // With a mini player underneath, the stream carries on there; otherwise stop it.
         if miniPlayers == 0 || !UserDefaults.standard.bool(forKey: Prefs.guidePreview) {
             PlaybackController.shared.stop()

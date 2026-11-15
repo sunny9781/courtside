@@ -81,17 +81,16 @@ struct IOSShell: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
-        TabView(selection: $nav.tab) {
-            IOSHomeView()
-                .tabItem { Label("Home", systemImage: "house.fill") }
-                .tag(IOSTab.home)
-            IOSEPGView()
-                .tabItem { Label("EPG", systemImage: "tv") }
-                .tag(IOSTab.epg)
-            IOSSettingsView()
-                .tabItem { Label("Settings", systemImage: "slider.horizontal.3") }
-                .tag(IOSTab.settings)
+        VStack(spacing: 0) {
+            // The pinned player: only while something is playing, in the same spot on every tab.
+            if let item = model.pinned, model.nowPlaying == nil {
+                IOSPinnedPlayer(item: item)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            tabs
         }
+        .background(Theme.bg)
+        .animation(.easeOut(duration: 0.25), value: model.pinned == nil)
         .task { await model.refresh() }
         .onChange(of: scenePhase) {
             switch scenePhase {
@@ -102,10 +101,7 @@ struct IOSShell: View {
                 // as you swipe up). Checked a moment later so Picture in Picture has time to start.
                 Task {
                     try? await Task.sleep(for: .seconds(1.5))
-                    if scenePhase == .background, !playback.av.pipActive, !playback.av.pipStarting {
-                        playback.stop()
-                        model.closePlayer()
-                    }
+                    if scenePhase == .background, !playback.av.pipActive, !playback.av.pipStarting { stopEverything() }
                 }
             default:
                 break
@@ -113,8 +109,7 @@ struct IOSShell: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.protectedDataWillBecomeUnavailableNotification)) { _ in
             // The phone locked: no sound while locked, not even from Picture in Picture.
-            playback.stop()
-            model.closePlayer()
+            stopEverything()
         }
         .fullScreenCover(isPresented: Binding(
             get: { model.nowPlaying != nil },
@@ -125,18 +120,13 @@ struct IOSShell: View {
                     .environmentObject(model)
             }
         }
-        .onChange(of: nav.tab) {
-            // Switching tabs keeps the mini player's stream going; the next screen's mini player picks it up.
-            model.backgroundChannel = playback.isActive && model.nowPlaying == nil ? model.previewChannel : nil
-        }
         .onAppear {
-            // Picture in Picture: "back to app" reopens full screen; closing the floating window stops it.
-            playback.av.onPiPRestore = { [weak model] in
-                guard let model, model.nowPlaying == nil, let channel = model.previewChannel else { return }
-                model.play(channel, lineup: [channel])
-            }
+            // Picture in Picture: "back to app" returns to the app with the pinned player (or full screen) still
+            // there; closing the floating window stops it.
+            playback.av.onPiPRestore = {}
             playback.av.onPiPClosed = { [weak model] in
                 IOSPlayback.shared.stop()
+                model?.pinned = nil
                 model?.closePlayer()
             }
         }
@@ -154,6 +144,26 @@ struct IOSShell: View {
                         model.notice = nil
                     }
             }
+        }
+    }
+
+    private func stopEverything() {
+        playback.stop()
+        model.pinned = nil
+        model.closePlayer()
+    }
+
+    private var tabs: some View {
+        TabView(selection: $nav.tab) {
+            IOSHomeView()
+                .tabItem { Label("Home", systemImage: "house.fill") }
+                .tag(IOSTab.home)
+            IOSEPGView()
+                .tabItem { Label("EPG", systemImage: "tv") }
+                .tag(IOSTab.epg)
+            IOSSettingsView()
+                .tabItem { Label("Settings", systemImage: "slider.horizontal.3") }
+                .tag(IOSTab.settings)
         }
     }
 }

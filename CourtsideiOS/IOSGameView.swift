@@ -7,7 +7,6 @@ struct IOSGameView: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     @AppStorage(Prefs.hideSD) private var hideSD = true
-    @State private var previewID: Int?
     @State private var showLocal = false
     let gameID: String
 
@@ -57,14 +56,14 @@ struct IOSGameView: View {
 
     private var streams: [StreamMatch] { sections.flatMap(\.streams) }
     private var lineup: [Channel] { streams.map(\.channel) }
-    private var previewChannel: Channel? { streams.first { $0.channel.id == previewID }?.channel }
+    /// The stream in the pinned player, if it's one of this game's.
+    private var previewID: Int? {
+        guard let id = model.pinned?.channel.id, allStreams.contains(where: { $0.channel.id == id }) else { return nil }
+        return id
+    }
 
     var body: some View {
         VStack(spacing: 0) {
-            IOSMiniPlayer(channel: previewChannel, onExpand: previewChannel == nil ? nil : { fullScreen() })
-                .padding(.horizontal)
-                .padding(.bottom, 10)
-
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     if let game { score(game) }
@@ -115,32 +114,31 @@ struct IOSGameView: View {
         .navigationTitle(game?.league.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
-            // Coming back from another tab: keep the stream that was playing. Otherwise opening a game plays its
-            // first stream; after that, only tapping plays something else.
-            if let bg = model.backgroundChannel, allStreams.contains(where: { $0.channel.id == bg.id }) {
-                previewID = bg.id
-            } else if previewID == nil {
-                previewID = streams.first?.channel.id
+            // Opening a game plays its first stream in the pinned player (unless one of its streams is already
+            // playing); after that, only tapping plays something else.
+            if previewID == nil, let first = streams.first, let game {
+                model.pin(first.channel, gameTitle: game.title, lineup: lineup)
             }
-            model.backgroundChannel = nil
         }
         .onChange(of: verticalSizeClass) {
-            // Turning the phone sideways while something plays goes full screen.
-            if verticalSizeClass == .compact, previewChannel != nil, model.nowPlaying == nil { fullScreen() }
+            // Turning the phone sideways while one of this game's streams plays goes full screen.
+            if verticalSizeClass == .compact, previewID != nil, model.nowPlaying == nil { fullScreen() }
         }
     }
 
+    /// Tap once to play it in the pinned player at the top, tap again for full screen.
     private func tap(_ match: StreamMatch) {
+        guard let game else { return }
         if previewID == match.channel.id {
             fullScreen()
         } else {
-            previewID = match.channel.id
+            model.pin(match.channel, gameTitle: game.title, lineup: lineup)
         }
     }
 
     private func fullScreen() {
-        guard let channel = previewChannel, let game else { return }
-        model.play(channel, gameTitle: game.title, lineup: lineup)
+        guard let pinned = model.pinned, previewID != nil else { return }
+        model.play(pinned.channel, gameTitle: pinned.gameTitle, lineup: pinned.lineup)
     }
 
     private func score(_ game: Game) -> some View {

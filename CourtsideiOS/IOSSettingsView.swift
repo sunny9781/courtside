@@ -29,7 +29,6 @@ struct IOSSettingsView: View {
 
                 Section {
                     Toggle("Switch to the next stream when one stalls", isOn: $autoSwitch)
-                    Toggle("Mini player on game screens", isOn: $guidePreview)
                     Picker("Buffer", selection: $bufferMs) {
                         Text("1 s").tag(1000)
                         Text("2 s").tag(2000)

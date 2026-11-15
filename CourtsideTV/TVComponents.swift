@@ -288,7 +288,10 @@ struct TVSectionTitle: View {
 struct TVVideoSurface: UIViewRepresentable {
     let view: UIView
 
-    func makeUIView(context: Context) -> UIView { view }
+    func makeUIView(context: Context) -> UIView {
+        view.isUserInteractionEnabled = false   // clicks go to the player, which shows the info bar
+        return view
+    }
     func updateUIView(_ uiView: UIView, context: Context) {}
 }
 
