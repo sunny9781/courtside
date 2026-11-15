@@ -16,7 +16,8 @@ enum Prefs {
     static let guidePreview = "guidePreview"
     static let measuredQuality = "measuredQuality"
     static let measuredFrameRate = "measuredFrameRate"
-    static let matchFrameRate = "matchFrameRate"   // Apple TV: switch the TV's refresh rate to match the stream
+    static let matchFrameRate = "matchFrameRate"
+    static let hideAdult = "hideAdult"             // hide categories (and their channels) with "adult" in the name   // Apple TV: switch the TV's refresh rate to match the stream
     static let autoSwitch = "autoSwitch"         // switch to the next stream when one stalls
     static let refreshHours = "refreshHours"     // how long saved channels and guide are reused
     static let guideGrouped = "guideGroupedOn"   // renamed so grouping starts switched on
@@ -34,6 +35,7 @@ enum Prefs {
             refreshHours: 6,
             autoSwitch: true,
             matchFrameRate: true,
+            hideAdult: true,
             guideGrouped: true
         ])
     }

@@ -5,6 +5,8 @@ struct TVSettingsView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
     @AppStorage(Prefs.matchFrameRate) private var matchFrameRate = true
+    @AppStorage(Prefs.hideAdult) private var hideAdult = true
+    @AppStorage(Prefs.guideGrouped) private var grouped = true
     @AppStorage(Prefs.hideSD) private var hideSD = true
     @AppStorage(Prefs.showFinished) private var showFinished = true
     @AppStorage(Prefs.guidePreview) private var guidePreview = true
@@ -23,6 +25,7 @@ struct TVSettingsView: View {
         case playback = "Playback"
         case sports = "Sports"
         case games = "Games"
+        case epg = "EPG"
         case updates = "Updates"
 
         var id: String { rawValue }
@@ -33,6 +36,7 @@ struct TVSettingsView: View {
             case .playback: return "play.rectangle"
             case .sports: return "sportscourt"
             case .games: return "list.bullet.rectangle"
+            case .epg: return "tv"
             case .updates: return "arrow.clockwise"
             }
         }
@@ -130,6 +134,13 @@ struct TVSettingsView: View {
         case .games:
             toggle("Show finished games", detail: nil, $showFinished)
             toggle("Hide SD streams", detail: "Most providers have HD versions of the same channels.", $hideSD)
+
+        case .epg:
+            toggle("Hide adult categories", detail: "Any category with \"adult\" in its name, and its channels.", Binding(
+                get: { hideAdult },
+                set: { hideAdult = $0; Task { await model.applyFilters(); await model.rematch() } }
+            ))
+            toggle("Group similar categories", detail: "Sports, Country, 24/7 and so on, opened one level at a time.", $grouped)
 
         case .updates:
             action("Download fresh channels and guide after",

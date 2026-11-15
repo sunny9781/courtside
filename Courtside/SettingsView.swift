@@ -6,6 +6,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.showFinished) private var showFinished = true
     @AppStorage(Prefs.hideSD) private var hideSD = true
     @AppStorage(Prefs.guideHours) private var guideHours = 6
+    @AppStorage(Prefs.hideAdult) private var hideAdult = true
     @AppStorage(Prefs.refreshHours) private var refreshHours = 6
     @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
     @AppStorage(Prefs.guidePreview) private var guidePreview = true
@@ -131,6 +132,10 @@ struct SettingsView: View {
 
         case .guide:
             panel("EPG") {
+                toggle("Hide adult categories (any with \"adult\" in the name)", Binding(
+                    get: { hideAdult },
+                    set: { hideAdult = $0; Task { await model.applyFilters(); await model.rematch() } }
+                ))
                 setting("Hours to show", "How far ahead the guide goes. Takes effect on the next refresh.") {
                     Picker("", selection: $guideHours) {
                         Text("4").tag(4)

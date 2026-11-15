@@ -161,7 +161,27 @@ final class AppModel: ObservableObject {
     /// True only while channels are actually being downloaded from the provider (not for score updates).
     @Published var downloadingChannels = false
 
+    /// Everything from the provider, before Settings filters (adult categories) are applied.
+    private var rawCategories: [ChannelCategory] = []
+    private var rawChannels: [Channel] = []
+
     private func apply(categories cats: [ChannelCategory], channels list: [Channel]) async {
+        rawCategories = cats
+        rawChannels = list
+        await applyFilters()
+    }
+
+    static func isAdult(_ name: String) -> Bool {
+        name.range(of: "adult", options: .caseInsensitive) != nil
+    }
+
+    /// Hides adult categories and their channels everywhere (EPG, game streams) when the setting is on.
+    /// Called again when the setting changes.
+    func applyFilters() async {
+        let hide = UserDefaults.standard.bool(forKey: Prefs.hideAdult)
+        let cats = hide ? rawCategories.filter { !Self.isAdult($0.name) } : rawCategories
+        let kept = Set(cats.map(\.id))
+        let list = hide ? rawChannels.filter { kept.contains($0.categoryID) && !Self.isAdult($0.categoryName) } : rawChannels
         categories = cats
         categoryTree = CategoryGrouping.build(cats)
         channels = list
