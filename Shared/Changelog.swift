@@ -56,6 +56,7 @@ enum Changelog {
 
     static let releases: [Release] = [
         Release(date: "2026-11-15", title: "French streams", changes: [
+            Change(text: "The score stays in the player strip when you move to the EPG or Settings while a game's stream plays.", apps: mac),
             Change(text: "Game screen: French-language channels (\"CA | French\", RDS, TVA) and Spanish ones in US categories go in Foreign streams, grouped by language.", apps: all)
         ]),
         Release(date: "2026-11-15", title: "Score in the player", changes: [

@@ -60,10 +60,14 @@ struct ShellView: View {
         }
     }
 
-    /// On a game's screen while one of its streams plays: the game, so its score sits in the player strip.
+    /// The game the player's stream was started from, so its score stays in the player strip on every screen
+    /// (EPG and Settings too) for as long as that stream plays.
     private var pinnedGame: Game? {
-        guard onHome, let id = openGameID, model.pinnedIsFrom(gameID: id) else { return nil }
-        return model.games.first { $0.id == id }
+        guard let item = model.pinned, let title = item.gameTitle else { return nil }
+        if onHome, let id = openGameID, model.pinnedIsFrom(gameID: id) {
+            return model.games.first { $0.id == id }
+        }
+        return model.games.first { $0.title == title && model.pinnedIsFrom(gameID: $0.id) }
     }
 
     private var onHome: Bool {
