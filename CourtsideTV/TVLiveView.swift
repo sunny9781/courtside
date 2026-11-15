@@ -56,6 +56,15 @@ struct TVLiveView: View {
         allEntries.first { $0.id == selectedID } ?? allEntries.first
     }
 
+    /// The row to land on when coming down from the tabs: the selected category if it's showing, otherwise the
+    /// first row of the list.
+    private var categoryTarget: String? {
+        guard grouped else { return selected?.id }
+        if let id = selected?.id, levelNodes.contains(where: { !$0.isGroup && $0.id == id }) { return id }
+        guard let first = levelNodes.first else { return nil }
+        return first.isGroup ? "g:" + first.id : first.id
+    }
+
     private func channelCount(_ categories: [ChannelCategory]) -> Int {
         categories.reduce(0) { $0 + (model.channelsByCategory[$1.id]?.count ?? 0) }
     }
@@ -98,8 +107,13 @@ struct TVLiveView: View {
                 }
             }
             .padding(.horizontal, TVLayout.margin)
+            // Pressing down from Home / EPG / Settings starts on the category list.
+            .defaultFocus($focusedCategory, categoryTarget, priority: .userInitiated)
             .onChange(of: focusedCategory) {
-                if let focusedCategory, focusedCategory != selectedID { selectedID = focusedCategory }
+                // Moving onto a category shows its channels; group rows ("g:" ids) only open when clicked.
+                if let focusedCategory, !focusedCategory.hasPrefix("g:"), focusedCategory != selectedID {
+                    selectedID = focusedCategory
+                }
             }
             .onChange(of: focusedChannel) {
                 if let focusedChannel { focusedChannelID = focusedChannel }
@@ -169,6 +183,7 @@ struct TVLiveView: View {
                                 }
                             }
                             .buttonStyle(TVRowButtonStyle())
+                            .focused($focusedCategory, equals: "g:" + node.id)
                         } else {
                             categoryRow(Entry(id: node.id, name: node.name, categories: node.categories))
                         }

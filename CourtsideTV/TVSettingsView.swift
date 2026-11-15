@@ -84,6 +84,8 @@ struct TVSettingsView: View {
             .focusSection()
         }
         .padding(.horizontal, TVLayout.margin)
+        // Pressing down from Home / EPG / Settings starts on the section list.
+        .defaultFocus($focusedSection, section, priority: .userInitiated)
         .onChange(of: focusedSection) {
             if let focusedSection { section = focusedSection }
         }

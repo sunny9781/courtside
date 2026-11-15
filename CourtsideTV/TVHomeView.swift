@@ -5,11 +5,21 @@ import SwiftUI
 struct TVHomeView: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var nav: TVNav
+    @FocusState private var sidebarFocus: TVNav.HomeSelection?
+
+    /// The row to land on when coming down from the tabs: the selected sport (or Live Now).
+    private var sidebarTarget: TVNav.HomeSelection {
+        switch nav.homeSelection {
+        case .liveNow: return .liveNow
+        case .sport(let s): return .sport(s)
+        case .league(let id): return League.all.first { $0.id == id }.map { .sport($0.sport) } ?? .liveNow
+        }
+    }
 
     var body: some View {
         NavigationStack(path: $nav.homePath) {
             HStack(alignment: .top, spacing: 30) {
-                TVSportList()
+                TVSportList(focused: $sidebarFocus)
                     .frame(width: TVLayout.sidebar)
                     .focusSection()
                     .zIndex(0)
@@ -19,6 +29,8 @@ struct TVHomeView: View {
                     .zIndex(1)
             }
             .padding(.horizontal, TVLayout.margin)
+            // Pressing down from Home / EPG / Settings starts on the left column.
+            .defaultFocus($sidebarFocus, sidebarTarget, priority: .userInitiated)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { gameID in
                 TVGameView(gameID: gameID)
@@ -36,7 +48,7 @@ struct TVSportList: View {
     @AppStorage(Prefs.sportOrder) private var sportOrder = ""
     @AppStorage(Prefs.hiddenSports) private var hiddenSports = ""
     @AppStorage(Prefs.favoriteSports) private var favoriteSports = ""
-    @FocusState private var focused: TVNav.HomeSelection?
+    var focused: FocusState<TVNav.HomeSelection?>.Binding
 
     private var sports: [Sport] {
         _ = (sportOrder, hiddenSports, favoriteSports)
@@ -71,11 +83,10 @@ struct TVSportList: View {
             }
             .padding(.vertical, 20)
         }
-        .defaultFocus($focused, openSport.map { TVNav.HomeSelection.sport($0) } ?? .liveNow)
-        .onChange(of: focused) {
+        .onChange(of: focused.wrappedValue) {
             // Moving onto a row shows its games, the usual Apple TV sidebar behaviour. Coming back to the sport
             // whose league you picked on the right keeps that league.
-            guard let focused, focused != nav.homeSelection else { return }
+            guard let focused = focused.wrappedValue, focused != nav.homeSelection else { return }
             if case .sport(let s) = focused, openSport == s { return }
             nav.homeSelection = focused
         }
@@ -114,7 +125,7 @@ struct TVSportList: View {
             }
         }
         .buttonStyle(TVRowButtonStyle(selected: isSelected(selection)))
-        .focused($focused, equals: selection)
+        .focused(focused, equals: selection)
     }
 
     private func isSelected(_ selection: TVNav.HomeSelection) -> Bool {
