@@ -90,14 +90,14 @@ struct TVSportList: View {
 
     /// Leagues with games first (live ones before others), then the rest.
     private func orderedLeagues(_ leagues: [League]) -> [League] {
-        leagues.enumerated().sorted { a, b in
-            func rank(_ l: League) -> Int {
-                let games = model.games.filter { $0.league.id == l.id }
-                if games.contains(where: { $0.state == .live }) { return 0 }
-                return games.isEmpty ? 2 : 1
-            }
-            return (rank(a.element), a.offset) < (rank(b.element), b.offset)
-        }.map(\.element)
+        let ranks: [String: Int] = Dictionary(uniqueKeysWithValues: leagues.map { league in
+            let games = model.games.filter { $0.league.id == league.id }
+            let rank = games.contains(where: { $0.state == .live }) ? 0 : (games.isEmpty ? 2 : 1)
+            return (league.id, rank)
+        })
+        return leagues.enumerated()
+            .sorted { ((ranks[$0.element.id] ?? 2), $0.offset) < ((ranks[$1.element.id] ?? 2), $1.offset) }
+            .map(\.element)
     }
 
     private func row(_ selection: TVNav.HomeSelection, symbol: String, name: String, live: Int, detail: String,

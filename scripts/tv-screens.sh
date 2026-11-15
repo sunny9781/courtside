@@ -18,7 +18,8 @@ if [ -z "$RUNTIME" ]; then
 fi
 TYPE=$(xcrun simctl list devicetypes -j | /usr/bin/python3 -c '
 import json, sys
-ts = [t for t in json.load(sys.stdin)["devicetypes"] if "Apple TV 4K" in t["name"] and "1080p" in t["name"]]
+tv = [t for t in json.load(sys.stdin)["devicetypes"] if "Apple TV" in t["name"]]
+ts = [t for t in tv if "1080p" in t["name"]] or tv
 print(ts[-1]["identifier"] if ts else "")')
 SIM=$(xcrun simctl list devices -j | /usr/bin/python3 -c '
 import json, sys
@@ -26,8 +27,8 @@ for rt, ds in json.load(sys.stdin)["devices"].items():
     for d in ds:
         if d["name"] == "Courtside TV" and d.get("isAvailable"):
             print(d["udid"]); raise SystemExit' || true)
-if [ -z "$SIM" ]; then SIM=$(xcrun simctl create "Courtside TV" "$TYPE" "$RUNTIME"); fi
-echo "Simulator: $SIM ($RUNTIME)"
+if [ -z "$SIM" ]; then echo "Creating simulator ($TYPE)"; xcrun simctl list devicetypes | grep -i "apple tv" || true; SIM=$(xcrun simctl create "Courtside TV" "$TYPE" "$RUNTIME"); fi
+echo "Simulator: $SIM ($RUNTIME, $TYPE)"
 xcrun simctl boot "$SIM" 2>/dev/null || true
 xcrun simctl bootstatus "$SIM" -b >/dev/null
 
