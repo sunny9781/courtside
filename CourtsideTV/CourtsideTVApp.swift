@@ -82,6 +82,22 @@ struct TVShell: View {
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
+        // Full screen is drawn on top of everything in this same screen (like the Mac), not as a separate
+        // presentation: moving the video between two windows is what left the player at the top black.
+        ZStack {
+            shell
+                .opacity(model.nowPlaying == nil ? 1 : 0)
+                .disabled(model.nowPlaying != nil)
+            if let item = model.nowPlaying {
+                TVPlayerView(item: item)
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: model.nowPlaying == nil)
+    }
+
+    private var shell: some View {
         VStack(spacing: 0) {
             TVTopBar()
                 .focusSection()
@@ -119,15 +135,6 @@ struct TVShell: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .tvSwitchTab)) { note in
             if let tab = note.object as? TVTab { switchTab(tab) }
-        }
-        .fullScreenCover(isPresented: Binding(
-            get: { model.nowPlaying != nil },
-            set: { if !$0 { model.closePlayer() } }
-        )) {
-            if let item = model.nowPlaying {
-                TVPlayerView(item: item)
-                    .environmentObject(model)
-            }
         }
     }
 
