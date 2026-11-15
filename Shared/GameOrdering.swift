@@ -21,7 +21,7 @@ extension Game {
 
 /// Favourites first, then sports with games today, then the rest, each in your saved order, without hidden ones.
 @MainActor
-func sportOrder(model: AppModel) -> [Sport] {
+func orderedSports(model: AppModel) -> [Sport] {
     let defaults = UserDefaults.standard
     let hidden = Sport.hidden(defaults.string(forKey: Prefs.hiddenSports) ?? "")
     let favs = Set((defaults.string(forKey: Prefs.favoriteSports) ?? "")

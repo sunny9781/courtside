@@ -12,7 +12,7 @@ if [ "$KIND" = "ios" ]; then
   BUILD_DIR="build-ios"; NICE="iPhone"
 else
   BUNDLE_ID="ca.sunny9781.courtside.tv"; SCHEME="CourtsideTV"; PLATFORM="tvos"; SDKDIR="Release-appletvos"
-  BUILD_DIR="$BUILD_DIR"; NICE="Apple TV"
+  BUILD_DIR="build-tv"; NICE="Apple TV"
 fi
 LOG="$BUILD_DIR.log"
 

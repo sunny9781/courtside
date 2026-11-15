@@ -38,7 +38,7 @@ struct IOSSportSidebar: View {
 
     private var sports: [Sport] {
         _ = (sportOrderPref, hiddenSports, favoriteSports)
-        return sportOrder(model: model)
+        return orderedSports(model: model)
     }
 
     var body: some View {
@@ -110,7 +110,7 @@ struct IOSGamesList: View {
 
     private var sports: [Sport] {
         _ = (sportOrderPref, hiddenSports, favoriteSports)
-        return sportOrder(model: model)
+        return orderedSports(model: model)
     }
 
     private var sections: [GameSection] {

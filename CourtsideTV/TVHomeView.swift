@@ -52,7 +52,7 @@ struct TVSportList: View {
 
     private var sports: [Sport] {
         _ = (sportOrder, hiddenSports, favoriteSports)
-        return sportOrder(model: model)
+        return orderedSports(model: model)
     }
 
     /// The sport highlighted on the left: the one selected, or the one a selected league belongs to.
@@ -156,14 +156,14 @@ struct TVGamesPane: View {
         case .liveNow:
             // Live and starting-soon games by sport (upcoming dimmed), then today's final scores.
             var out: [PaneSection] = []
-            for sport in sportOrder(model: model) {
+            for sport in orderedSports(model: model) {
                 let games = model.games(for: sport).filter { $0.state != .finished }
                 if !games.isEmpty {
                     out.append(PaneSection(id: sport.id, title: sport.rawValue, symbol: sport.symbol, league: nil,
                                        games: sortedGames(games)))
                 }
             }
-            let shown = Set(sportOrder(model: model))
+            let shown = Set(orderedSports(model: model))
             let finals = model.games.filter { $0.state == .finished && shown.contains($0.league.sport) }
             if !finals.isEmpty {
                 out.append(PaneSection(id: "finals", title: "Final scores", symbol: "checkmark.circle", league: nil,
