@@ -558,6 +558,15 @@ enum Matcher {
                     let rank = real == "4K" ? 4 : (real == "1080p" ? 3 : (real == "720p" ? 2 : 1))
                     q = (real, rank)
                 }
+                // 4K channels mostly carry only a few chosen events ("4K: FOX (Event Only)"), so the network
+                // showing the game isn't enough: without the teams in the channel's name or its guide, it goes with
+                // the "likely" channels at the bottom, or is left out if its guide shows something else.
+                if q.rank == 4 && !named.contains(cid) && !inGuide.contains(cid) {
+                    guard guideAllows(c.channel, k, guide: guide) else { continue }
+                    let network = broadcast[cid] ?? likely[cid] ?? ""
+                    reasons = ["4K version of \(network), not confirmed for this game"]
+                    score = 1
+                }
                 list.append(StreamMatch(channel: c.channel, reason: reasons.joined(separator: " · "), score: score,
                                         quality: q.label, qualityRank: q.rank, recent: recent.contains(cid),
                                         local: isLocal(c.channel), likelyOnly: score == 1,

@@ -64,7 +64,8 @@ enum Changelog {
         Release(version: "1.26", date: "2026-11-15", time: "18:30", title: "Apple TV focus fixes", changes: [
             Change(text: "Move up from a page onto the player's video and click it for full screen.", apps: tv),
             Change(text: "Home: the left column is as wide as the player's video above it.", apps: tv),
-            Change(text: "Home: going back left from the games lands on the sport you came from.", apps: tv)
+            Change(text: "Home: going back left from the games lands on the sport you came from.", apps: tv),
+            Change(text: "4K channels only go at the top when their name or guide shows this game. A 4K channel that's just the network's 4K feed (often event-only) moves to \"Local stations and likely channels\", or is left out if its guide shows something else.", apps: all)
         ]),
         Release(version: "1.25", date: "2026-11-15", time: "18:15", title: "Tidier player and stream cards", changes: [
             Change(text: "Player: dragging it bigger stops at half the window, and what's beside it adapts (leaving out the venue and times, then the title) so it stays readable. The rest of the page no longer gets pushed off screen.", apps: mac),
