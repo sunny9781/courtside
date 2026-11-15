@@ -53,16 +53,16 @@ struct GameDetailView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Fixed at the top: the player and score (Back is in the top bar). Only the streams scroll.
-            VStack(alignment: .leading, spacing: 16) {
+            if !model.pinnedIsFrom(gameID: game.id) {
                 hero
+                    .padding(.horizontal, 32)
+                    .padding(.top, 20)
+                    .padding(.bottom, 16)
             }
-            .padding(.horizontal, 32)
-            .padding(.top, 20)
-            .padding(.bottom, 16)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    Color.clear.frame(height: 0)
+                    Color.clear.frame(height: 4)
                         .frame(maxWidth: .infinity)
                         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { listWidth = $0 }
                     Field(placeholder: "Search streams", text: $search)
