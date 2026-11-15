@@ -194,6 +194,12 @@ struct TVStreamCell: View {
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(Theme.text)
                     .lineLimit(2)
+                if !match.channel.categoryName.isEmpty {
+                    Label(match.channel.categoryName, systemImage: "folder")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(Theme.soft)
+                        .lineLimit(1)
+                }
                 if let now = model.currentProgramme(match.channel), !now.title.isEmpty {
                     Text(now.title)
                         .font(.system(size: 20))
@@ -208,7 +214,7 @@ struct TVStreamCell: View {
             }
         }
         .padding(22)
-        .frame(width: 540, height: 130, alignment: .leading)
+        .frame(width: 540, height: 150, alignment: .leading)
         .background(Theme.card)
     }
 }

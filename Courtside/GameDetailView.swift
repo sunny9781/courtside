@@ -323,7 +323,14 @@ struct StreamRow: View {
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(previewing ? Theme.accent : Theme.text)
                             .fixedSize(horizontal: false, vertical: true)
-                        Text(match.channel.categoryName.isEmpty ? match.reason : "\(match.reason) · \(match.channel.categoryName)")
+                        if !match.channel.categoryName.isEmpty {
+                            Label(match.channel.categoryName, systemImage: "folder")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(Theme.soft)
+                                .labelStyle(.titleAndIcon)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Text(match.reason)
                             .font(.system(size: 11))
                             .foregroundStyle(Theme.muted)
                             .fixedSize(horizontal: false, vertical: true)
