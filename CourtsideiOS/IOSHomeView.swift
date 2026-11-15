@@ -205,10 +205,9 @@ struct IOSGamesList: View {
         .refreshable { await model.refresh(force: true) }
     }
 
-    /// Connections in use on the left, when channels were last downloaded (tap to refresh) on the right.
+    /// When channels were last downloaded (tap to refresh), on the right.
     private var statusRow: some View {
         HStack {
-            IOSConnectionsPill(account: model.account)
             Spacer()
             if model.downloadingChannels {
                 HStack(spacing: 6) {

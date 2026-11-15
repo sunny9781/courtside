@@ -139,15 +139,13 @@ struct TopBar: View {
                 TopTab(title: "Settings", symbol: "slider.horizontal.3", selected: route == .settings) { go(.settings) }
             }
 
-            // Connections on the left (after the window buttons), refresh status on the right.
+            // Back on the left (after the window buttons), refresh status on the right.
             HStack(spacing: 10) {
                 if let onBack {
                     RoundIconButton(symbol: "chevron.left", help: "Back (⌘[)", action: onBack)
                         .keyboardShortcut("[", modifiers: .command)
                         .padding(.leading, 88)
                 }
-                ConnectionsPill(account: model.account)
-                    .padding(.leading, onBack == nil ? 88 : 0)
                 Spacer()
                 if case .ready(let version) = updater.state {
                     UpdateReadyButton(version: version) { updater.restartToUpdate() }

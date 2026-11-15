@@ -312,22 +312,14 @@ final class AppModel: ObservableObject {
 
     func refreshAccount() async {
         guard !DemoData.isOn, let creds = credentials else { return }
-        if var fresh = try? await XtreamClient(creds: creds).login() {
-            // The provider can take a while to notice a stream; if this app is playing, that's at least 1.
-            if PlaybackController.shared.currentURL != nil {
-                fresh.activeConnections = max(fresh.activeConnections ?? 0, 1)
-            }
+        // The provider's own count, as it reports it (shown in Settings).
+        if let fresh = try? await XtreamClient(creds: creds).login() {
             account = fresh
         }
     }
 
     /// Re-checks the count a few seconds after a stream starts or stops, once the provider has noticed.
     func checkConnectionsSoon() {
-        // A stream just started here: count it straight away, then let the provider's number take over.
-        if PlaybackController.shared.currentURL != nil, var acct = account {
-            acct.activeConnections = max(acct.activeConnections ?? 0, 1)
-            account = acct
-        }
         accountCheck?.cancel()
         accountCheck = Task { [weak self] in
             try? await Task.sleep(for: .seconds(5))

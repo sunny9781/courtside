@@ -152,7 +152,6 @@ struct TVTopBar: View {
             }
 
             HStack {
-                TVConnectionsPill(account: model.account)
                 Spacer()
                 status
             }
