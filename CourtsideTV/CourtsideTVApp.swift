@@ -155,8 +155,7 @@ struct TVTopBar: View {
             }
         }
         .padding(.horizontal, TVLayout.margin)
-        .padding(.top, 30)
-        .padding(.bottom, 20)
+        .padding(.bottom, 24)
     }
 
     @ViewBuilder

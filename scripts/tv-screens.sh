@@ -39,8 +39,29 @@ xcrun simctl install "$SIM" build-sim/Build/Products/Debug-appletvsimulator/Cour
 
 for screen in home sport game epg settings; do
   xcrun simctl terminate "$SIM" "$BUNDLE_ID" 2>/dev/null || true
-  xcrun simctl launch "$SIM" "$BUNDLE_ID" -demo -screen "$screen" >/dev/null
+  xcrun simctl launch --stdout="$PWD/shots/$screen.out.txt" --stderr="$PWD/shots/$screen.out.txt" \
+    "$SIM" "$BUNDLE_ID" -demo -screen "$screen" >/dev/null
   sleep 7
+  if ! xcrun simctl spawn "$SIM" launchctl list 2>/dev/null | grep -q "$BUNDLE_ID"; then
+    echo "::warning::App not running on $screen screen (crashed?)"
+    tail -30 "shots/$screen.out.txt" || true
+    CRASH=$(ls -t "$HOME"/Library/Logs/DiagnosticReports/CourtsideTV* 2>/dev/null | head -1 || true)
+    if [ -n "$CRASH" ]; then
+      cp "$CRASH" "shots/$screen-crash.ips"
+      /usr/bin/python3 - "$CRASH" <<'PY'
+import json, sys
+text = open(sys.argv[1]).read()
+body = json.loads(text[text.index("\n") + 1:])
+print("Exception:", body.get("exception"), body.get("termination", {}).get("indicator"))
+imgs = body.get("usedImages", [])
+for t in body.get("threads", []):
+    if t.get("triggered"):
+        for f in t.get("frames", [])[:25]:
+            img = imgs[f["imageIndex"]].get("name", "?") if f.get("imageIndex", -1) < len(imgs) else "?"
+            print(" ", img, f.get("symbol", ""), f.get("sourceFile", ""), f.get("sourceLine", ""))
+PY
+    fi
+  fi
   xcrun simctl io "$SIM" screenshot "shots/$screen.png" >/dev/null
   echo "Saved $screen"
 done

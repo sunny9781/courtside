@@ -78,6 +78,7 @@ struct TVSportList: View {
             }
             .padding(.vertical, 20)
         }
+        .defaultFocus($focused, nav.homeSelection)
         .onChange(of: focused) {
             // Moving onto a row shows its games, the usual Apple TV sidebar behaviour.
             if let focused, focused != nav.homeSelection { nav.homeSelection = focused }
