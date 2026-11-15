@@ -201,15 +201,27 @@ struct TeamLine: View {
     var body: some View {
         HStack(spacing: 12) {
             TeamBadge(abbr: team.abbr, logo: team.logo, size: big ? 50 : 40)
-            Text(team.shortName)
-                .font(big ? Theme.display(30) : .system(size: 17, weight: .semibold))
-                .foregroundStyle(Theme.text)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(team.shortName)
+                    .font(big ? Theme.display(30) : .system(size: 17, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                if team.hasLongScore {
+                    Text(team.score)
+                        .font(.system(size: big ? 20 : 15, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundStyle(scoreColor)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
             Spacer(minLength: 12)
-            Text(team.score)
-                .font(Theme.display(big ? 30 : 22))
-                .monospacedDigit()
-                .foregroundStyle(scoreColor)
+            if !team.hasLongScore {
+                Text(team.score)
+                    .font(Theme.display(big ? 30 : 22))
+                    .monospacedDigit()
+                    .foregroundStyle(scoreColor)
+            }
         }
     }
 }

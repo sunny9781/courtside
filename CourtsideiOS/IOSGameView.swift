@@ -115,8 +115,12 @@ struct IOSGameView: View {
         .navigationTitle(game?.league.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear {
+            // Coming back from another tab: keep the stream that was playing. Otherwise opening a game plays its
+            // first stream; after that, only tapping plays something else.
             if let bg = model.backgroundChannel, allStreams.contains(where: { $0.channel.id == bg.id }) {
                 previewID = bg.id
+            } else if previewID == nil {
+                previewID = streams.first?.channel.id
             }
             model.backgroundChannel = nil
         }
@@ -172,13 +176,18 @@ struct IOSGameView: View {
         HStack(spacing: 12) {
             IOSTeamLogo(team: team, size: 40)
             VStack(alignment: .leading, spacing: 1) {
-                Text(team.name).font(.headline).foregroundStyle(Theme.text).lineLimit(1)
+                Text(team.name).font(.headline).foregroundStyle(Theme.text).lineLimit(2)
+                if game.state != .upcoming && team.hasLongScore {
+                    Text(team.score)
+                        .font(.title3.bold().monospacedDigit())
+                        .foregroundStyle(game.scoreColor(team))
+                }
                 if !team.record.isEmpty {
                     Text(team.record).font(.caption).foregroundStyle(Theme.muted)
                 }
             }
             Spacer()
-            if game.state != .upcoming {
+            if game.state != .upcoming && !team.hasLongScore {
                 Text(team.score)
                     .font(.system(size: 30, weight: .bold).monospacedDigit())
                     .foregroundStyle(game.scoreColor(team))

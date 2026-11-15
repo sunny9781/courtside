@@ -36,6 +36,11 @@ func orderedSports(model: AppModel) -> [Sport] {
         .map(\.element)
 }
 
+extension Team {
+    /// Scores that don't fit beside a name (cricket: "322/7 (83 ov)") go on their own line under it.
+    var hasLongScore: Bool { score.count > 4 }
+}
+
 /// Live games first, then upcoming by start time, then finished.
 func sortedGames(_ games: [Game]) -> [Game] {
     func rank(_ g: Game) -> Int {

@@ -204,7 +204,14 @@ struct GameDetailView: View {
                 Text(team.shortName)
                     .font(Theme.display(28))
                     .foregroundStyle(Theme.text)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                if team.hasLongScore {
+                    Text(team.score)
+                        .font(.system(size: 20, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundStyle(game.scoreColor(team))
+                }
                 if !team.record.isEmpty {
                     Text(team.record)
                         .font(.system(size: 12))
@@ -212,10 +219,12 @@ struct GameDetailView: View {
                 }
             }
             Spacer(minLength: 12)
-            Text(team.score)
-                .font(Theme.display(30))
-                .monospacedDigit()
-                .foregroundStyle(game.scoreColor(team))
+            if !team.hasLongScore {
+                Text(team.score)
+                    .font(Theme.display(30))
+                    .monospacedDigit()
+                    .foregroundStyle(game.scoreColor(team))
+            }
         }
     }
 

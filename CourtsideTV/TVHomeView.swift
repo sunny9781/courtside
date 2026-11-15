@@ -373,7 +373,7 @@ struct TVGameCard: View {
             }
         }
         .padding(24)
-        .frame(height: 210, alignment: .top)
+        .frame(minHeight: 210, alignment: .top)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Theme.card)
         .opacity(game.state == .upcoming ? 0.6 : (game.state == .finished ? 0.85 : 1))
@@ -382,12 +382,21 @@ struct TVGameCard: View {
     private func teamLine(_ team: Team) -> some View {
         HStack(spacing: 16) {
             TVTeamLogo(team: team, size: 48)
-            Text(team.shortName.isEmpty ? team.name : team.shortName)
-                .font(.system(size: 27, weight: .semibold))
-                .foregroundStyle(Theme.text)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(team.shortName.isEmpty ? team.name : team.shortName)
+                    .font(.system(size: 27, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                if game.state != .upcoming && team.hasLongScore {
+                    Text(team.score)
+                        .font(.system(size: 22, weight: .bold).monospacedDigit())
+                        .foregroundStyle(game.scoreColor(team))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
             Spacer(minLength: 8)
-            if game.state != .upcoming {
+            if game.state != .upcoming && !team.hasLongScore {
                 Text(team.score)
                     .font(.system(size: 32, weight: .bold).monospacedDigit())
                     .foregroundStyle(game.scoreColor(team))

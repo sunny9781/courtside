@@ -100,9 +100,12 @@ struct TVGameView: View {
         .padding(.top, 10)
         .defaultFocus($focusedStream, previewID ?? streams.first?.channel.id)
         .onAppear {
-            // Coming back from another tab: keep showing the stream that was playing.
+            // Coming back from another tab: keep showing the stream that was playing. Otherwise opening a game
+            // plays its first stream; after that, only clicking plays something else.
             if let bg = model.backgroundChannel, allStreams.contains(where: { $0.channel.id == bg.id }) {
                 previewID = bg.id
+            } else if previewID == nil {
+                previewID = streams.first?.channel.id
             }
             model.backgroundChannel = nil
         }
@@ -158,7 +161,12 @@ struct TVGameView: View {
                 Text(team.name)
                     .font(.system(size: 32, weight: .semibold))
                     .foregroundStyle(Theme.text)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                if game.state != .upcoming && team.hasLongScore {
+                    Text(team.score)
+                        .font(.system(size: 28, weight: .bold).monospacedDigit())
+                        .foregroundStyle(game.scoreColor(team))
+                }
                 if !team.record.isEmpty {
                     Text(team.record)
                         .font(.system(size: 20))
@@ -166,7 +174,7 @@ struct TVGameView: View {
                 }
             }
             Spacer(minLength: 16)
-            if game.state != .upcoming {
+            if game.state != .upcoming && !team.hasLongScore {
                 Text(team.score)
                     .font(.system(size: 52, weight: .bold).monospacedDigit())
                     .foregroundStyle(game.scoreColor(team))

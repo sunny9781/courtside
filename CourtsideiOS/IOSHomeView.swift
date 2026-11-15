@@ -334,12 +334,21 @@ struct IOSGameCard: View {
     private func teamLine(_ team: Team) -> some View {
         HStack(spacing: 10) {
             IOSTeamLogo(team: team, size: 28)
-            Text(team.shortName.isEmpty ? team.name : team.shortName)
-                .font(.body.weight(.semibold))
-                .foregroundStyle(Theme.text)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(team.shortName.isEmpty ? team.name : team.shortName)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                if game.state != .upcoming && team.hasLongScore {
+                    Text(team.score)
+                        .font(.subheadline.bold().monospacedDigit())
+                        .foregroundStyle(game.scoreColor(team))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
             Spacer(minLength: 6)
-            if game.state != .upcoming {
+            if game.state != .upcoming && !team.hasLongScore {
                 Text(team.score)
                     .font(.title3.bold().monospacedDigit())
                     .foregroundStyle(game.scoreColor(team))
