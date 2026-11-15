@@ -2,11 +2,10 @@ import SwiftUI
 import AppKit
 
 /// The player pinned under the top bar. Appears only while something is playing, in the same spot on every screen,
-/// and keeps playing as you move between Home, games, EPG and Settings. On a game's screen it's combined with the
-/// score (see GameDetailView), so `details` is what sits beside the video.
+/// and keeps playing as you move between Home, games, EPG and Settings. Beside the video: what's playing, with its
+/// resolution and frame rate; on a game's screen, the score fills the space to the right.
 ///
-/// Hovering over the video shows a see-through bar along its bottom: resolution and frame rate, then shrink to a
-/// slim bar (keeps the sound), full screen, pop out to its own window, and stop (ends the stream, so it stops
+/// Hovering over the video shows see-through buttons along its bottom: shrink to a slim bar (keeps the sound), full screen, pop out to its own window, and stop (ends the stream, so it stops
 /// using a connection). Click the video for full screen. Drag the handle under it to resize (it stays 16:9).
 struct PinnedPlayerBar<Details: View>: View {
     @EnvironmentObject var model: AppModel
@@ -124,10 +123,9 @@ struct PinnedPlayerBar<Details: View>: View {
         }
     }
 
-    /// Over the bottom of the video while hovering: quality on the left, buttons on the right.
+    /// Over the bottom of the video while hovering: the buttons, on the right.
     private var controls: some View {
         HStack(spacing: 6) {
-            badges
             Spacer(minLength: 4)
             buttons(glass: true)
         }
@@ -215,15 +213,36 @@ struct PinnedPlayerBar<Details: View>: View {
     }
 }
 
-extension PinnedPlayerBar where Details == PinnedInfo {
-    init(item: NowPlaying, hidden: Bool) {
-        self.init(item: item, hidden: hidden, card: false, slimTitle: nil) { PinnedInfo(item: item) }
+extension PinnedPlayerBar where Details == PinnedDetails {
+    /// On a game's screen (while one of its streams plays), pass the game: its score fills the space on the right.
+    init(item: NowPlaying, hidden: Bool, game: Game? = nil) {
+        self.init(item: item, hidden: hidden, card: false, slimTitle: game.map { GameScorePanel(game: $0).slimScore }) {
+            PinnedDetails(item: item, game: game)
+        }
     }
 }
 
-/// Beside the video everywhere except a game's own screen: what's playing.
+/// Beside the video: what's playing, and on a game's screen the score and game info to the right of it.
+struct PinnedDetails: View {
+    let item: NowPlaying
+    let game: Game?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 26) {
+            PinnedInfo(item: item)
+                .frame(maxWidth: game == nil ? .infinity : 300, alignment: .topLeading)
+            if let game {
+                Rectangle().fill(Theme.raised).frame(width: 1)
+                GameScorePanel(game: game)
+            }
+        }
+    }
+}
+
+/// What's playing: title, channel, resolution and frame rate, and what's on now.
 struct PinnedInfo: View {
     @EnvironmentObject var model: AppModel
+    @ObservedObject private var controller = PlaybackController.shared
     let item: NowPlaying
 
     var body: some View {
@@ -236,6 +255,12 @@ struct PinnedInfo: View {
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.muted)
                 .lineLimit(1)
+            if !controller.resolution.isEmpty || controller.frameRate > 0 {
+                HStack(spacing: 6) {
+                    if !controller.resolution.isEmpty { Badge(text: controller.resolution).fixedSize() }
+                    if controller.frameRate > 0 { Badge(text: PlaybackController.fpsLabel(controller.frameRate)).fixedSize() }
+                }
+            }
             if let now = model.currentProgramme(item.channel), !now.title.isEmpty {
                 Text("On now: \(now.title)")
                     .font(.system(size: 12))

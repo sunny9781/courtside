@@ -23,7 +23,7 @@ struct ShellView: View {
                 TopBar(route: route, onBack: onHome && openGameID != nil ? { openGameID = nil } : nil) { navigate(to: $0) }
                 // The pinned player: only while something is playing, in the same spot on every screen.
                 if let item = model.pinned {
-                    PinnedPlayerBar(item: item, hidden: model.nowPlaying != nil)
+                    PinnedPlayerBar(item: item, hidden: model.nowPlaying != nil, game: pinnedGame)
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
                 content
@@ -58,6 +58,12 @@ struct ShellView: View {
         .task {
             await model.refresh()
         }
+    }
+
+    /// On a game's screen while one of its streams plays: the game, so its score sits in the player strip.
+    private var pinnedGame: Game? {
+        guard onHome, let id = openGameID, model.pinnedIsFrom(gameID: id) else { return nil }
+        return model.games.first { $0.id == id }
     }
 
     private var onHome: Bool {

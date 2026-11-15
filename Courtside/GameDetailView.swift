@@ -186,21 +186,87 @@ struct GameDetailView: View {
     }
 
     /// The score and game info. The player is in the strip under the top bar, like on every other screen.
+    /// The score and game info. While one of this game's streams plays, they're in the player strip instead
+    /// (beside the video), so the page is just the streams.
+    @ViewBuilder
     private var hero: some View {
-        scoreAndInfo
-            .frame(height: 200)
-            .padding(20)
-            .background(RoundedRectangle(cornerRadius: 20).fill(Theme.card))
+        if !model.pinnedIsFrom(gameID: game.id) {
+            GameScorePanel(game: game)
+                .frame(height: 200)
+                .padding(20)
+                .background(RoundedRectangle(cornerRadius: 20).fill(Theme.card))
+        }
     }
+}
+
+/// A stream card for the grid: full name and why it matched (wrapping, never cut off) and badges.
+/// Click plays it in the mini player (the card lights up); double-click goes full screen.
+struct StreamRow: View {
+    @EnvironmentObject var model: AppModel
+    let match: StreamMatch
+    let previewing: Bool
+    let onSelect: () -> Void
+    let onWatch: () -> Void
+
+    var body: some View {
+        HStack(spacing: 6) {
+            CardButton(radius: 10, action: onSelect) {
+                HStack(alignment: .center, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(match.channel.name)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(previewing ? Theme.accent : Theme.text)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if !match.channel.categoryName.isEmpty {
+                            Label(match.channel.categoryName, systemImage: "folder")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(Theme.soft)
+                                .labelStyle(.titleAndIcon)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Text(match.reason)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Theme.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .trailing, spacing: 4) {
+                        if !match.quality.isEmpty {
+                            Badge(text: match.quality)
+                        }
+                        if let fps = model.measuredFrameRate[match.channel.id] {
+                            Badge(text: PlaybackController.fpsLabel(fps))
+                        }
+                    }
+                    .fixedSize()
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .frame(minHeight: 54)
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(previewing ? Theme.accent : Color.clear, lineWidth: 1.5))
+            }
+            .simultaneousGesture(TapGesture(count: 2).onEnded { onWatch() })
+            .help("Click to play in the mini player, double-click for full screen")
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+
+/// A game's score, box score, venue, start time and broadcasters: on the game screen, or beside the video in the
+/// player strip while one of the game's streams plays.
+struct GameScorePanel: View {
+    @EnvironmentObject var model: AppModel
+    let game: Game
 
     /// The slim player bar's one line: "TOR 78 – 81 BOS · Q3 4:12".
-    private var slimScore: String {
+    var slimScore: String {
         if game.isEvent && !game.hasSides { return game.eventTitle }
         if game.state == .upcoming { return "\(game.away.abbr) at \(game.home.abbr) · \(game.statusText)" }
         return "\(game.away.abbr) \(game.away.score) – \(game.home.score) \(game.home.abbr) · \(game.statusText)"
     }
 
-    private var scoreAndInfo: some View {
+    var body: some View {
         HStack(alignment: .top, spacing: 28) {
             VStack(alignment: .leading, spacing: 14) {
                 Text(statusLine)
@@ -349,58 +415,5 @@ struct GameDetailView: View {
         case .upcoming: return "\(game.league.name.uppercased()) · STARTS \(game.statusText)"
         case .finished: return "\(game.league.name.uppercased()) · \(game.statusText.uppercased())"
         }
-    }
-}
-
-/// A stream card for the grid: full name and why it matched (wrapping, never cut off) and badges.
-/// Click plays it in the mini player (the card lights up); double-click goes full screen.
-struct StreamRow: View {
-    @EnvironmentObject var model: AppModel
-    let match: StreamMatch
-    let previewing: Bool
-    let onSelect: () -> Void
-    let onWatch: () -> Void
-
-    var body: some View {
-        HStack(spacing: 6) {
-            CardButton(radius: 10, action: onSelect) {
-                HStack(alignment: .center, spacing: 10) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(match.channel.name)
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(previewing ? Theme.accent : Theme.text)
-                            .fixedSize(horizontal: false, vertical: true)
-                        if !match.channel.categoryName.isEmpty {
-                            Label(match.channel.categoryName, systemImage: "folder")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(Theme.soft)
-                                .labelStyle(.titleAndIcon)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        Text(match.reason)
-                            .font(.system(size: 11))
-                            .foregroundStyle(Theme.muted)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    VStack(alignment: .trailing, spacing: 4) {
-                        if !match.quality.isEmpty {
-                            Badge(text: match.quality)
-                        }
-                        if let fps = model.measuredFrameRate[match.channel.id] {
-                            Badge(text: PlaybackController.fpsLabel(fps))
-                        }
-                    }
-                    .fixedSize()
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .frame(minHeight: 54)
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(previewing ? Theme.accent : Color.clear, lineWidth: 1.5))
-            }
-            .simultaneousGesture(TapGesture(count: 2).onEnded { onWatch() })
-            .help("Click to play in the mini player, double-click for full screen")
-        }
-        .fixedSize(horizontal: false, vertical: true)
     }
 }
