@@ -97,7 +97,7 @@ struct TVSportList: View {
         Set(favoriteSports.split(separator: ",").compactMap { Sport(rawValue: String($0)) })
     }
 
-    /// "2/5 LIVE": live games out of today's games for that sport.
+    /// Live games as an orange number; otherwise today's count.
     private func row(_ selection: TVNav.HomeSelection, symbol: String, name: String, live: Int, total: Int, detail: String,
                      favorite: Bool = false) -> some View {
         Button {
@@ -117,7 +117,7 @@ struct TVSportList: View {
                 }
                 Spacer(minLength: 8)
                 if live > 0 {
-                    TVBadge(text: "\(live)/\(total) LIVE", fill: Theme.accent, color: Theme.onAccent)
+                    TVBadge(text: "\(live)", fill: Theme.accent, color: Theme.onAccent)
                 } else {
                     Text(detail)
                         .font(.system(size: 21))
@@ -145,6 +145,7 @@ struct TVGamesPane: View {
     @AppStorage(Prefs.sportOrder) private var sportOrder = ""
     /// Width available for the cards, so they stretch to fill the row (like the Mac) instead of leaving a gap.
     @State private var paneWidth: CGFloat = 1300
+    @FocusState private var focusedChip: TVNav.HomeSelection?
 
     struct PaneSection: Identifiable {
         let id: String
@@ -192,15 +193,8 @@ struct TVGamesPane: View {
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 40) {
-                VStack(alignment: .leading, spacing: 6) {
-                    // The sport (or Live Now) is already highlighted on the left, so it isn't repeated here.
-                    if !subtitle.isEmpty {
-                        Text(subtitle)
-                            .font(.system(size: 22))
-                            .foregroundStyle(Theme.muted)
-                    }
-                }
-
+                // No title or live count line here: the sport is highlighted on the left, and live counts are on the
+                // league chips.
                 if let sport = filterSport, model.leagues(for: sport).count > 1 {
                     leagueFilters(sport)
                 }
@@ -263,6 +257,16 @@ struct TVGamesPane: View {
         }
     }
 
+    /// Live games as an orange number, otherwise today's games in grey.
+    @ViewBuilder
+    private func chipCount(live: Int, total: Int) -> some View {
+        if live > 0 {
+            TVBadge(text: "\(live)", fill: Theme.accent, color: Theme.onAccent)
+        } else if total > 0 {
+            Text("\(total)").font(.system(size: 19)).opacity(0.6)
+        }
+    }
+
     /// "All · NBA · WNBA · NCAA Men…" — leagues with games first.
     private func leagueFilters(_ sport: Sport) -> some View {
         let leagues = model.leagues(for: sport)
@@ -275,16 +279,21 @@ struct TVGamesPane: View {
             .map(\.element)
         return ScrollView(.horizontal) {
             HStack(spacing: 16) {
+                let sportGames = model.games(for: sport)
                 Button {
                     nav.homeSelection = .sport(sport)
                 } label: {
-                    Text("All")
-                        .font(.system(size: 22, weight: .semibold))
+                    HStack(spacing: 10) {
+                        Text("All")
+                            .font(.system(size: 22, weight: .semibold))
+                        chipCount(live: sportGames.filter { $0.state == .live }.count, total: sportGames.count)
+                    }
                 }
                 .buttonStyle(TVChipButtonStyle(selected: nav.homeSelection == .sport(sport)))
+                .focused($focusedChip, equals: .sport(sport))
 
                 ForEach(ordered) { league in
-                    let count = model.games.filter { $0.league.id == league.id }.count
+                    let games = model.games.filter { $0.league.id == league.id }
                     Button {
                         nav.homeSelection = .league(league.id)
                     } label: {
@@ -292,16 +301,17 @@ struct TVGamesPane: View {
                             TVLeagueLogo(league: league, size: 30)
                             Text(league.name)
                                 .font(.system(size: 22, weight: .semibold))
-                            if count > 0 {
-                                Text("\(count)")
-                                    .font(.system(size: 19))
-                                    .opacity(0.6)
-                            }
+                            chipCount(live: games.filter { $0.state == .live }.count, total: games.count)
                         }
                     }
                     .buttonStyle(TVChipButtonStyle(selected: nav.homeSelection == .league(league.id)))
-                    .opacity(count == 0 ? 0.5 : 1)
+                    .focused($focusedChip, equals: .league(league.id))
+                    .opacity(games.isEmpty ? 0.5 : 1)
                 }
+            }
+            // Moving across the chips switches straight away, like the tabs at the top.
+            .onChange(of: focusedChip) {
+                if let focusedChip, focusedChip != nav.homeSelection { nav.homeSelection = focusedChip }
             }
             .padding(.vertical, 12)
             .padding(.horizontal, 8)

@@ -27,9 +27,14 @@ func orderedSports(model: AppModel) -> [Sport] {
     let favs = Set((defaults.string(forKey: Prefs.favoriteSports) ?? "")
         .split(separator: ",").compactMap { Sport(rawValue: String($0)) })
     let order = Sport.ordered(defaults.string(forKey: Prefs.sportOrder) ?? "").filter { !hidden.contains($0) }
+    // Favourites first, then sports with live games, then ones with games still to come, then finished-only,
+    // then no games. Within each, your own order.
     func rank(_ s: Sport) -> Int {
         if favs.contains(s) { return 0 }
-        return model.games(for: s).isEmpty ? 2 : 1
+        let games = model.games(for: s)
+        if games.contains(where: { $0.state == .live }) { return 1 }
+        if games.contains(where: { $0.state == .upcoming }) { return 2 }
+        return games.isEmpty ? 4 : 3
     }
     return order.enumerated()
         .sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }

@@ -61,6 +61,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.21", date: "2026-11-15", time: "16:35", title: "Apple TV Home tidy-up", changes: [
+            Change(text: "Home: moving across the league chips (All, NBA, WNBA…) switches straight away, no click needed.", apps: tv),
+            Change(text: "Home: the live count line is gone; live games show as an orange number on the league chips and in the left column.", apps: tv),
+            Change(text: "Sports are listed favourites first, then ones with live games, then games still to come, then the rest.", apps: tvIOS)
+        ]),
         Release(version: "1.20", date: "2026-11-15", time: "16:30", title: "Filters, tabs and a tidier iPhone", changes: [
             Change(text: "The search boxes are now called Filter.", apps: all),
             Change(text: "Game screen: the filter sits in the middle of the first line, and only appears when there are more streams than fit on screen.", apps: mac),
