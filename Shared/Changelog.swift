@@ -64,6 +64,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.34", date: "2026-11-15", time: "22:45", title: "Streams play on Android TV", changes: [
+            Change(text: "Streams open as HLS first, like the iPhone app, and if one shows no picture within 8 seconds the TS version is tried. Settings › Playback › Stream format switches the order.", apps: android),
+            Change(text: "Streams that start between keyframes no longer stay black, and the player now follows redirects and identifies itself the way VLC does.", apps: android),
+            Change(text: "The Filter box on the EPG only opens the keyboard when you click it, not when you move onto it.", apps: android)
+        ]),
         Release(version: "1.33", date: "2026-11-15", time: "22:15", title: "Android TV works like the Apple TV app", changes: [
             Change(text: "Moving left from the games goes back to the sport you were on, and Back from a game, a stream or full screen lands where you came from.", apps: android),
             Change(text: "The EPG: categories grouped like the Apple TV app (Sports, Country, 24/7, Movies…), what's on now and next for every channel, and one Filter box for categories, channels and shows.", apps: android),

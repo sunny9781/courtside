@@ -275,7 +275,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     private fun urls(channel: Channel): Pair<String, String>? {
         val c = XtreamClient(credentials ?: return null)
-        return c.streamUrl(channel, hls = false) to c.streamUrl(channel, hls = true)
+        val ts = c.streamUrl(channel, hls = false)
+        val hls = c.streamUrl(channel, hls = true)
+        return if (settings.preferHls) hls to ts else ts to hls
     }
 
     /** Plays in the player at the top. */
