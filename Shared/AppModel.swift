@@ -67,6 +67,7 @@ final class AppModel: ObservableObject {
     init() {
         credentials = CredentialStore.load()
         PlaybackController.shared.onChange = { [weak self] in self?.checkConnectionsSoon() }
+        PlaybackController.shared.onRepeatedFreezing = { [weak self] in self?.skipFrozenStream() }
         if DemoData.isOn { loadDemo() }
         let saved = UserDefaults.standard.dictionary(forKey: Prefs.measuredQuality) as? [String: String] ?? [:]
         measuredQuality = Dictionary(uniqueKeysWithValues: saved.compactMap { k, v in Int(k).map { ($0, v) } })
@@ -498,6 +499,26 @@ final class AppModel: ObservableObject {
     }
 
     /// Up/down while watching: -1 is the previous stream, +1 the next, wrapping around.
+    /// The stream kept freezing even after restarting it: say so and move to the next one (full screen or the
+    /// player at the top), if there is one.
+    func skipFrozenStream() {
+        if let current = nowPlaying {
+            guard current.lineup.count > 1 else {
+                notice = "\(current.channel.name) keeps freezing. Try another channel."
+                return
+            }
+            step(1)
+            notice = "\(current.channel.name) kept freezing, so this is the next stream"
+        } else if let current = pinned {
+            guard current.lineup.count > 1 else {
+                notice = "\(current.channel.name) keeps freezing. Try another channel."
+                return
+            }
+            stepPinned(1)
+            notice = "\(current.channel.name) kept freezing, so this is the next stream"
+        }
+    }
+
     func step(_ delta: Int) {
         guard let current = nowPlaying, current.lineup.count > 1 else { return }
         let index = current.lineup.firstIndex(where: { $0.id == current.channel.id }) ?? 0

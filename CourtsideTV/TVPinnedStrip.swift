@@ -14,7 +14,7 @@ struct TVPinnedStrip: View {
     let game: Game?
 
     var body: some View {
-        HStack(alignment: .top, spacing: 36) {
+        HStack(alignment: .top, spacing: TVLayout.playerGap) {
             Button {
                 model.play(item.channel, gameTitle: item.gameTitle, lineup: item.lineup)
             } label: {
@@ -24,7 +24,7 @@ struct TVPinnedStrip: View {
                         TVVideoSurface(view: controller.view)
                     }
                 }
-                .frame(width: 400, height: 225)
+                .frame(width: TVLayout.playerWidth, height: TVLayout.playerWidth * 9 / 16)
                 .clipShape(RoundedRectangle(cornerRadius: TVLayout.corner))
             }
             .buttonStyle(.card)
@@ -56,7 +56,7 @@ struct TVPinnedStrip: View {
             }
             Spacer(minLength: 0)
         }
-        .frame(height: 225)
+        .frame(height: TVLayout.playerWidth * 9 / 16)
         .padding(.horizontal, TVLayout.margin)
         .padding(.vertical, 18)
         .task(id: "\(item.channel.id)|\(model.nowPlaying == nil)") {

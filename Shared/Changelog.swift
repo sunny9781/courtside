@@ -61,6 +61,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.30", date: "2026-11-15", time: "19:25", title: "Frozen streams fix themselves", changes: [
+            Change(text: "A stream that freezes for 4 seconds restarts on its own, quietly. If it keeps freezing (3 times in 2 minutes), the app says so and moves to the next stream for the game.", apps: all),
+            Change(text: "The player at the top is about 12% bigger, the left column on Home matches its width, and the games line up with the text beside the video.", apps: tv)
+        ]),
         Release(version: "1.29", date: "2026-11-15", time: "19:10", title: "Controls in thumb reach", changes: [
             Change(text: "Home: sports and leagues are at the bottom, above the tabs, starting from the right edge (Live Now and \"All\" nearest your thumb). Sports with no games today are left out.", apps: ios),
             Change(text: "EPG: the filter box, Group and the way back out of a group are at the bottom too.", apps: ios),

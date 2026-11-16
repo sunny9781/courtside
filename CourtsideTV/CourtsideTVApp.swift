@@ -96,6 +96,21 @@ struct TVShell: View {
                     .transition(.opacity)
                     .zIndex(1)
             }
+            if let message = model.notice {
+                Text(message)
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundStyle(Theme.text)
+                    .padding(.horizontal, 30)
+                    .padding(.vertical, 16)
+                    .background(Capsule().fill(.black.opacity(0.8)))
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .padding(.top, 50)
+                    .zIndex(2)
+                    .task(id: message) {
+                        try? await Task.sleep(for: .seconds(5))
+                        if model.notice == message { model.notice = nil }
+                    }
+            }
         }
         .animation(.easeOut(duration: 0.2), value: model.nowPlaying == nil)
     }

@@ -132,6 +132,7 @@ struct IOSShell: View {
             // Picture in Picture: "back to app" returns to the app with the stream still playing. Closing the floating
             // window stops the stream (so nothing plays in the background) but keeps your place: opening the app
             // again carries on in the player at the top.
+            playback.av.onRepeatedFreezing = { [weak model] in model?.skipFrozenStream() }
             playback.av.onPiPRestore = {}
             playback.av.onPiPClosed = {
                 guard UIApplication.shared.applicationState != .active else { return }

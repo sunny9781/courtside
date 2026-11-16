@@ -63,6 +63,8 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
         status = .opening
         resolution = ""
         frameRate = 0
+        lastBufferMs = bufferMs
+        freezeWatch.reset()
         let item = AVPlayerItem(url: url)
         item.preferredForwardBufferDuration = Double(bufferMs) / 1000
         player.replaceCurrentItem(with: item)
@@ -71,6 +73,20 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
             Task { @MainActor in self?.poll() }
         }
+    }
+
+    /// Called when a stream keeps freezing even after restarting it, so the app can move to the next stream.
+    var onRepeatedFreezing: (() -> Void)?
+    private let freezeWatch = FreezeWatch()
+    private var lastBufferMs = 2000
+
+    /// Starts the stream again without showing it (the resolution and frame rate stay as they were).
+    private func restartQuietly() {
+        guard let url = currentURL else { return }
+        let item = AVPlayerItem(url: url)
+        item.preferredForwardBufferDuration = Double(lastBufferMs) / 1000
+        player.replaceCurrentItem(with: item)
+        player.play()
     }
 
     func togglePause() {
@@ -115,6 +131,13 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
         if frameRate == 0, let fps = item.tracks.first(where: { $0.assetTrack?.mediaType == .video })?.currentVideoFrameRate,
            fps > 0 {
             frameRate = Double(fps > 61 ? fps / 2 : fps)
+        }
+        // Frozen for 4 seconds: restart quietly; if it keeps happening, move on.
+        let watching = !resolution.isEmpty && (status == .playing || status == .buffering || status == .opening)
+        switch freezeWatch.check(progress: player.currentTime().seconds, watching: watching) {
+        case .restart: restartQuietly()
+        case .skip: onRepeatedFreezing?()
+        case .none: break
         }
     }
 

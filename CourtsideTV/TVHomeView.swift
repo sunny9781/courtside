@@ -20,7 +20,8 @@ struct TVHomeView: View {
 
     var body: some View {
         NavigationStack(path: $nav.homePath) {
-            HStack(alignment: .top, spacing: inPane ? 20 : 30) {
+            // The games line up with the text beside the player's video (the games pane pads itself by 24).
+            HStack(alignment: .top, spacing: inPane ? 20 : TVLayout.playerGap - 24) {
                 TVSportList(focused: $sidebarFocus, compact: inPane)
                     .frame(width: inPane ? TVLayout.compactSidebar : TVLayout.sidebar)
                     .focusSection()

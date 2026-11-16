@@ -75,6 +75,11 @@ final class PlaybackController: ObservableObject {
         #endif
     }
 
+    /// Called when a stream keeps freezing even after restarting it, so the app can move to the next stream.
+    var onRepeatedFreezing: (() -> Void)?
+    private let freezeWatch = FreezeWatch()
+    private var lastBufferMs = 2000
+
     func play(_ url: URL, bufferMs: Int) {
         if url == currentURL, status != .idle, status != .ended {
             if case .failed = status {} else {
@@ -82,12 +87,26 @@ final class PlaybackController: ObservableObject {
                 return
             }
         }
+        freezeWatch.reset()
+        open(url, bufferMs: bufferMs, quiet: false)
+    }
+
+    /// Starts the stream again without showing it: keeps the resolution and frame rate shown as they were.
+    private func restartQuietly() {
+        guard let url = currentURL else { return }
+        open(url, bufferMs: lastBufferMs, quiet: true)
+    }
+
+    private func open(_ url: URL, bufferMs: Int, quiet: Bool) {
+        lastBufferMs = bufferMs
         currentURL = url
-        status = .opening
-        onChange?()
-        resolution = ""
-        frameRate = 0
-        playingPolls = 0
+        if !quiet {
+            status = .opening
+            onChange?()
+            resolution = ""
+            frameRate = 0
+            playingPolls = 0
+        }
         #if canImport(VLCKitSPM)
         let media = VLCMedia(url: url)
         media.addOption(":network-caching=\(bufferMs)")
@@ -161,6 +180,13 @@ final class PlaybackController: ObservableObject {
         }
         let size = player.videoSize
         if size.height > 0 { resolution = Self.label(size.height) }
+        // Frozen for 4 seconds: restart quietly; if it keeps happening, move on.
+        let watching = !resolution.isEmpty && (status == .playing || status == .buffering || status == .opening)
+        switch freezeWatch.check(progress: Double(player.time.intValue), watching: watching) {
+        case .restart: restartQuietly()
+        case .skip: onRepeatedFreezing?()
+        case .none: break
+        }
         // Frame rate: asked once per stream, after it has been playing for 2 seconds (asking VLC for track
         // details while a stream is still starting up can crash).
         if status == .playing {
