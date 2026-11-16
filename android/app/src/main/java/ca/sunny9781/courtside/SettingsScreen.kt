@@ -22,11 +22,10 @@ import java.util.Date
 
 private enum class Section(val title: String, val icon: ImageVector) {
     ACCOUNT("Account", Icons.Filled.AccountCircle),
-    PLAYBACK("Playback", Icons.Filled.PlayCircle),
     SPORTS("Sports", Icons.Filled.Sports),
-    GAMES("Games", Icons.Filled.GridView),
-    EPG("EPG", Icons.Filled.Tv),
-    UPDATES("Updates", Icons.Filled.Refresh)
+    /** Playback, games, EPG and updates together. */
+    GENERAL("General", Icons.Filled.Tune),
+    CHANGELOG("Changelog", Icons.Filled.AutoAwesome)
 }
 
 /** Settings, like the Apple TV app: sections down the left (moving onto one shows it), the section on the right. */
@@ -54,12 +53,12 @@ fun SettingsScreen(model: AppModel) {
             .padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when (section) {
                 Section.ACCOUNT -> Account(model)
-                Section.PLAYBACK -> PlaybackSection(model)
                 Section.SPORTS -> Sports(model)
-                Section.GAMES -> Toggle("Hide SD streams", "Most providers have HD versions of the same channels.", model.settings.hideSD) {
+                Section.GENERAL -> {
+                    PlaybackSection(model)
+                    Toggle("Hide SD streams", "Most providers have HD versions of the same channels.", model.settings.hideSD) {
                     model.settings.hideSD = it
                 }
-                Section.EPG -> {
                     Toggle("Hide adult categories", "Any category with \"adult\" in its name, and its channels.", model.settings.hideAdult) {
                         model.settings.hideAdult = it
                         model.filtersChanged()
@@ -68,8 +67,9 @@ fun SettingsScreen(model: AppModel) {
                         model.settings.grouped = it
                         model.guidePath = emptyList()
                     }
+                    Updates(model)
                 }
-                Section.UPDATES -> Updates(model)
+                Section.CHANGELOG -> Changelog(model)
             }
         }
     }
@@ -176,8 +176,10 @@ private fun Updates(model: AppModel) {
             value = if (Updater.checking) "Checking…" else null) { scope.launch { Updater.check(context, userInitiated = true) } }
     }
     Info("Version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
+}
 
-    Label("What's new", size = 17.sp, weight = FontWeight.Bold, modifier = Modifier.padding(top = 16.dp))
+@Composable
+private fun Changelog(model: AppModel) {
     // The newest update starts open; click one to open or close it.
     var openIds by remember { mutableStateOf(model.whatsNew.take(1).map { it.version }.toSet()) }
     model.whatsNew.forEachIndexed { i, r ->

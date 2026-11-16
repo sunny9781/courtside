@@ -64,6 +64,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.39", date: "2026-11-16", time: "00:56", title: "Simpler settings", changes: [
+            Change(text: "Settings has four sections: Account, Sports, General (playback, games, EPG and updates together) and Changelog (what used to be What's new).", apps: everywhere),
+            Change(text: "Channels and the guide are downloaded fresh every 12 hours by default (was 6).", apps: everywhere),
+            Change(text: "Home: \"Nothing live right now\" no longer shrinks the page to a narrow strip.", apps: ios)
+        ]),
         Release(version: "1.38", date: "2026-11-16", time: "23:59", title: "Home fits more games", changes: [
             Change(text: "Home: the left column stays lined up with the player (it no longer shrinks), so moving to the games is smooth.", apps: tvAndroid),
             Change(text: "Home: score cards are just wide enough for their teams and scores instead of stretching, so more fit on screen.", apps: tvAndroid),

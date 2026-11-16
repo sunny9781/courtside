@@ -199,8 +199,10 @@ struct IOSGamesList: View {
                 }
             }
             .padding(.vertical, 12)
+            // Always the full width, also when there's only a short message (it used to shrink to the text).
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(Theme.bg)
+        .background(Theme.bg.ignoresSafeArea())
         // The sport is already picked in the chips (iPhone) or the sidebar (iPad), so no big title repeats it.
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)

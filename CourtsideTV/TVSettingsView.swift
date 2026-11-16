@@ -14,7 +14,7 @@ struct TVSettingsView: View {
     @AppStorage(Prefs.hiddenSports) private var hiddenSports = ""
     @AppStorage(Prefs.hiddenLeagues) private var hiddenLeagues = ""
     @AppStorage(Prefs.favoriteSports) private var favoriteSports = ""
-    @AppStorage(Prefs.refreshHours) private var refreshHours = 6
+    @AppStorage(Prefs.refreshHours) private var refreshHours = 12
     @State private var section: Section = .account
     @State private var openSport: Sport?
     @State private var confirmSignOut = false
@@ -24,22 +24,19 @@ struct TVSettingsView: View {
 
     enum Section: String, CaseIterable, Identifiable {
         case account = "Account"
-        case playback = "Playback"
         case sports = "Sports"
-        case games = "Games"
-        case epg = "EPG"
-        case updates = "Updates"
+        /// Playback, games, EPG and updates together.
+        case general = "General"
+        case changelog = "Changelog"
 
         var id: String { rawValue }
 
         var symbol: String {
             switch self {
             case .account: return "person.crop.circle"
-            case .playback: return "play.rectangle"
             case .sports: return "sportscourt"
-            case .games: return "list.bullet.rectangle"
-            case .epg: return "tv"
-            case .updates: return "arrow.clockwise"
+            case .general: return "slider.horizontal.3"
+            case .changelog: return "sparkles"
             }
         }
     }
@@ -104,21 +101,6 @@ struct TVSettingsView: View {
             action("Sign out", detail: nil, destructive: true) { confirmSignOut = true }
                 .padding(.top, 20)
 
-        case .playback:
-            toggle("Switch to the next stream when one stalls", detail: "USA and Canada streams are tried first.", $autoSwitch)
-            toggle("Match frame rate",
-                   detail: !DisplayMatcher.available
-                       ? "Not available on this Apple TV's version of tvOS."
-                       : (DisplayMatcher.systemAllows
-                          ? "Switches your TV to each stream's frame rate (50 or 60 fps) for smoother motion."
-                          : "Also turn on Settings › Video and Audio › Match Content › Match Frame Rate on the Apple TV."),
-                   $matchFrameRate)
-            toggle("Mini player", detail: "Click a stream once to play it in the mini player, again for full screen.", $guidePreview)
-            action("Buffer", detail: "More buffer means fewer stalls but a longer delay behind live.",
-                   value: "\(bufferMs / 1000) s") {
-                bufferMs = next(after: bufferMs, in: [1000, 2000, 3000, 5000])
-            }
-
         case .sports:
             Text("Click a sport to show or hide it, or the heart to keep it first on Home. Open a sport to switch its leagues on or off.")
                 .font(.system(size: 21))
@@ -133,18 +115,30 @@ struct TVSettingsView: View {
                 }
             }
 
-        case .games:
+        case .general:
+            toggle("Switch to the next stream when one stalls", detail: "USA and Canada streams are tried first.", $autoSwitch)
+            toggle("Match frame rate",
+                   detail: !DisplayMatcher.available
+                       ? "Not available on this Apple TV's version of tvOS."
+                       : (DisplayMatcher.systemAllows
+                          ? "Switches your TV to each stream's frame rate (50 or 60 fps) for smoother motion."
+                          : "Also turn on Settings › Video and Audio › Match Content › Match Frame Rate on the Apple TV."),
+                   $matchFrameRate)
+            toggle("Mini player", detail: "Click a stream once to play it in the mini player, again for full screen.", $guidePreview)
+            action("Buffer", detail: "More buffer means fewer stalls but a longer delay behind live.",
+                   value: "\(bufferMs / 1000) s") {
+                bufferMs = next(after: bufferMs, in: [1000, 2000, 3000, 5000])
+            }
+
             toggle("Show finished games", detail: nil, $showFinished)
             toggle("Hide SD streams", detail: "Most providers have HD versions of the same channels.", $hideSD)
 
-        case .epg:
             toggle("Hide adult categories", detail: "Any category with \"adult\" in its name, and its channels.", Binding(
                 get: { hideAdult },
                 set: { hideAdult = $0; Task { await model.applyFilters(); await model.rematch() } }
             ))
             toggle("Group similar categories", detail: "Sports, Country, 24/7 and so on, opened one level at a time.", $grouped)
 
-        case .updates:
             action("Download fresh channels and guide after",
                    detail: "Opening the app reuses the saved channels and guide until they're this old. Scores always update every minute.",
                    value: "\(refreshHours) h") {
@@ -160,10 +154,7 @@ struct TVSettingsView: View {
                 .foregroundStyle(Theme.muted)
                 .padding(.top, 6)
 
-            Text("What's new")
-                .font(.system(size: 32, weight: .bold))
-                .foregroundStyle(Theme.text)
-                .padding(.top, 30)
+        case .changelog:
             ForEach(Array(Changelog.forThisApp.enumerated()), id: \.element.id) { index, release in
                 Button {
                     if openReleases.contains(release.id) { openReleases.remove(release.id) } else { openReleases.insert(release.id) }
