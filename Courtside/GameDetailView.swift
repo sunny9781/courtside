@@ -171,7 +171,7 @@ struct GameDetailView: View {
     /// Each card is as wide as its text (within limits), so more fit on a row. Not lazy: a lazy grid guesses row
     /// heights, which made the page scroll on past the last stream.
     private func grid(_ list: [StreamMatch]) -> some View {
-        FlowLayout(spacing: 10, minItemWidth: 200, maxItemWidth: 460) {
+        FlowLayout(spacing: 10, minItemWidth: 200, maxItemWidth: 460, uniformHeight: true) {
             ForEach(list) { match in
                 StreamRow(match: match, previewing: match.channel.id == previewChannel?.id,
                           onSelect: { preview(match.channel) },
@@ -233,13 +233,12 @@ struct StreamRow: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .frame(minHeight: 54)
+                .frame(minHeight: 54, maxHeight: .infinity)
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(previewing ? Theme.accent : Color.clear, lineWidth: 1.5))
             }
             .simultaneousGesture(TapGesture(count: 2).onEnded { onWatch() })
             .help("Click to play in the mini player, double-click for full screen")
         }
-        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -422,6 +421,8 @@ struct FlowLayout: Layout {
     var spacing: CGFloat = 10
     var minItemWidth: CGFloat = 0
     var maxItemWidth: CGFloat = .infinity
+    /// Every item as tall as the tallest one (stream cards line up in neat rows).
+    var uniformHeight = false
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 1000
@@ -441,10 +442,15 @@ struct FlowLayout: Layout {
     private func arrange(width: CGFloat, subviews: Subviews) -> [CGRect] {
         var frames: [CGRect] = []
         var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0
-        for view in subviews {
+        let sizes: [CGSize] = subviews.map { view in
             let ideal = view.sizeThatFits(.unspecified).width
             let w = min(width, min(maxItemWidth, max(minItemWidth, ideal)))
-            let h = view.sizeThatFits(ProposedViewSize(width: w, height: nil)).height
+            return CGSize(width: w, height: view.sizeThatFits(ProposedViewSize(width: w, height: nil)).height)
+        }
+        let tallest = sizes.map(\.height).max() ?? 0
+        for size in sizes {
+            let w = size.width
+            let h = uniformHeight ? tallest : size.height
             if x > 0 && x + w > width {
                 x = 0
                 y += rowHeight + spacing
