@@ -4,7 +4,7 @@ import Foundation
 /// apply to it. Newest first. Add an entry (at the top) with every release.
 enum Changelog {
     enum App: Hashable {
-        case mac, tv, ios
+        case mac, tv, ios, android
 
         static var current: App {
             #if os(macOS)
@@ -50,6 +50,7 @@ enum Changelog {
     private static let macTV: Set<App> = [.mac, .tv]
     private static let macIOS: Set<App> = [.mac, .ios]
     private static let tvIOS: Set<App> = [.tv, .ios]
+    private static let android: Set<App> = [.android]
 
     /// The releases with changes for this app, each holding only this app's changes.
     static var forThisApp: [Release] {
@@ -61,6 +62,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.32", date: "2026-11-15", time: "20:50", title: "Courtside for Android TV", changes: [
+            Change(text: "First Android TV version, for the Nvidia Shield and Chromecast with Google TV: sign in, today's games by sport and league, every stream for a game in sections, the player at the top and full screen (up/down to switch streams), refresh-rate matching, and updates that download on their own.", apps: android)
+        ]),
         Release(version: "1.31", date: "2026-11-15", time: "20:10", title: "Even more screen", changes: [
             Change(text: "Less space above Home / EPG / Settings: the same small margin as the sides.", apps: tv),
             Change(text: "The hint under the player's title is gone.", apps: tv)
