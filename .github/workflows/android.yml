@@ -6,7 +6,7 @@ name: Android TV app
 on:
   push:
     branches: [main]
-    paths: ["android/**", "Shared/Changelog.swift", ".github/workflows/android.yml"]
+    paths: ["android/**"]
   workflow_dispatch:
     inputs:
       publish:
