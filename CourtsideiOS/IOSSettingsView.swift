@@ -17,6 +17,7 @@ struct IOSSettingsView: View {
     /// Updates open in What's new: only the newest to start with.
     @State private var openReleases: Set<String> = Set(Changelog.forThisApp.prefix(1).map(\.id))
     @State private var confirmSignOut = false
+    @State private var castNote: String?
 
     var body: some View {
         NavigationStack {
@@ -34,6 +35,15 @@ struct IOSSettingsView: View {
 
                 Section {
                     Toggle("Switch to the next stream when one stalls", isOn: $autoSwitch)
+                    if UserDefaults.standard.bool(forKey: CastManager.disabledKey) {
+                        Button("Turn Chromecast back on") {
+                            CastManager.enableAgain()
+                            castNote = "Chromecast comes back the next time Courtside opens."
+                        }
+                        Text(castNote ?? "Chromecast was turned off because it made Courtside close while starting.")
+                            .font(.footnote)
+                            .foregroundStyle(Theme.muted)
+                    }
                     Picker("Buffer", selection: $bufferMs) {
                         Text("1 s").tag(1000)
                         Text("2 s").tag(2000)

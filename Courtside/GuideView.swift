@@ -13,6 +13,9 @@ struct GuideView: View {
     @State private var channelSearch = ""
     /// Results of the one search box (categories and channels), worked out a moment after typing stops.
     @State private var hits: [EPGSearch.Hit] = []
+    /// The text the results are for. The EPG switches to results only once they're ready, so typing never shows an
+    /// empty "Nothing matches" in between.
+    @State private var hitsQuery = ""
     /// Result groups opened or closed by hand (otherwise they follow Hit.startsOpen).
     @State private var flipped: Set<String> = []
     @State private var expanded: Set<String> = []
@@ -71,9 +74,17 @@ struct GuideView: View {
             if let id = model.lastPlayedChannelID, rows.contains(where: { $0.id == id }) { selectedID = id }
         }
         .task(id: "\(categorySearch)|\(grouped)") {
+            let query = categorySearch.trimmingCharacters(in: .whitespaces)
+            guard query.count >= 2 else {
+                if !hitsQuery.isEmpty { hits = []; hitsQuery = ""; flipped = [] }
+                return
+            }
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
-            hits = EPGSearch.run(categorySearch, model: model, grouped: grouped)
+            let found = EPGSearch.run(query, model: model, grouped: grouped)
+            guard !Task.isCancelled else { return }
+            hits = found
+            hitsQuery = query
             flipped = []
         }
         .onChange(of: categoryID) {
@@ -108,10 +119,10 @@ struct GuideView: View {
         cats.reduce(0) { $0 + (model.channelsByCategory[$1.id]?.count ?? 0) }
     }
 
-    private var searching: Bool { categorySearch.trimmingCharacters(in: .whitespaces).count >= 2 }
+    private var searching: Bool { hitsQuery.count >= 2 }
 
     private var currentTitle: String {
-        if searching { return "Results for \u{201C}\(categorySearch.trimmingCharacters(in: .whitespaces))\u{201D}" }
+        if searching { return "Results for \u{201C}\(hitsQuery)\u{201D}" }
         switch categoryID {
         case Self.allID: return "All channels"
         case Self.recentID: return "Recently watched"
@@ -151,9 +162,7 @@ struct GuideView: View {
     }
 
     private var categoryList: some View {
-        let query = categorySearch.trimmingCharacters(in: .whitespaces).lowercased()
-
-        return VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
             Toggle(isOn: $grouped) {
                 Text("Group similar categories")
                     .font(.system(size: 12, weight: .medium))
@@ -166,7 +175,7 @@ struct GuideView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 2) {
-                    if !query.isEmpty {
+                    if searching {
                         searchResults
                     } else if grouped {
                         ForEach(visibleNodes(model.categoryTree)) { item in

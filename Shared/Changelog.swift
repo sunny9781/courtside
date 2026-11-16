@@ -64,6 +64,14 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.35", date: "2026-11-15", time: "22:57", title: "Saved channels, steadier filter, Chromecast fix", changes: [
+            Change(text: "Game screen: streams no longer list why they matched (\"channel name has the teams\" and so on).", apps: everywhere),
+            Change(text: "Channels and the guide are saved and reused for 6 hours (Settings › Updates), so opening the app or installing an update doesn't download them again.", apps: android),
+            Change(text: "The player at the top no longer switches the TV's refresh rate when a stream (like a 4K one) starts; only full screen does.", apps: android),
+            Change(text: "Moving right past the last stream (or left past the first) stays put instead of jumping to the top bar.", apps: android),
+            Change(text: "EPG: the filter switches to results only once they're ready, so the list no longer jumps around on the second letter.", apps: mac),
+            Change(text: "Chromecast now starts after the app has finished opening. If it ever makes the app close while starting, it's switched off so Courtside still opens, and Settings › Playback can turn it back on.", apps: ios)
+        ]),
         Release(version: "1.34", date: "2026-11-15", time: "22:45", title: "Streams play on Android TV", changes: [
             Change(text: "Streams open as HLS first, like the iPhone app, and if one shows no picture within 8 seconds the TS version is tried. Settings › Playback › Stream format switches the order.", apps: android),
             Change(text: "Streams that start between keyframes no longer stay black, and the player now follows redirects and identifies itself the way VLC does.", apps: android),

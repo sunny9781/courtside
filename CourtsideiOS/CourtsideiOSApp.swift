@@ -3,12 +3,12 @@ import UIKit
 
 @main
 struct CourtsideiOSApp: App {
+    @UIApplicationDelegateAdaptor(IOSAppDelegate.self) private var appDelegate
     @StateObject private var model = AppModel()
     @StateObject private var nav = IOSNav()
 
     init() {
         Prefs.register()
-        CastManager.setUp()
     }
 
     var body: some Scene {
@@ -198,4 +198,13 @@ private struct PinnedPlayerSlot: ViewModifier {
 
 extension View {
     func pinnedPlayerSlot(_ tab: IOSTab) -> some View { modifier(PinnedPlayerSlot(tab: tab)) }
+}
+
+/// Starts Chromecast support once the app has finished launching, as Google's Cast toolkit expects.
+final class IOSAppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication,
+                     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        MainActor.assumeIsolated { CastManager.setUp() }
+        return true
+    }
 }

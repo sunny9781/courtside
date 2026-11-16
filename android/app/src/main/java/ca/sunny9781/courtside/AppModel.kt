@@ -75,6 +75,15 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     var homeSelection by mutableStateOf<HomeSelection>(HomeSelection.LiveNow)
     /** The game screen that's open on Home, if any. */
     var openGameId by mutableStateOf<String?>(null)
+    /** The game just closed, so Home puts focus back on its card. */
+    var returnToGame: String? = null
+    /** Home's games, kept here so the list is where you left it after a game screen. */
+    val homeGrid = androidx.compose.foundation.lazy.grid.LazyGridState()
+
+    fun closeGame() {
+        returnToGame = openGameId
+        openGameId = null
+    }
 
     /** In the player at the top. */
     var pinned by mutableStateOf<NowPlaying?>(null)
@@ -111,6 +120,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     fun signOut() {
         Playback.stop()
+        Cache.clear(context)
         rawCategories = emptyList(); rawChannels = emptyList(); categoryTree = emptyList()
         channelsByCategory = emptyMap(); channelById = emptyMap()
         pinned = null
@@ -122,14 +132,34 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     // MARK: Loading
 
-    fun refresh() {
+    /**
+     * Channels and guide come from the saved copy while it's newer than Settings › Updates says (6 hours by default);
+     * scores are always fetched. `force` downloads everything now.
+     */
+    fun refresh(force: Boolean = false) {
         if (loading) return
         val creds = credentials ?: return
+        val owner = creds.server + "|" + creds.username
         viewModelScope.launch {
             loading = true
             error = null
             try {
                 val client = XtreamClient(creds)
+                val maxAge = settings.refreshHours * 3600_000L
+                val saved = if (force) null else withContext(Dispatchers.IO) { Cache.loadLive(context) }
+                    ?.takeIf { it.server == owner && it.channels.isNotEmpty() && System.currentTimeMillis() - it.savedAt < maxAge }
+                if (saved != null) {
+                    rawCategories = saved.categories
+                    rawChannels = saved.channels
+                    applyFilters()
+                    updatedAt = saved.savedAt
+                    loading = false
+                    launch { runCatching { account = client.login() } }
+                    loadScores()
+                    val g = withContext(Dispatchers.IO) { Cache.loadGuide(context) }
+                    if (g.isNotEmpty()) { guide = g; rematch() } else loadGuide(client)
+                    return@launch
+                }
                 runCatching { account = client.login() }
                 val (cats, chans) = client.live()
                 rawCategories = cats
@@ -137,6 +167,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 applyFilters()
                 loadScores()
                 updatedAt = System.currentTimeMillis()
+                withContext(Dispatchers.IO) { Cache.saveLive(context, owner, cats, chans) }
                 loadGuide(client)
             } catch (e: Exception) {
                 error = e.message ?: "Couldn't load your channels."
@@ -166,7 +197,11 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val wanted = channels.mapNotNull { it.epgId.ifEmpty { null } }.toSet()
         if (wanted.isEmpty()) return
         val now = System.currentTimeMillis()
-        runCatching { guide = client.guide(wanted, now - 3 * 3600_000L, now + 12 * 3600_000L) }
+        runCatching {
+            val g = client.guide(wanted, now - 3 * 3600_000L, now + 18 * 3600_000L)
+            guide = g
+            withContext(Dispatchers.IO) { Cache.saveGuide(context, g) }
+        }
         rematch()
     }
 
