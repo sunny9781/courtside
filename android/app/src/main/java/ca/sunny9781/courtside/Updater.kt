@@ -1,0 +1,115 @@
+package ca.sunny9781.courtside
+
+import android.content.Context
+import android.content.Intent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import java.io.File
+import java.net.HttpURLConnection
+import java.net.URL
+
+/**
+ * Keeps the app up to date from the courtside repo on GitHub: every build publishes Courtside.apk and android.json
+ * on the "android" release. When a newer build exists it downloads in the background, then Android asks you to
+ * confirm the install (one click).
+ */
+object Updater {
+    private const val FEED = "https://github.com/sunny9781/courtside/releases/download/android/android.json"
+
+    /** The version that's downloaded and ready to install, if any. */
+    var readyVersion by mutableStateOf<String?>(null)
+        private set
+    var checking by mutableStateOf(false)
+        private set
+    var message by mutableStateOf<String?>(null)
+        private set
+    private var readyFile: File? = null
+    private var readyBuild = 0
+
+    suspend fun check(context: Context, userInitiated: Boolean = false) = withContext(Dispatchers.IO) {
+        if (checking) return@withContext
+        checking = true
+        try {
+            val text = get("$FEED?t=${System.currentTimeMillis() / 1000}")
+            val json = JSONObject(text)
+            val build = json.optInt("build")
+            val version = json.optString("version")
+            val url = json.optString("url")
+            if (build <= maxOf(BuildConfig.VERSION_CODE, readyBuild) || url.isEmpty()) {
+                if (userInitiated && readyVersion == null) message = "You're up to date."
+                return@withContext
+            }
+            val dir = File(context.cacheDir, "updates").apply { mkdirs() }
+            val file = File(dir, "Courtside.apk")
+            download(url, file)
+            readyFile = file
+            readyBuild = build
+            readyVersion = version
+            message = null
+        } catch (e: Exception) {
+            if (userInitiated) message = "Couldn't check for updates."
+        } finally {
+            checking = false
+        }
+    }
+
+    /** Opens Android's installer for the downloaded update. */
+    fun install(context: Context) {
+        val file = readyFile ?: return
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.updates", file)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+    }
+
+    private fun get(url: String): String {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply { connectTimeout = 15_000; readTimeout = 20_000 }
+        try { return conn.inputStream.bufferedReader().use { it.readText() } } finally { conn.disconnect() }
+    }
+
+    private fun download(url: String, to: File) {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply { connectTimeout = 15_000; readTimeout = 120_000 }
+        try {
+            val tmp = File(to.parentFile, "download.tmp")
+            conn.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
+            to.delete()
+            tmp.renameTo(to)
+        } finally {
+            conn.disconnect()
+        }
+    }
+}
+
+/** Saved settings and the login (in the app's private storage). */
+object Prefs {
+    private fun prefs(context: Context) = context.getSharedPreferences("courtside", Context.MODE_PRIVATE)
+
+    fun loadCredentials(context: Context): Credentials? {
+        val p = prefs(context)
+        val server = p.getString("server", null) ?: return null
+        return Credentials(server, p.getString("username", "") ?: "", p.getString("password", "") ?: "")
+    }
+
+    fun saveCredentials(context: Context, creds: Credentials?) {
+        prefs(context).edit().apply {
+            if (creds == null) {
+                remove("server"); remove("username"); remove("password")
+            } else {
+                putString("server", creds.server); putString("username", creds.username); putString("password", creds.password)
+            }
+        }.apply()
+    }
+
+    fun bufferMs(context: Context) = prefs(context).getInt("bufferMs", 2000)
+    fun matchFrameRate(context: Context) = prefs(context).getBoolean("matchFrameRate", true)
+    fun setMatchFrameRate(context: Context, on: Boolean) = prefs(context).edit().putBoolean("matchFrameRate", on).apply()
+    fun showForeign(context: Context) = prefs(context).getBoolean("showForeign", false)
+    fun setShowForeign(context: Context, on: Boolean) = prefs(context).edit().putBoolean("showForeign", on).apply()
+}
