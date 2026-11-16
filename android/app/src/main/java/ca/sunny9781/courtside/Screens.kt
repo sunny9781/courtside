@@ -116,25 +116,38 @@ fun LoginScreen(model: AppModel) {
     }
 }
 
+/**
+ * A text box. Moving onto it only highlights it; clicking it opens the keyboard (like the Apple TV app), and moving
+ * away closes it again.
+ */
 @Composable
 fun Field(hint: String, value: String, onChange: (String) -> Unit, type: KeyboardType = KeyboardType.Text,
           secret: Boolean = false, width: androidx.compose.ui.unit.Dp = 420.dp, onDone: () -> Unit = {}) {
     var focused by remember { mutableStateOf(false) }
-    Box(
-        Modifier.width(width).padding(vertical = 5.dp).clip(RoundedCornerShape(10.dp)).background(Theme.card)
-            .border(1.5.dp, if (focused) Theme.accent else Theme.border, RoundedCornerShape(10.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp)
-    ) {
-        if (value.isEmpty()) Label(hint, size = 14.sp, color = Theme.muted)
-        BasicTextField(
-            value = value, onValueChange = onChange, singleLine = true,
-            textStyle = TextStyle(color = Theme.text, fontSize = 14.sp),
-            cursorBrush = SolidColor(Theme.accent),
-            visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
-            keyboardOptions = KeyboardOptions(keyboardType = type),
-            keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { onDone() }, onSearch = { onDone() }),
-            modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }
-        )
+    var editing by remember { mutableStateOf(false) }
+    val input = remember { FocusRequester() }
+    var typing by remember { mutableStateOf(false) }
+    LaunchedEffect(editing) { if (editing) runCatching { input.requestFocus() } }
+    TvButton(onClick = { editing = true }, focusedScale = 1f, background = Theme.card,
+        modifier = Modifier.width(width).padding(vertical = 5.dp).onFocusChanged { if (it.hasFocus) focused = true else if (!editing) focused = false }) { _ ->
+        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Theme.card)
+            .border(1.5.dp, if (focused || editing) Theme.accent else Theme.border, RoundedCornerShape(10.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp)) {
+            if (value.isEmpty()) Label(hint, size = 14.sp, color = Theme.muted)
+            BasicTextField(
+                value = value, onValueChange = onChange, singleLine = true,
+                textStyle = TextStyle(color = Theme.text, fontSize = 14.sp),
+                cursorBrush = SolidColor(Theme.accent),
+                visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
+                keyboardOptions = KeyboardOptions(keyboardType = type),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { onDone() }, onSearch = { onDone() }),
+                modifier = Modifier.fillMaxWidth().focusProperties { canFocus = editing }.focusRequester(input)
+                    .onFocusChanged {
+                        if (it.isFocused) typing = true
+                        else if (typing) { typing = false; editing = false; focused = false }
+                    }
+            )
+        }
     }
 }
 
@@ -336,8 +349,11 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
     // Stalled or stopped: try the next stream nobody has tried yet, USA and Canada first.
     LaunchedEffect(item.channel.id) {
         var stalledFor = 0
+        var attempt = Playback.attempt
         while (true) {
             delay(1000)
+            // Trying the stream's other format starts the clock again.
+            if (Playback.attempt != attempt) { attempt = Playback.attempt; stalledFor = 0 }
             if (!model.settings.autoSwitch || item.lineup.size < 2) continue
             val why = when (Playback.status) {
                 Playback.Status.FAILED, Playback.Status.ENDED -> "The stream stopped"

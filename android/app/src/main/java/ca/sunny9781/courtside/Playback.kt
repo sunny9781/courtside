@@ -14,7 +14,14 @@ import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory
+import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.exoplayer.source.MediaSource
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 
 /**
  * The one player in the app (Media3). The player at the top and full screen both show it; only one view is
@@ -40,6 +47,19 @@ object Playback {
 
     var currentUrl: String? = null
         private set
+    /** Goes up every time a stream (or its other format) is opened. */
+    var attempt by mutableStateOf(0)
+        private set
+    private var firstFrame = false
+    private var openedAt = 0L
+    private lateinit var http: DefaultHttpDataSource.Factory
+
+    /**
+     * IPTV streams often start between keyframes and don't mark them: without these flags the picture can stay black
+     * while the player waits for one that never comes.
+     */
+    private const val TS_FLAGS = DefaultTsPayloadReaderFactory.FLAG_ALLOW_NON_IDR_KEYFRAMES or
+        DefaultTsPayloadReaderFactory.FLAG_DETECT_ACCESS_UNITS
     private var fallbackUrl: String? = null
     private val freeze = FreezeWatch()
     private val handler = Handler(Looper.getMainLooper())
@@ -50,11 +70,18 @@ object Playback {
         val load = DefaultLoadControl.Builder()
             .setBufferDurationsMs(maxOf(bufferMs, 2500), maxOf(bufferMs * 4, 15_000), bufferMs, bufferMs)
             .build()
+        // Some providers only answer players they know and send streams on through redirects (even to https).
+        http = DefaultHttpDataSource.Factory()
+            .setUserAgent("VLC/3.0.21 LibVLC/3.0.21")
+            .setAllowCrossProtocolRedirects(true)
+            .setConnectTimeoutMs(10_000)
+            .setReadTimeoutMs(15_000)
         player = ExoPlayer.Builder(context).setLoadControl(load).build().apply {
             videoChangeFrameRateStrategy = C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) = refreshStatus()
                 override fun onIsPlayingChanged(isPlaying: Boolean) = refreshStatus()
+                override fun onRenderedFirstFrame() { firstFrame = true }
                 override fun onVideoSizeChanged(size: VideoSize) {
                     if (size.height > 0) resolution = label(size.height)
                     videoFormat?.frameRate?.takeIf { it > 0 }?.let { frameRate = if (it > 61) it / 2 else it }
@@ -93,9 +120,24 @@ object Playback {
         open(url)
     }
 
+    private fun source(url: String): MediaSource {
+        val item = MediaItem.fromUri(url)
+        return if (url.endsWith(".m3u8")) {
+            HlsMediaSource.Factory(http)
+                .setExtractorFactory(DefaultHlsExtractorFactory(TS_FLAGS, true))
+                .setAllowChunklessPreparation(true)
+                .createMediaSource(item)
+        } else {
+            ProgressiveMediaSource.Factory(http, DefaultExtractorsFactory().setTsExtractorFlags(TS_FLAGS)).createMediaSource(item)
+        }
+    }
+
     private fun open(url: String) {
         status = Status.OPENING
-        player.setMediaItem(MediaItem.fromUri(url))
+        firstFrame = false
+        openedAt = System.currentTimeMillis()
+        attempt++
+        player.setMediaSource(source(url))
         player.prepare()
         player.playWhenReady = true
     }
@@ -123,13 +165,24 @@ object Playback {
         }
     }
 
-    /** Frozen for 4 seconds: restart quietly (the resolution and frame rate stay shown); if it keeps happening, move on. */
+    /**
+     * No picture 8 seconds after opening: try the stream's other format (HLS or TS) once. Frozen for 4 seconds after
+     * that: restart quietly (the resolution and frame rate stay shown); if it keeps happening, move on.
+     */
     private fun poll() {
         if (!::player.isInitialized || currentUrl == null) return
-        val watching = resolution.isNotEmpty() && player.playWhenReady &&
+        val fallback = fallbackUrl
+        if (!firstFrame && fallback != null && player.playWhenReady && System.currentTimeMillis() - openedAt > 8000) {
+            fallbackUrl = null
+            open(fallback)
+            return
+        }
+        val watching = firstFrame && player.playWhenReady &&
             (status == Status.PLAYING || status == Status.BUFFERING || status == Status.OPENING)
         when (freeze.check(player.currentPosition.toDouble(), watching)) {
-            FreezeWatch.Action.RESTART -> currentUrl?.let { player.setMediaItem(MediaItem.fromUri(it)); player.prepare(); player.play() }
+            FreezeWatch.Action.RESTART -> player.currentMediaItem?.localConfiguration?.uri?.toString()?.let {
+                player.setMediaSource(source(it)); player.prepare(); player.play()
+            }
             FreezeWatch.Action.SKIP -> onRepeatedFreezing?.invoke()
             FreezeWatch.Action.NONE -> {}
         }

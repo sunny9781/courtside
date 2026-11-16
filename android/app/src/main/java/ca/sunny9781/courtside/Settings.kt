@@ -42,6 +42,8 @@ class Settings(context: Context) {
     var autoSwitch by Flag("autoSwitch", true)
     var matchFrameRate by Flag("matchFrameRate", true)
     var bufferMs by Number("bufferMs", 2000)
+    /** Open streams as HLS first (what the iPhone app uses), with TS as the fallback; off is the other way round. */
+    var preferHls by Flag("preferHls", true)
     var hideSD by Flag("hideSD", true)
     var showForeign by Flag("showForeign", false)
     var hideAdult by Flag("hideAdult", true)
