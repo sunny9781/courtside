@@ -21,9 +21,10 @@ struct TVHomeView: View {
     var body: some View {
         NavigationStack(path: $nav.homePath) {
             // The games line up with the text beside the player's video (the games pane pads itself by 24).
-            HStack(alignment: .top, spacing: inPane ? 20 : TVLayout.playerGap - 24) {
-                TVSportList(focused: $sidebarFocus, compact: inPane)
-                    .frame(width: inPane ? TVLayout.compactSidebar : TVLayout.sidebar)
+            // The left column stays lined up with the player above it (it no longer shrinks), so moving across is smooth.
+            HStack(alignment: .top, spacing: TVLayout.playerGap - 24) {
+                TVSportList(focused: $sidebarFocus, compact: false)
+                    .frame(width: TVLayout.sidebar)
                     .focusSection()
                     // Coming back from the games lands on the sport you left, not the row beside it.
                     .defaultFocus($sidebarFocus, sidebarTarget, priority: .userInitiated)
@@ -33,7 +34,6 @@ struct TVHomeView: View {
                     .focusSection()
                     .zIndex(1)
             }
-            .animation(.easeOut(duration: 0.25), value: inPane)
             .padding(.horizontal, TVLayout.margin)
             // The navigation container adds wide side margins of its own; use the full width instead.
             .ignoresSafeArea(.container, edges: .horizontal)
@@ -185,16 +185,12 @@ struct TVGamesPane: View {
         _ = (hiddenSports, sportOrder)
         switch nav.homeSelection {
         case .liveNow:
-            // Only games that are live right now, by sport.
-            var out: [PaneSection] = []
-            for sport in orderedSports(model: model) {
-                let games = model.games(for: sport).filter { $0.state == .live }
-                if !games.isEmpty {
-                    out.append(PaneSection(id: sport.id, title: sport.rawValue, symbol: sport.symbol, league: nil,
-                                       games: sortedGames(games)))
-                }
+            // Only games that are live right now, all in one grid (each card names its league), in your sport order,
+            // so games from different sports share a row.
+            let games = orderedSports(model: model).flatMap { sport in
+                sortedGames(model.games(for: sport).filter { $0.state == .live })
             }
-            return out
+            return games.isEmpty ? [] : [PaneSection(id: "live", title: "", symbol: nil, league: nil, games: games)]
         case .sport(let sport):
             return model.leagues(for: sport).compactMap { league in
                 let games = model.games.filter { $0.league.id == league.id }
@@ -233,6 +229,7 @@ struct TVGamesPane: View {
 
                 ForEach(sections) { section in
                     VStack(alignment: .leading, spacing: 22) {
+                        if !section.title.isEmpty {
                         HStack(spacing: 14) {
                             if let league = section.league {
                                 TVLeagueLogo(league: league, size: 44)
@@ -245,13 +242,12 @@ struct TVGamesPane: View {
                                 .font(.system(size: 30, weight: .bold))
                                 .foregroundStyle(Theme.text)
                         }
-                        let width = cardWidth(for: section.league.map { model.games(for: $0.sport) }
-                                                ?? (section.id == "finals" ? section.games
-                                                    : model.games(for: Sport(rawValue: section.title) ?? .basketball)),
-                                              charWidth: 15.5, fixed: 130, minimum: 360, maximum: 900)
-                        // As many columns as fit at the sport's card width, then stretched to fill the row.
+                        }
+                        // Cards just wide enough for their team names and scores (not stretched), as many to a row as fit.
+                        let width = cardWidth(for: section.league.map { model.games(for: $0.sport) } ?? section.games,
+                                              charWidth: 15.5, fixed: 130, minimum: 340, maximum: 560)
                         let count = max(1, Int((paneWidth + 32) / (width + 32)))
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 32, alignment: .top), count: count),
+                        LazyVGrid(columns: Array(repeating: GridItem(.fixed(width), spacing: 32, alignment: .top), count: count),
                                   alignment: .leading, spacing: 32) {
                             ForEach(section.games) { game in
                                 Button {

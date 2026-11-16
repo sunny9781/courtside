@@ -462,12 +462,9 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
 @Composable
 fun HomeScreen(model: AppModel) {
     val back = model.returnToGame
-    var inPane by remember { mutableStateOf(back != null) }
     val side = remember { FocusTargets() }
     val pane = remember { FocusTargets() }
     var lastGame by remember { mutableStateOf(back) }
-    val width by animateDpAsState(if (inPane) 64.dp else Theme.playerWidth,
-        androidx.compose.animation.core.tween(220, easing = androidx.compose.animation.core.FastOutSlowInEasing), label = "sidebar")
 
     // Back from a game: focus goes to its card.
     LaunchedEffect(Unit) {
@@ -479,21 +476,13 @@ fun HomeScreen(model: AppModel) {
         }
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = Theme.margin)) {
-    // The number of card columns stays the same while the left column grows and shrinks (worked out for the
-    // wider games pane), so the cards just stretch smoothly instead of jumping between layouts.
-    val columns = maxOf(1, ((maxWidth - 64.dp - 14.dp - 12.dp + 14.dp) / (230.dp + 14.dp)).toInt())
-    Row(Modifier.fillMaxSize().enterAt {
-        side[sidebarKey(model.homeSelection)]
-    }) {
-        SportList(model, side, compact = inPane,
-            modifier = Modifier.width(width).onFocusChanged { if (it.hasFocus) inPane = false }
-                .enterAt { side[sidebarKey(model.homeSelection)] })
+    // The left column stays lined up with the player above it (it doesn't shrink), so moving across is smooth.
+    Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { side[sidebarKey(model.homeSelection)] }) {
+        SportList(model, side, compact = false,
+            modifier = Modifier.width(Theme.playerWidth).enterAt { side[sidebarKey(model.homeSelection)] })
         Spacer(Modifier.width(14.dp))
-        GamesPane(model, pane, columns, onOpen = { lastGame = it; model.openGameId = it }, onFocusGame = { lastGame = it },
-            modifier = Modifier.weight(1f).onFocusChanged { if (it.hasFocus) inPane = true }
-                .enterAt { pane["game:$lastGame"] })
-    }
+        GamesPane(model, pane, onOpen = { lastGame = it; model.openGameId = it }, onFocusGame = { lastGame = it },
+            modifier = Modifier.weight(1f).enterAt { pane["game:$lastGame"] })
     }
 }
 
@@ -565,6 +554,19 @@ private fun SportRow(
     }
 }
 
+/** Wide enough for the longest team name and score among these games (like the Apple TV cards), within limits. */
+private fun cardWidth(games: List<Game>): androidx.compose.ui.unit.Dp {
+    var longest = 0
+    for (g in games) {
+        if (g.isEvent && !g.hasSides) { longest = maxOf(longest, minOf(g.eventTitle.length, 30)); continue }
+        for (t in listOf(g.away, g.home)) {
+            val name = t.shortName.ifEmpty { t.name }.length
+            longest = maxOf(longest, if (t.hasLongScore) maxOf(name, t.score.length) else name + t.score.length + 2)
+        }
+    }
+    return (64 + longest * 8).coerceIn(190, 290).dp
+}
+
 private data class PaneSection(val id: String, val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector?,
                                val league: League?, val games: List<Game>)
 
@@ -572,16 +574,15 @@ private fun sortedGames(games: List<Game>) = games.sortedWith(
     compareBy<Game> { when (it.state) { GameState.LIVE -> 0; GameState.UPCOMING -> 1; else -> 2 } }.thenBy { it.start ?: Long.MAX_VALUE })
 
 @Composable
-private fun GamesPane(model: AppModel, targets: FocusTargets, columns: Int, onOpen: (String) -> Unit, onFocusGame: (String) -> Unit,
+private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -> Unit, onFocusGame: (String) -> Unit,
                       modifier: Modifier) {
     val selection = model.homeSelection
     val sport = selectedSport(selection)
     val sections: List<PaneSection> = when (selection) {
         // Only games that are live right now, by sport.
-        is HomeSelection.LiveNow -> model.orderedSports().mapNotNull { s ->
-            val g = model.games(s).filter { it.state == GameState.LIVE }
-            if (g.isEmpty()) null else PaneSection(s.name, s.title, s.icon, null, sortedGames(g))
-        }
+        // All live games in one grid (each card names its league), so games from different sports share a row.
+        is HomeSelection.LiveNow -> model.orderedSports().flatMap { s -> sortedGames(model.games(s).filter { it.state == GameState.LIVE }) }
+            .let { if (it.isEmpty()) emptyList() else listOf(PaneSection("live", "", null, null, it)) }
         is HomeSelection.OfSport -> model.leagues(selection.sport).mapNotNull { l ->
             val g = model.games.filter { it.league.id == l.id }
             if (g.isEmpty()) null else PaneSection(l.id, l.name, null, l, sortedGames(g))
@@ -590,7 +591,9 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, columns: Int, onOp
             listOf(PaneSection(l.id, l.name, null, l, sortedGames(model.games.filter { it.league.id == l.id })))
         } ?: emptyList()
     }
-    LazyVerticalGrid(GridCells.Fixed(columns), modifier = modifier.fillMaxHeight().wrapRows(), state = model.homeGrid,
+    // Cards just wide enough for the team names and scores here (not stretched), as many to a row as fit.
+    val cardWidth = cardWidth(if (sport != null) model.games(sport) else sections.flatMap { it.games })
+    LazyVerticalGrid(GridCells.FixedSize(cardWidth), modifier = modifier.fillMaxHeight().wrapRows(), state = model.homeGrid,
         horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, start = 6.dp, end = 6.dp)) {
         if (sport != null && model.leagues(sport).size > 1) {
@@ -607,7 +610,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, columns: Int, onOp
             }
         }
         for (section in sections) {
-            item(span = { GridItemSpan(maxLineSpan) }, key = "h:${section.id}") {
+            if (section.title.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }, key = "h:${section.id}") {
                 Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (section.league != null) LeagueLogo(model, section.league, 22.dp)
