@@ -27,6 +27,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** Holding Back while something plays in the player at the top opens it full screen. */
+    override fun onKeyLongPress(keyCode: Int, event: android.view.KeyEvent): Boolean {
+        val item = model.pinned
+        if (keyCode == android.view.KeyEvent.KEYCODE_BACK && model.nowPlaying == null && item != null) {
+            model.play(item.channel, item.gameTitle, item.lineup, from = "strip")
+            return true
+        }
+        return super.onKeyLongPress(keyCode, event)
+    }
+
     override fun onStop() {
         super.onStop()
         // Leaving the app (Home button) stops the stream, so it doesn't keep using a connection.

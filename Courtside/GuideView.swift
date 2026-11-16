@@ -81,7 +81,10 @@ struct GuideView: View {
             }
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled else { return }
-            let found = EPGSearch.run(query, model: model, grouped: grouped)
+            // Worked out away from the main thread, so typing never stutters on a big channel list.
+            let input = EPGSearch.Input(model: model)
+            let group = grouped
+            let found = await Task.detached(priority: .userInitiated) { EPGSearch.run(query, input: input, grouped: group) }.value
             guard !Task.isCancelled else { return }
             hits = found
             hitsQuery = query

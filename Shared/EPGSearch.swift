@@ -22,17 +22,36 @@ enum EPGSearch {
 
     @MainActor
     static func run(_ raw: String, model: AppModel, grouped: Bool, now: Date = Date()) -> [Hit] {
+        run(raw, input: Input(model: model), grouped: grouped, now: now)
+    }
+
+    /// What a search needs, copied from the model so it can run away from the main thread (typing stays smooth).
+    struct Input: @unchecked Sendable {
+        let categories: [ChannelCategory]
+        let channelsByCategory: [String: [Channel]]
+        let guide: [String: [Programme]]
+        let tree: [CategoryGrouping.Node]
+
+        @MainActor init(model: AppModel) {
+            categories = model.categories
+            channelsByCategory = model.channelsByCategory
+            guide = model.guide
+            tree = model.categoryTree
+        }
+    }
+
+    static func run(_ raw: String, input: Input, grouped: Bool, now: Date = Date()) -> [Hit] {
         let query = raw.trimmingCharacters(in: .whitespaces).lowercased()
         guard query.count >= 2 else { return [] }
-        let paths = grouped ? pathMap(model.categoryTree) : [:]
+        let paths = grouped ? pathMap(input.tree) : [:]
 
         var hits: [Hit] = []
-        for cat in model.categories {
-            let channels = model.channelsByCategory[cat.id] ?? []
+        for cat in input.categories {
+            let channels = input.channelsByCategory[cat.id] ?? []
             let catMatch = cat.name.lowercased().contains(query)
             let direct = channels.filter { ch in
                 ch.name.lowercased().contains(query)
-                    || (model.currentProgramme(ch, at: now)?.title.lowercased().contains(query) ?? false)
+                    || (input.guide[ch.epgID]?.first { $0.start <= now && $0.end > now }?.title.lowercased().contains(query) ?? false)
             }
             guard catMatch || !direct.isEmpty else { continue }
             hits.append(Hit(category: cat, path: paths[cat.id] ?? "", channels: catMatch ? channels : direct,
