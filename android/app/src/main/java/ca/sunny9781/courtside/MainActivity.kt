@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
             val fps = Playback.frameRate
             val full = model.nowPlaying != null
             LaunchedEffect(fps, full) {
-                matchRefreshRate(if (full && Prefs.matchFrameRate(this@MainActivity)) fps else 0f)
+                matchRefreshRate(if (full && model.settings.matchFrameRate) fps else 0f)
             }
         }
     }

@@ -4,7 +4,19 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Tv
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -134,3 +146,84 @@ fun scoreColor(game: Game, side: Team): Color {
 
 fun Modifier.outline(on: Boolean, color: Color = Theme.accent, shape: Shape = RoundedCornerShape(10.dp)) =
     if (on) this.border(1.5.dp, color, shape) else this
+
+/**
+ * Remembers a FocusRequester per item, and which items are on screen right now, so a list can send focus back to
+ * the item you came from (the selected sport, the stream you watched) the way the Apple TV app does.
+ */
+class FocusTargets {
+    private val requesters = HashMap<Any, FocusRequester>()
+    internal val live = HashSet<Any>()
+
+    fun requester(key: Any): FocusRequester = requesters.getOrPut(key) { FocusRequester() }
+
+    /** The item's requester if it's on screen, otherwise the normal "nearest item" behaviour. */
+    operator fun get(key: Any?): FocusRequester =
+        if (key != null && key in live) requester(key) else FocusRequester.Default
+
+    fun focus(key: Any?): Boolean {
+        if (key == null || key !in live) return false
+        return runCatching { requester(key).requestFocus() }.isSuccess
+    }
+}
+
+/** Tags an item so FocusTargets can find it. */
+@Composable
+fun Modifier.tracked(targets: FocusTargets, key: Any): Modifier {
+    DisposableEffect(targets, key) {
+        targets.live.add(key)
+        onDispose { targets.live.remove(key) }
+    }
+    return this.focusRequester(targets.requester(key))
+}
+
+/** A group that focus enters at `target()` (moving in from another part of the screen), or never while `blocked`. */
+@OptIn(ExperimentalComposeUiApi::class)
+fun Modifier.enterAt(blocked: () -> Boolean = { false }, target: () -> FocusRequester): Modifier =
+    this.focusProperties { enter = { if (blocked()) FocusRequester.Cancel else target() } }.focusGroup()
+
+@Composable
+fun ChannelIcon(url: String?, size: Dp) {
+    Box(Modifier.size(size).clip(RoundedCornerShape(6.dp)).background(Theme.raised), contentAlignment = Alignment.Center) {
+        if (!url.isNullOrEmpty()) {
+            AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.size(size * 0.85f))
+        } else {
+            androidx.tv.material3.Icon(Icons.Filled.Tv, contentDescription = null, tint = Theme.muted, modifier = Modifier.size(size * 0.5f))
+        }
+    }
+}
+
+/** The league's logo from the schedule feed, or its sport's icon. */
+@Composable
+fun LeagueLogo(model: AppModel, league: League, size: Dp) {
+    val url = model.leagueLogos[league.id]
+    if (url != null) {
+        AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.size(size))
+    } else {
+        androidx.tv.material3.Icon(league.sport.icon, contentDescription = null, tint = Theme.accent, modifier = Modifier.size(size * 0.8f))
+    }
+}
+
+/** "LIVE · Q3 4:12", "STARTS 7:30 PM" or "FINAL", like the Apple TV cards. */
+fun cardHeader(game: Game): String = when (game.state) {
+    GameState.LIVE -> "LIVE · ${game.statusText}"
+    GameState.UPCOMING -> "STARTS ${startText(game)}"
+    GameState.FINISHED -> game.statusText.ifEmpty { "Final" }.uppercase()
+}
+
+fun startText(game: Game): String {
+    val start = game.start ?: return game.statusText
+    val today = android.text.format.DateUtils.isToday(start)
+    val fmt = if (today) java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
+              else java.text.SimpleDateFormat("EEE h:mm a", java.util.Locale.getDefault())
+    return fmt.format(java.util.Date(start))
+}
+
+fun clockTime(ms: Long): String = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(java.util.Date(ms))
+
+@Composable
+fun ProgressLine(fraction: Float, focused: Boolean, width: Dp = 160.dp) {
+    Box(Modifier.width(width).height(3.dp).clip(RoundedCornerShape(2.dp)).background(if (focused) Theme.muted else Theme.raised)) {
+        Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).fillMaxHeight().background(if (focused) Theme.bg else Theme.accent))
+    }
+}
