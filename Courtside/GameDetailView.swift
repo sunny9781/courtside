@@ -219,10 +219,6 @@ struct StreamRow: View {
                                 .labelStyle(.titleAndIcon)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
-                        Text(match.reason)
-                            .font(.system(size: 11))
-                            .foregroundStyle(Theme.muted)
-                            .fixedSize(horizontal: false, vertical: true)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     VStack(alignment: .trailing, spacing: 4) {

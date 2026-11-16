@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -26,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -162,7 +164,7 @@ fun Shell(model: AppModel) {
         when {
             model.nowPlaying != null -> model.closePlayer()
             model.tab != Tab.HOME -> model.tab = Tab.HOME
-            model.openGameId != null -> model.openGameId = null
+            model.openGameId != null -> model.closeGame()
         }
     }
     // Remember the quality and frame rate each channel really plays at (they beat what its name says).
@@ -186,12 +188,14 @@ fun Shell(model: AppModel) {
         Column(Modifier.fillMaxSize().padding(top = Theme.margin).alpha(if (full) 0f else 1f).enterAt({ full }) { FocusRequester.Default }) {
             TopBar(model)
             model.pinned?.let { item -> PlayerStrip(model, item, strip) }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            // Moving left or right off the edge of a page goes nowhere (not up to the top bar).
+            Box(Modifier.weight(1f).fillMaxWidth().focusProperties {
+                exit = { d -> if (d == FocusDirection.Left || d == FocusDirection.Right) FocusRequester.Cancel else FocusRequester.Default }
+            }.focusGroup()) {
                 when (model.tab) {
                     Tab.HOME -> {
                         val open = model.openGameId
-                        HomeScreen(model, hidden = open != null)
-                        if (open != null) GameScreen(model, open)
+                        if (open != null) GameScreen(model, open) else HomeScreen(model)
                     }
                     Tab.EPG -> EpgScreen(model)
                     Tab.SETTINGS -> SettingsScreen(model)
@@ -251,7 +255,7 @@ fun TopBar(model: AppModel) {
                 Label("Downloading channels…", size = 12.sp, color = Theme.muted)
             } else model.updatedAt?.let { at ->
                 // Like the Apple TV app: "Updated 9:10 PM" is itself the refresh button.
-                TvButton(onClick = { model.refresh() }) { focused ->
+                TvButton(onClick = { model.refresh(force = true) }) { focused ->
                     Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Icon(Icons.Filled.Refresh, null, tint = if (focused) Theme.bg else Theme.muted, modifier = Modifier.size(13.dp))
@@ -436,21 +440,25 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
  * its games; clicking a game opens its streams. Coming back from the games lands on the sport you left.
  */
 @Composable
-fun HomeScreen(model: AppModel, hidden: Boolean) {
-    var inPane by remember { mutableStateOf(false) }
+fun HomeScreen(model: AppModel) {
+    val back = model.returnToGame
+    var inPane by remember { mutableStateOf(back != null) }
     val side = remember { FocusTargets() }
     val pane = remember { FocusTargets() }
-    var lastGame by remember { mutableStateOf<String?>(null) }
+    var lastGame by remember { mutableStateOf(back) }
     val width by animateDpAsState(if (inPane) 64.dp else Theme.playerWidth, label = "sidebar")
 
     // Back from a game: focus goes to its card.
-    var wasOpen by remember { mutableStateOf(hidden) }
-    LaunchedEffect(hidden) {
-        if (wasOpen && !hidden) { delay(60); pane.focus("game:$lastGame") }
-        wasOpen = hidden
+    LaunchedEffect(Unit) {
+        val id = model.returnToGame ?: return@LaunchedEffect
+        model.returnToGame = null
+        repeat(10) {
+            delay(50)
+            if (pane.focus("game:$id")) return@LaunchedEffect
+        }
     }
 
-    Row(Modifier.fillMaxSize().alpha(if (hidden) 0f else 1f).padding(horizontal = Theme.margin).enterAt({ hidden }) {
+    Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt {
         side[sidebarKey(model.homeSelection)]
     }) {
         SportList(model, side, compact = inPane,
@@ -556,7 +564,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             listOf(PaneSection(l.id, l.name, null, l, sortedGames(model.games.filter { it.league.id == l.id })))
         } ?: emptyList()
     }
-    LazyVerticalGrid(GridCells.Adaptive(230.dp), modifier = modifier.fillMaxHeight(),
+    LazyVerticalGrid(GridCells.Adaptive(230.dp), modifier = modifier.fillMaxHeight(), state = model.homeGrid,
         horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, start = 6.dp, end = 6.dp)) {
         if (sport != null && model.leagues(sport).size > 1) {
@@ -731,7 +739,7 @@ fun GameScreen(model: AppModel, gameId: String) {
                         Label(if (model.channels.isEmpty()) "Channels are still loading…" else "No streams found for this game yet.",
                             size = 14.sp, color = Theme.muted)
                         if (listing.foreign.isEmpty() && listing.extras.isEmpty()) {
-                            Pill("Back to the games", Modifier.tracked(targets, "back")) { model.openGameId = null }
+                            Pill("Back to the games", Modifier.tracked(targets, "back")) { model.closeGame() }
                         }
                     }
                 }
@@ -856,7 +864,7 @@ fun Pill(title: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
 private fun StreamCell(model: AppModel, m: StreamMatch, previewing: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val quality = model.measuredQuality[m.channel.id] ?: m.quality
     val fps = model.measuredFrameRate[m.channel.id]
-    TvButton(onClick = onClick, background = Theme.card, modifier = modifier.fillMaxWidth().height(70.dp).outline(previewing)) { focused ->
+    TvButton(onClick = onClick, background = Theme.card, modifier = modifier.fillMaxWidth().height(60.dp).outline(previewing)) { focused ->
         Row(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             ChannelIcon(m.channel.icon, 30.dp)
@@ -868,7 +876,6 @@ private fun StreamCell(model: AppModel, m: StreamMatch, previewing: Boolean, mod
                     Icon(Icons.Filled.Folder, null, tint = if (focused) Theme.bg else Theme.soft, modifier = Modifier.size(10.dp))
                     Label(m.channel.categoryName, size = 10.sp, color = if (focused) Theme.bg else Theme.soft)
                 }
-                Label(m.reason, size = 9.sp, color = if (focused) Theme.bg else Theme.muted)
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (quality.isNotEmpty()) Badge(quality, fill = if (quality == "4K") Theme.accent else Theme.raised,

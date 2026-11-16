@@ -250,7 +250,6 @@ struct IOSStreamRow: View {
                         .foregroundStyle(Theme.soft)
                         .lineLimit(1)
                 }
-                Text(match.reason).font(.caption2).foregroundStyle(Theme.muted).lineLimit(1)
             }
             Spacer(minLength: 6)
             VStack(alignment: .trailing, spacing: 4) {

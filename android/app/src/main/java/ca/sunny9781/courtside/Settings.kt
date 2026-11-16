@@ -42,6 +42,8 @@ class Settings(context: Context) {
     var autoSwitch by Flag("autoSwitch", true)
     var matchFrameRate by Flag("matchFrameRate", true)
     var bufferMs by Number("bufferMs", 2000)
+    /** Opening the app reuses the saved channels and guide until they're this old. */
+    var refreshHours by Number("refreshHours", 6)
     /** Open streams as HLS first (what the iPhone app uses), with TS as the fallback; off is the other way round. */
     var preferHls by Flag("preferHls", true)
     var hideSD by Flag("hideSD", true)

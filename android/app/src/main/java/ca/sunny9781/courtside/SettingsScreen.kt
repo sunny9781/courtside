@@ -159,8 +159,15 @@ private fun Sports(model: AppModel) {
 private fun Updates(model: AppModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val s = model.settings
+    Action("Download fresh channels and guide after",
+        "Opening the app reuses the saved channels and guide until they're this old. Scores always update every minute.",
+        value = "${s.refreshHours} h") {
+        val list = listOf(1, 3, 6, 12, 24)
+        s.refreshHours = list[(list.indexOf(s.refreshHours) + 1) % list.size]
+    }
     Action("Refresh now", model.updatedAt?.let { "Last downloaded ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))}" },
-        value = if (model.loading) "Downloading…" else null) { model.refresh() }
+        value = if (model.loading) "Downloading…" else null) { model.refresh(force = true) }
     val ready = Updater.readyVersion
     if (ready != null) {
         Action("Install version $ready", "Downloaded and ready. Android asks you to confirm the install.") { Updater.install(context) }

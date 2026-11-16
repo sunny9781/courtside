@@ -300,10 +300,6 @@ struct TVStreamCell: View {
                         .foregroundStyle(Theme.soft)
                         .lineLimit(1)
                 }
-                Text(match.reason)
-                    .font(.system(size: 18))
-                    .foregroundStyle(Theme.muted)
-                    .lineLimit(1)
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 8) {

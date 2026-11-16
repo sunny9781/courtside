@@ -77,7 +77,7 @@ object Playback {
             .setConnectTimeoutMs(10_000)
             .setReadTimeoutMs(15_000)
         player = ExoPlayer.Builder(context).setLoadControl(load).build().apply {
-            videoChangeFrameRateStrategy = C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS
+            videoChangeFrameRateStrategy = C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) = refreshStatus()
                 override fun onIsPlayingChanged(isPlaying: Boolean) = refreshStatus()
@@ -150,6 +150,16 @@ object Playback {
         status = Status.IDLE
         resolution = ""
         frameRate = 0f
+    }
+
+    /**
+     * Only full screen may switch the TV's refresh rate to the stream's: the player at the top never does, so
+     * opening a game doesn't make the TV change modes.
+     */
+    fun setFullScreen(full: Boolean, matchFrameRate: Boolean) {
+        if (!::player.isInitialized) return
+        player.videoChangeFrameRateStrategy =
+            if (full && matchFrameRate) C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS else C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF
     }
 
     fun togglePause() {

@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
             // In full screen, switch the TV to a refresh rate that matches the stream (Settings › Player).
             val fps = Playback.frameRate
             val full = model.nowPlaying != null
+            LaunchedEffect(full, model.settings.matchFrameRate) { Playback.setFullScreen(full, model.settings.matchFrameRate) }
             LaunchedEffect(fps, full) {
                 matchRefreshRate(if (full && model.settings.matchFrameRate) fps else 0f)
             }
