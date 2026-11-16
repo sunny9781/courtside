@@ -19,14 +19,21 @@ final class CastManager: NSObject, ObservableObject, GCKSessionManagerListener {
     static let startingKey = "castStarting"
     /// Cast was switched off after it crashed the app while starting (Settings can switch it back on).
     static let disabledKey = "castDisabled"
+    /// The build that was running when Cast was switched off.
+    static let disabledBuildKey = "castDisabledBuild"
 
     /// Starts Cast once the app has finished launching (Google's recommended moment). If starting it crashed the app
     /// last time, it stays off so the app still opens, and Settings says so.
     static func setUp() {
         let defaults = UserDefaults.standard
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
         if defaults.bool(forKey: startingKey) {
             defaults.set(false, forKey: startingKey)
             defaults.set(true, forKey: disabledKey)
+            defaults.set(build, forKey: disabledBuildKey)
+        } else if defaults.bool(forKey: disabledKey), defaults.string(forKey: disabledBuildKey) != build {
+            // A new version may have fixed what crashed: try Cast again once.
+            defaults.set(false, forKey: disabledKey)
         }
         guard !isSetUp, !defaults.bool(forKey: disabledKey) else { return }
         defaults.set(true, forKey: startingKey)

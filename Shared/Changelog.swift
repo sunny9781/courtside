@@ -64,6 +64,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.37", date: "2026-11-15", time: "23:54", title: "Chromecast fixed", changes: [
+            Change(text: "Chromecast no longer crashes the app: Google's Cast toolkit couldn't read the app's long build number. Chromecast switches itself back on with this update.", apps: ios)
+        ]),
         Release(version: "1.36", date: "2026-11-15", time: "23:22", title: "Tidier settings, smoother filter", changes: [
             Change(text: "Settings: one section at a time, picked from a bar at the bottom like Home's sports. No more Edit button.", apps: ios),
             Change(text: "Game screen: the filter box only shows when there are more than 10 streams.", apps: ios),
