@@ -64,6 +64,15 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.36", date: "2026-11-15", time: "23:22", title: "Tidier settings, smoother filter", changes: [
+            Change(text: "Settings: one section at a time, picked from a bar at the bottom like Home's sports. No more Edit button.", apps: ios),
+            Change(text: "Game screen: the filter box only shows when there are more than 10 streams.", apps: ios),
+            Change(text: "EPG: the filter searches in the background, so typing stays smooth on a big channel list.", apps: mac),
+            Change(text: "A bigger home-screen banner, the same width as other apps.", apps: android),
+            Change(text: "The player at the top no longer switches the TV into HDR (or another refresh rate) for a 4K stream; full screen still shows HDR.", apps: android),
+            Change(text: "Hold Back while something plays at the top to open it full screen.", apps: android),
+            Change(text: "Right at the end of a row of streams or games goes on to the next row, and left at the start goes back.", apps: android)
+        ]),
         Release(version: "1.35", date: "2026-11-15", time: "22:57", title: "Saved channels, steadier filter, Chromecast fix", changes: [
             Change(text: "Game screen: streams no longer list why they matched (\"channel name has the teams\" and so on).", apps: everywhere),
             Change(text: "Channels and the guide are saved and reused for 6 hours (Settings › Updates), so opening the app or installing an update doesn't download them again.", apps: android),

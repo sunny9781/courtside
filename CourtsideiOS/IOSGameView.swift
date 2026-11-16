@@ -46,6 +46,8 @@ struct IOSGameView: View {
                     // While one of this game's streams plays, the score is in the player at the top.
                     if let game, !model.pinnedIsFrom(gameID: gameID) { score(game) }
 
+                    // Only worth a filter when there are more than 10 streams (or one is already typed).
+                    if allStreams.filter({ !$0.hidden }).count > 10 || !search.isEmpty {
                     HStack(spacing: 8) {
                         HStack(spacing: 6) {
                             Image(systemName: "magnifyingglass").foregroundStyle(Theme.muted)
@@ -59,6 +61,7 @@ struct IOSGameView: View {
                         .padding(.horizontal, 10)
                         .frame(height: 38)
                         .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
+                    }
                     }
 
                     if sections.isEmpty {

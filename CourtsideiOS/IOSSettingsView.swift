@@ -18,10 +18,31 @@ struct IOSSettingsView: View {
     @State private var openReleases: Set<String> = Set(Changelog.forThisApp.prefix(1).map(\.id))
     @State private var confirmSignOut = false
     @State private var castNote: String?
+    /// The section showing; the bar at the bottom switches it (like Home's sports), so nothing needs long scrolling.
+    @State private var section: SettingsSection = .account
+    @State private var barWidth: CGFloat = 390
+
+    enum SettingsSection: String, CaseIterable, Identifiable {
+        case account = "Account", playback = "Playback", sports = "Sports", games = "Games", epg = "EPG",
+             updates = "Updates", whatsNew = "What's new"
+        var id: String { rawValue }
+        var symbol: String {
+            switch self {
+            case .account: return "person.crop.circle"
+            case .playback: return "play.rectangle"
+            case .sports: return "sportscourt"
+            case .games: return "list.bullet.rectangle"
+            case .epg: return "tv"
+            case .updates: return "arrow.clockwise"
+            case .whatsNew: return "sparkles"
+            }
+        }
+    }
 
     var body: some View {
         NavigationStack {
             Form {
+                if section == .account {
                 Section("Account") {
                     LabeledContent("Username", value: model.credentials?.username ?? "")
                     LabeledContent("Status", value: model.account?.status ?? "–")
@@ -33,6 +54,9 @@ struct IOSSettingsView: View {
                     }
                 }
 
+                }
+
+                if section == .playback {
                 Section {
                     Toggle("Switch to the next stream when one stalls", isOn: $autoSwitch)
                     if UserDefaults.standard.bool(forKey: CastManager.disabledKey) {
@@ -56,26 +80,29 @@ struct IOSSettingsView: View {
                     Text("USA and Canada streams are tried first when switching. More buffer means fewer stalls but a longer delay behind live.")
                 }
 
+                }
+
+                if section == .sports {
                 Section {
                     ForEach(Sport.ordered(sportOrderPref)) { sport in
                         sportRow(sport)
                     }
-                    .onMove { from, to in
-                        var order = Sport.ordered(sportOrderPref)
-                        order.move(fromOffsets: from, toOffset: to)
-                        sportOrderPref = Sport.encode(order)
-                    }
                 } header: {
                     Text("Sports")
                 } footer: {
-                    Text("Tap a sport for its leagues. Switch one off to hide it; the heart keeps it first on Home. Tap Edit to reorder.")
+                    Text("Tap a sport for its leagues. Switch one off to hide it; the heart keeps it first on Home.")
+                }
                 }
 
+                if section == .games {
                 Section("Games") {
                     Toggle("Show finished games", isOn: $showFinished)
                     Toggle("Hide SD streams", isOn: $hideSD)
                 }
 
+                }
+
+                if section == .epg {
                 Section("EPG") {
                     Toggle("Hide adult categories", isOn: Binding(
                         get: { hideAdult },
@@ -84,6 +111,9 @@ struct IOSSettingsView: View {
                     Toggle("Group similar categories", isOn: $grouped)
                 }
 
+                }
+
+                if section == .updates {
                 Section {
                     Picker("Download fresh channels after", selection: $refreshHours) {
                         Text("1 h").tag(1)
@@ -105,6 +135,9 @@ struct IOSSettingsView: View {
                     }
                 }
 
+                }
+
+                if section == .whatsNew {
                 Section("What's new") {
                     ForEach(Array(Changelog.forThisApp.enumerated()), id: \.element.id) { index, release in
                         DisclosureGroup(isExpanded: Binding(
@@ -128,13 +161,38 @@ struct IOSSettingsView: View {
                         }
                     }
                 }
+                }
             }
-            .navigationTitle("Settings")
-            .toolbar { EditButton() }
+            .safeAreaInset(edge: .bottom, spacing: 0) { sectionBar }
+            .toolbar(.hidden, for: .navigationBar)
             .confirmationDialog("Sign out of Courtside?", isPresented: $confirmSignOut, titleVisibility: .visible) {
                 Button("Sign out", role: .destructive) { model.signOut() }
             }
         }
+    }
+
+    /// The sections as chips along the bottom, starting from the right edge (nearest the thumb).
+    private var sectionBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(SettingsSection.allCases.reversed()) { item in
+                    IOSChip(selected: section == item, action: { section = item }) {
+                        HStack(spacing: 6) {
+                            Image(systemName: item.symbol)
+                            if section == item { Text(item.rawValue) }
+                        }
+                        .frame(minHeight: 30)
+                    }
+                    .accessibilityLabel(item.rawValue)
+                }
+            }
+            .padding(.horizontal)
+            .frame(minWidth: barWidth, alignment: .trailing)
+        }
+        .defaultScrollAnchor(.trailing)
+        .padding(.vertical, 8)
+        .background(.ultraThinMaterial)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { barWidth = $0 }
     }
 
     private func sportRow(_ sport: Sport) -> some View {

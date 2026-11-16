@@ -39,6 +39,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.nativeKeyCode
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -73,6 +74,20 @@ fun AfterFullScreen(model: AppModel, from: String, action: () -> Unit) {
             action()
         }
         was = full
+    }
+}
+
+/** Right at the end of a row goes on to the start of the next one, and left at the start back to the row above. */
+@Composable
+fun Modifier.wrapRows(): Modifier {
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    return this.onPreviewKeyEvent { e ->
+        if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+        when (e.key.nativeKeyCode) {
+            KeyEvent.KEYCODE_DPAD_RIGHT -> focus.moveFocus(FocusDirection.Right) || focus.moveFocus(FocusDirection.Next)
+            KeyEvent.KEYCODE_DPAD_LEFT -> focus.moveFocus(FocusDirection.Left) || focus.moveFocus(FocusDirection.Previous)
+            else -> false
+        }
     }
 }
 
@@ -190,7 +205,10 @@ fun Shell(model: AppModel) {
             model.pinned?.let { item -> PlayerStrip(model, item, strip) }
             // Moving left or right off the edge of a page goes nowhere (not up to the top bar).
             Box(Modifier.weight(1f).fillMaxWidth().focusProperties {
-                exit = { d -> if (d == FocusDirection.Left || d == FocusDirection.Right) FocusRequester.Cancel else FocusRequester.Default }
+                exit = { d ->
+                    if (d == FocusDirection.Left || d == FocusDirection.Right || d == FocusDirection.Next || d == FocusDirection.Previous)
+                        FocusRequester.Cancel else FocusRequester.Default
+                }
             }.focusGroup()) {
                 when (model.tab) {
                     Tab.HOME -> {
@@ -272,10 +290,12 @@ fun TopBar(model: AppModel) {
 
 /** The video. Only one view shows the player at a time: the newest one takes it. */
 @Composable
-fun PlayerVideo(modifier: Modifier = Modifier) {
+fun PlayerVideo(modifier: Modifier = Modifier, small: Boolean = false) {
     AndroidView(
         factory = { ctx ->
-            PlayerView(ctx).apply {
+            // The player at the top draws into a texture: a 4K or HDR stream there doesn't switch the TV into HDR
+            // or another refresh rate. Full screen uses a real video surface, so HDR works there.
+            (android.view.LayoutInflater.from(ctx).inflate(if (small) R.layout.player_texture else R.layout.player_surface, null) as PlayerView).apply {
                 useController = false
                 resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 setShutterBackgroundColor(android.graphics.Color.BLACK)
@@ -302,7 +322,7 @@ fun PlayerStrip(model: AppModel, item: NowPlaying, targets: FocusTargets) {
         TvButton(onClick = { model.play(item.channel, item.gameTitle, item.lineup, from = "strip") }, focusedScale = 1.03f,
             modifier = Modifier.focusProperties { canFocus = !model.tabsFocused }.tracked(targets, "video")
                 .size(Theme.playerWidth, Theme.playerWidth * 9 / 16)) { _ ->
-            if (model.nowPlaying == null) PlayerVideo(Modifier.fillMaxSize().padding(2.dp).clip(RoundedCornerShape(8.dp)))
+            if (model.nowPlaying == null) PlayerVideo(Modifier.fillMaxSize().padding(2.dp).clip(RoundedCornerShape(8.dp)), small = true)
         }
         Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 2.dp)) {
             Label(model.playerTitle(item), size = 16.sp, weight = FontWeight.Bold)
@@ -564,7 +584,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             listOf(PaneSection(l.id, l.name, null, l, sortedGames(model.games.filter { it.league.id == l.id })))
         } ?: emptyList()
     }
-    LazyVerticalGrid(GridCells.Adaptive(230.dp), modifier = modifier.fillMaxHeight(), state = model.homeGrid,
+    LazyVerticalGrid(GridCells.Adaptive(230.dp), modifier = modifier.fillMaxHeight().wrapRows(), state = model.homeGrid,
         horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, start = 6.dp, end = 6.dp)) {
         if (sport != null && model.leagues(sport).size > 1) {
@@ -730,7 +750,7 @@ fun GameScreen(model: AppModel, gameId: String) {
     Column(Modifier.fillMaxSize().background(Theme.bg).padding(horizontal = Theme.margin)) {
         if (!pinnedHere) Hero(model, game)
         LazyVerticalGrid(GridCells.Adaptive(270.dp),
-            modifier = Modifier.fillMaxSize().enterAt { targets["s:$previewId"] },
+            modifier = Modifier.fillMaxSize().wrapRows().enterAt { targets["s:$previewId"] },
             horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(vertical = 10.dp, horizontal = 6.dp)) {
             if (listing.sections.isEmpty()) {
