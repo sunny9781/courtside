@@ -64,7 +64,7 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
-        Release(version: "1.33", date: "2026-11-15", time: "23:00", title: "Android TV works like the Apple TV app", changes: [
+        Release(version: "1.33", date: "2026-11-15", time: "22:15", title: "Android TV works like the Apple TV app", changes: [
             Change(text: "Moving left from the games goes back to the sport you were on, and Back from a game, a stream or full screen lands where you came from.", apps: android),
             Change(text: "The EPG: categories grouped like the Apple TV app (Sports, Country, 24/7, Movies…), what's on now and next for every channel, and one Filter box for categories, channels and shows.", apps: android),
             Change(text: "Home: the sports you favourite come first, games are grouped by league, cards show the stream count and 4K, and the left column shrinks while you're on the games.", apps: android),

@@ -692,7 +692,8 @@ fun GameScreen(model: AppModel, gameId: String) {
         var id = previewId
         if (!pinnedHere) shown.firstOrNull()?.let { model.pin(it.channel, game.title, lineup); id = it.channel.id }
         delay(80)
-        targets.focus("s:$id")
+        // Focus always lands somewhere on this screen (not on the Home list hidden behind it).
+        targets.focus("s:$id") || targets.focus("foreign") || targets.focus("local") || targets.focus("back")
     }
     // Back from full screen: focus goes back to the stream you were watching.
     AfterFullScreen(model, "game") { targets.focus("s:${model.lastPlayedChannelId}") }
@@ -709,9 +710,14 @@ fun GameScreen(model: AppModel, gameId: String) {
             horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(vertical = 10.dp, horizontal = 6.dp)) {
             if (listing.sections.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    Label(if (model.channels.isEmpty()) "Channels are still loading…" else "No streams found for this game yet.",
-                        size = 14.sp, color = Theme.muted)
+                item(span = { GridItemSpan(maxLineSpan) }, key = "none") {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Label(if (model.channels.isEmpty()) "Channels are still loading…" else "No streams found for this game yet.",
+                            size = 14.sp, color = Theme.muted)
+                        if (listing.foreign.isEmpty() && listing.extras.isEmpty()) {
+                            Pill("Back to the games", Modifier.tracked(targets, "back")) { model.openGameId = null }
+                        }
+                    }
                 }
             }
             fun section(name: String, streams: List<StreamMatch>, prefix: String) {
@@ -729,7 +735,8 @@ fun GameScreen(model: AppModel, gameId: String) {
             // Foreign-language countries, folded into one group.
             if (listing.foreign.isNotEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "foreign") {
-                    Pill(if (s.showForeign) "Hide foreign streams (${listing.foreignCount})" else "Show foreign streams (${listing.foreignCount})") {
+                    Pill(if (s.showForeign) "Hide foreign streams (${listing.foreignCount})" else "Show foreign streams (${listing.foreignCount})",
+                        Modifier.tracked(targets, "foreign")) {
                         s.showForeign = !s.showForeign
                     }
                 }
@@ -738,7 +745,8 @@ fun GameScreen(model: AppModel, gameId: String) {
             // Local stations and "usually on" guesses, at the very bottom.
             if (listing.extras.isNotEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "local") {
-                    Pill(if (showLocal) "Hide local stations and likely channels" else "Show ${listing.extras.size} local stations and likely channels") {
+                    Pill(if (showLocal) "Hide local stations and likely channels" else "Show ${listing.extras.size} local stations and likely channels",
+                        Modifier.tracked(targets, "local")) {
                         showLocal = !showLocal
                     }
                 }
@@ -820,8 +828,8 @@ private fun SectionHeader(name: String, count: Int, open: Boolean, onClick: () -
 }
 
 @Composable
-fun Pill(title: String, onClick: () -> Unit) {
-    TvButton(onClick = onClick, background = Theme.raised, shape = RoundedCornerShape(16.dp)) { focused ->
+fun Pill(title: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    TvButton(onClick = onClick, background = Theme.raised, shape = RoundedCornerShape(16.dp), modifier = modifier) { focused ->
         Label(title, size = 12.sp, weight = FontWeight.SemiBold, color = if (focused) Theme.bg else Theme.text,
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp))
     }
