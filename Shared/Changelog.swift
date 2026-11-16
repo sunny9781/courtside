@@ -71,7 +71,9 @@ enum Changelog {
             Change(text: "A bigger home-screen banner, the same width as other apps.", apps: android),
             Change(text: "The player at the top no longer switches the TV into HDR (or another refresh rate) for a 4K stream; full screen still shows HDR.", apps: android),
             Change(text: "Hold Back while something plays at the top to open it full screen.", apps: android),
-            Change(text: "Right at the end of a row of streams or games goes on to the next row, and left at the start goes back.", apps: android)
+            Change(text: "Right at the end of a row of streams or games goes on to the next row, and left at the start goes back.", apps: android),
+            Change(text: "Home: moving between the sports and the games is smooth; the cards stretch instead of jumping between layouts.", apps: android),
+            Change(text: "Game screen: stream cards are all the same height.", apps: mac)
         ]),
         Release(version: "1.35", date: "2026-11-15", time: "22:57", title: "Saved channels, steadier filter, Chromecast fix", changes: [
             Change(text: "Game screen: streams no longer list why they matched (\"channel name has the teams\" and so on).", apps: everywhere),
