@@ -7,7 +7,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.hideSD) private var hideSD = true
     @AppStorage(Prefs.guideHours) private var guideHours = 6
     @AppStorage(Prefs.hideAdult) private var hideAdult = true
-    @AppStorage(Prefs.refreshHours) private var refreshHours = 6
+    @AppStorage(Prefs.refreshHours) private var refreshHours = 12
     @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
     @AppStorage(Prefs.guidePreview) private var guidePreview = true
     @AppStorage(Prefs.sportOrder) private var sportOrder = ""
@@ -18,22 +18,19 @@ struct SettingsView: View {
 
     enum SettingsSection: String, CaseIterable, Identifiable {
         case account = "Account"
-        case playback = "Playback"
         case sports = "Sports"
-        case games = "Games"
-        case guide = "EPG"
-        case updates = "Updates"
+        /// Playback, games, EPG and updates together.
+        case general = "General"
+        case changelog = "Changelog"
 
         var id: String { rawValue }
 
         var symbol: String {
             switch self {
             case .account: return "person.crop.circle"
-            case .playback: return "play.rectangle"
             case .sports: return "sportscourt"
-            case .games: return "list.bullet.rectangle"
-            case .guide: return "tablecells"
-            case .updates: return "arrow.clockwise"
+            case .general: return "slider.horizontal.3"
+            case .changelog: return "sparkles"
             }
         }
     }
@@ -88,23 +85,6 @@ struct SettingsView: View {
                 }
             }
 
-        case .playback:
-            panel("Player") {
-                setting("Buffer", "More buffer means fewer stalls but a longer delay behind live.") {
-                    Picker("", selection: $bufferMs) {
-                        Text("1 s").tag(1000)
-                        Text("2 s").tag(2000)
-                        Text("3 s").tag(3000)
-                        Text("5 s").tag(5000)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 260)
-                }
-                toggle("Switch to the next stream when one stalls (USA and Canada first)", $autoSwitch)
-                toggle("Mini player previews (EPG and game screens)", $guidePreview)
-                engineNote
-            }
-
         case .sports:
             panel("Sports and leagues") {
                 Text("Order of the sports on Home (you can also drag them there). Switch a sport or league off to hide it. Click a sport to see its leagues.")
@@ -124,13 +104,28 @@ struct SettingsView: View {
                 }
             }
 
-        case .games:
+        case .general:
+            panel("Player") {
+                setting("Buffer", "More buffer means fewer stalls but a longer delay behind live.") {
+                    Picker("", selection: $bufferMs) {
+                        Text("1 s").tag(1000)
+                        Text("2 s").tag(2000)
+                        Text("3 s").tag(3000)
+                        Text("5 s").tag(5000)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 260)
+                }
+                toggle("Switch to the next stream when one stalls (USA and Canada first)", $autoSwitch)
+                toggle("Mini player previews (EPG and game screens)", $guidePreview)
+                engineNote
+            }
+
             panel("Games") {
                 toggle("Show finished games", $showFinished)
                 toggle("Hide SD streams", $hideSD)
             }
 
-        case .guide:
             panel("EPG") {
                 toggle("Hide adult categories (any with \"adult\" in the name)", Binding(
                     get: { hideAdult },
@@ -148,7 +143,6 @@ struct SettingsView: View {
                 }
             }
 
-        case .updates:
             panel("Updates") {
                 setting("Refresh channels and guide", "Opening the app reuses the saved channels and guide until they're this old. Scores always update every minute.") {
                     Picker("", selection: $refreshHours) {
@@ -174,7 +168,9 @@ struct SettingsView: View {
                 }
             }
             AppVersionPanel()
-            panel("What's new") {
+
+        case .changelog:
+            panel("Changelog") {
                 WhatsNewList()
             }
         }

@@ -36,7 +36,7 @@ enum Prefs {
             guideCategory: "",
             sportOrder: "",
             guidePreview: true,
-            refreshHours: 6,
+            refreshHours: 12,
             autoSwitch: true,
             matchFrameRate: true,
             hideAdult: true,

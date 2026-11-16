@@ -133,7 +133,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     // MARK: Loading
 
     /**
-     * Channels and guide come from the saved copy while it's newer than Settings › Updates says (6 hours by default);
+     * Channels and guide come from the saved copy while it's newer than Settings › Updates says (12 hours by default);
      * scores are always fetched. `force` downloads everything now.
      */
     fun refresh(force: Boolean = false) {

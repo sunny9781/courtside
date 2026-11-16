@@ -11,7 +11,7 @@ struct IOSSettingsView: View {
     @AppStorage(Prefs.hiddenLeagues) private var hiddenLeagues = ""
     @AppStorage(Prefs.favoriteSports) private var favoriteSports = ""
     @AppStorage(Prefs.sportOrder) private var sportOrderPref = ""
-    @AppStorage(Prefs.refreshHours) private var refreshHours = 6
+    @AppStorage(Prefs.refreshHours) private var refreshHours = 12
     @AppStorage(Prefs.hideAdult) private var hideAdult = true
     @AppStorage(Prefs.guideGrouped) private var grouped = true
     /// Updates open in What's new: only the newest to start with.
@@ -23,18 +23,14 @@ struct IOSSettingsView: View {
     @State private var barWidth: CGFloat = 390
 
     enum SettingsSection: String, CaseIterable, Identifiable {
-        case account = "Account", playback = "Playback", sports = "Sports", games = "Games", epg = "EPG",
-             updates = "Updates", whatsNew = "What's new"
+        case account = "Account", sports = "Sports", general = "General", changelog = "Changelog"
         var id: String { rawValue }
         var symbol: String {
             switch self {
             case .account: return "person.crop.circle"
-            case .playback: return "play.rectangle"
             case .sports: return "sportscourt"
-            case .games: return "list.bullet.rectangle"
-            case .epg: return "tv"
-            case .updates: return "arrow.clockwise"
-            case .whatsNew: return "sparkles"
+            case .general: return "slider.horizontal.3"
+            case .changelog: return "sparkles"
             }
         }
     }
@@ -56,7 +52,7 @@ struct IOSSettingsView: View {
 
                 }
 
-                if section == .playback {
+                if section == .general {
                 Section {
                     Toggle("Switch to the next stream when one stalls", isOn: $autoSwitch)
                     if UserDefaults.standard.bool(forKey: CastManager.disabledKey) {
@@ -94,7 +90,7 @@ struct IOSSettingsView: View {
                 }
                 }
 
-                if section == .games {
+                if section == .general {
                 Section("Games") {
                     Toggle("Show finished games", isOn: $showFinished)
                     Toggle("Hide SD streams", isOn: $hideSD)
@@ -102,7 +98,7 @@ struct IOSSettingsView: View {
 
                 }
 
-                if section == .epg {
+                if section == .general {
                 Section("EPG") {
                     Toggle("Hide adult categories", isOn: Binding(
                         get: { hideAdult },
@@ -113,7 +109,7 @@ struct IOSSettingsView: View {
 
                 }
 
-                if section == .updates {
+                if section == .general {
                 Section {
                     Picker("Download fresh channels after", selection: $refreshHours) {
                         Text("1 h").tag(1)
@@ -137,8 +133,8 @@ struct IOSSettingsView: View {
 
                 }
 
-                if section == .whatsNew {
-                Section("What's new") {
+                if section == .changelog {
+                Section("Changelog") {
                     ForEach(Array(Changelog.forThisApp.enumerated()), id: \.element.id) { index, release in
                         DisclosureGroup(isExpanded: Binding(
                             get: { openReleases.contains(release.id) },
