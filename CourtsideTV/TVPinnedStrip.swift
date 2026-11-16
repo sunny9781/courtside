@@ -43,10 +43,6 @@ struct TVPinnedStrip: View {
                     if !controller.resolution.isEmpty { TVBadge(text: controller.resolution) }
                     if controller.frameRate > 0 { TVBadge(text: PlaybackController.fpsLabel(controller.frameRate)) }
                 }
-                Spacer(minLength: 0)
-                Text("Move up to the video and click for full screen · Play/Pause stops")
-                    .font(.system(size: 18))
-                    .foregroundStyle(Theme.muted.opacity(0.8))
             }
             .frame(maxWidth: game == nil ? .infinity : 520, alignment: .leading)
 

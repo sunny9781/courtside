@@ -61,6 +61,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.31", date: "2026-11-15", time: "20:10", title: "Even more screen", changes: [
+            Change(text: "Less space above Home / EPG / Settings: the same small margin as the sides.", apps: tv),
+            Change(text: "The hint under the player's title is gone.", apps: tv)
+        ]),
         Release(version: "1.30", date: "2026-11-15", time: "19:25", title: "Frozen streams fix themselves", changes: [
             Change(text: "A stream that freezes for 4 seconds restarts on its own, quietly. If it keeps freezing (3 times in 2 minutes), the app says so and moves to the next stream for the game.", apps: all),
             Change(text: "The player at the top is about 12% bigger, the left column on Home matches its width, and the games line up with the text beside the video.", apps: tv)

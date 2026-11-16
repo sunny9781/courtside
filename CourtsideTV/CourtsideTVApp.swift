@@ -137,8 +137,9 @@ struct TVShell: View {
             .ignoresSafeArea(.container, edges: .horizontal)
             .focusSection()
         }
-        // Use almost the full width of the screen (the content keeps a small margin of its own).
-        .ignoresSafeArea(.container, edges: .horizontal)
+        // Use almost the whole screen: no Apple TV insets at the sides or top, just our own small margin.
+        .ignoresSafeArea(.container, edges: [.horizontal, .top])
+        .padding(.top, TVLayout.margin)
         // Back on EPG or Settings goes to Home; on a game screen it goes back to the Home list (also when focus
         // isn't inside the game screen, e.g. right after full screen); on the Home list it leaves the app, as
         // usual on Apple TV.
