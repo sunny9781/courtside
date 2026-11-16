@@ -111,10 +111,14 @@ elif [ -d "$BUILD_DIR" ] && [ ! -f $BUILD_DIR/.location ]; then
 fi
 
 # 4. Build and sign.
-BUILD=$((BUILD_NUMBER + 1))
-# The version is the newest one in What's new (Shared/Changelog.swift), so they always match.
+# Build number: minutes since 2026 began. It must stay a small number: Google's Cast toolkit reads the app's version
+# as a 32-bit number and crashes the app on a bigger one (like the old date-and-time build numbers).
+BUILD=$(( ($(date +%s) - 1767225600) / 60 ))
+# The version is the newest one in What's new (Shared/Changelog.swift), so they always match, written as
+# major.minor.patch (1.37.0), the form the Cast toolkit expects.
 VERSION=$(grep -o 'Release(version: "[0-9.]*"' Shared/Changelog.swift | head -1 | grep -o '[0-9][0-9.]*' || true)
 VERSION=${VERSION:-1.0}
+[ "$(echo "$VERSION" | tr -cd . | wc -c)" -lt 2 ] && VERSION="$VERSION.0"
 set -o pipefail
 xcodebuild \
   -project Courtside.xcodeproj \
@@ -136,4 +140,4 @@ test -d "$APP"
 # 5. Install over Wi-Fi.
 xcrun devicectl device install app --device "$DEVICE" "$APP"
 echo "$COMMIT" > $BUILD_DIR/.installed
-echo "Installed Courtside 1.0.$BUILD on the $NICE (signature good for $(days_left) days)."
+echo "Installed Courtside $VERSION ($BUILD) on the $NICE (signature good for $(days_left) days)."
