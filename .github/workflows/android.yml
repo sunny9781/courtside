@@ -6,7 +6,7 @@ name: Android TV app
 on:
   push:
     branches: [main]
-    paths: ["android/**"]
+    paths: ["android/**", ".github/workflows/android.yml"]
   workflow_dispatch:
     inputs:
       publish:
@@ -50,6 +50,11 @@ jobs:
             echo "::warning::No ANDROID_KEYSTORE secret yet: this build is signed with a throwaway key and won't be published."
             echo "PUBLISH=false" >> "$GITHUB_ENV"
           fi
+
+      - name: What's new
+        run: |
+          mkdir -p android/app/src/main/assets
+          python3 android/changelog.py Shared/Changelog.swift > android/app/src/main/assets/changelog.json
 
       - name: Build
         env:

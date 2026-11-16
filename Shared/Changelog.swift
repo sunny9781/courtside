@@ -51,6 +51,8 @@ enum Changelog {
     private static let macIOS: Set<App> = [.mac, .ios]
     private static let tvIOS: Set<App> = [.tv, .ios]
     private static let android: Set<App> = [.android]
+    private static let tvAndroid: Set<App> = [.tv, .android]
+    private static let everywhere: Set<App> = [.mac, .tv, .ios, .android]
 
     /// The releases with changes for this app, each holding only this app's changes.
     static var forThisApp: [Release] {
@@ -62,6 +64,14 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.33", date: "2026-11-15", time: "23:00", title: "Android TV works like the Apple TV app", changes: [
+            Change(text: "Moving left from the games goes back to the sport you were on, and Back from a game, a stream or full screen lands where you came from.", apps: android),
+            Change(text: "The EPG: categories grouped like the Apple TV app (Sports, Country, 24/7, Movies…), what's on now and next for every channel, and one Filter box for categories, channels and shows.", apps: android),
+            Change(text: "Home: the sports you favourite come first, games are grouped by league, cards show the stream count and 4K, and the left column shrinks while you're on the games.", apps: android),
+            Change(text: "Game screen: the score and box score until a stream plays, foreign streams and local stations behind buttons, and each stream's real quality and frame rate once it has played.", apps: android),
+            Change(text: "Full screen: a stream that stalls for 10 seconds or stops switches to the next one (USA and Canada first). Play/Pause outside full screen stops the player at the top.", apps: android),
+            Change(text: "Settings like the Apple TV app: show, hide and favourite sports and leagues, hide SD streams and adult categories, buffer, and What's new.", apps: android)
+        ]),
         Release(version: "1.32", date: "2026-11-15", time: "20:50", title: "Courtside for Android TV", changes: [
             Change(text: "First Android TV version, for the Nvidia Shield and Chromecast with Google TV: sign in, today's games by sport and league, every stream for a game in sections, the player at the top and full screen (up/down to switch streams), refresh-rate matching, and updates that download on their own.", apps: android)
         ]),

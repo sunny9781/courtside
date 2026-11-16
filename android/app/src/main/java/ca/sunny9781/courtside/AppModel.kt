@@ -23,6 +23,8 @@ sealed class HomeSelection {
 
 class AppModel(app: Application) : AndroidViewModel(app) {
     private val context get() = getApplication<Application>()
+    val settings = Settings(app)
+    val whatsNew = WhatsNew.load(app)
 
     var credentials by mutableStateOf(Prefs.loadCredentials(app))
         private set
@@ -32,7 +34,23 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         private set
     var channels by mutableStateOf<List<Channel>>(emptyList())
         private set
+    /** The EPG's category groups (CategoryGrouping). */
+    var categoryTree by mutableStateOf<List<CategoryGrouping.Node>>(emptyList())
+        private set
+    var channelsByCategory by mutableStateOf<Map<String, List<Channel>>>(emptyMap())
+        private set
+    var channelById by mutableStateOf<Map<Int, Channel>>(emptyMap())
+        private set
+    /** Games in the leagues switched on in Settings. */
     var games by mutableStateOf<List<Game>>(emptyList())
+        private set
+    private var allGames: List<Game> = emptyList()
+    private var rawCategories: List<ChannelCategory> = emptyList()
+    private var rawChannels: List<Channel> = emptyList()
+    /** Resolution and frame rate each channel really played at, which beat what its name says. */
+    var measuredQuality by mutableStateOf<Map<Int, String>>(emptyMap())
+        private set
+    var measuredFrameRate by mutableStateOf<Map<Int, Float>>(emptyMap())
         private set
     var leagueLogos by mutableStateOf<Map<String, String>>(emptyMap())
         private set
@@ -48,6 +66,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         private set
 
     var tab by mutableStateOf(Tab.HOME)
+    /** Focus is on Home / EPG / Settings: the player's video can't take focus then, so down lands on the page. */
+    var tabsFocused by mutableStateOf(false)
+    /** The EPG groups you've opened, outermost first. */
+    var guidePath by mutableStateOf<List<String>>(emptyList())
+    /** Where full screen was opened from ("strip", "game", "epg"), so focus goes back there afterwards. */
+    var fullScreenFrom by mutableStateOf("")
     var homeSelection by mutableStateOf<HomeSelection>(HomeSelection.LiveNow)
     /** The game screen that's open on Home, if any. */
     var openGameId by mutableStateOf<String?>(null)
@@ -87,6 +111,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     fun signOut() {
         Playback.stop()
+        rawCategories = emptyList(); rawChannels = emptyList(); categoryTree = emptyList()
+        channelsByCategory = emptyMap(); channelById = emptyMap()
         pinned = null
         nowPlaying = null
         credentials = null
@@ -97,6 +123,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     // MARK: Loading
 
     fun refresh() {
+        if (loading) return
         val creds = credentials ?: return
         viewModelScope.launch {
             loading = true
@@ -105,9 +132,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 val client = XtreamClient(creds)
                 runCatching { account = client.login() }
                 val (cats, chans) = client.live()
-                categories = cats
-                channels = chans
-                indexed = withContext(Dispatchers.Default) { chans.map { Matcher.Indexed(it) } }
+                rawCategories = cats
+                rawChannels = chans
+                applyFilters()
                 loadScores()
                 updatedAt = System.currentTimeMillis()
                 loadGuide(client)
@@ -129,7 +156,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     private suspend fun loadScores() {
         val (list, logos) = Espn.schedule(League.all)
-        games = list
+        allGames = list
+        games = visible(list)
         leagueLogos = logos
         rematch()
     }
@@ -147,14 +175,92 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val ch = indexed
         val gd = guide
         val rec = recent.toSet()
+        val measured = measuredQuality
         matches = withContext(Dispatchers.Default) {
-            Matcher.matchAll(g, ch, gd, emptyMap(), rec, System.currentTimeMillis())
+            Matcher.matchAll(g, ch, gd, measured, rec, System.currentTimeMillis())
         }
+    }
+
+    private fun isAdult(name: String) = name.contains("adult", ignoreCase = true)
+
+    /** Hides adult categories and their channels everywhere when that setting is on (called again when it changes). */
+    suspend fun applyFilters() {
+        val hide = settings.hideAdult
+        val cats = if (hide) rawCategories.filter { !isAdult(it.name) } else rawCategories
+        val kept = cats.map { it.id }.toSet()
+        val list = if (hide) rawChannels.filter { it.categoryId in kept && !isAdult(it.categoryName) } else rawChannels
+        val tree = withContext(Dispatchers.Default) { CategoryGrouping.build(cats) }
+        categories = cats
+        categoryTree = tree
+        channels = list
+        channelsByCategory = list.groupBy { it.categoryId }
+        channelById = list.associateBy { it.id }
+        indexed = withContext(Dispatchers.Default) { list.map { Matcher.Indexed(it) } }
+    }
+
+    fun filtersChanged() {
+        viewModelScope.launch { applyFilters(); rematch() }
+    }
+
+    private fun visible(list: List<Game>): List<Game> {
+        val hidden = settings.hiddenLeagueSet
+        return list.filter { it.league.id !in hidden }
+    }
+
+    fun leagueFilterChanged() {
+        games = visible(allGames)
+        viewModelScope.launch { rematch() }
+    }
+
+    fun recordQuality(channelId: Int, label: String) {
+        if (label.isEmpty() || measuredQuality[channelId] == label) return
+        measuredQuality = measuredQuality + (channelId to label)
+        viewModelScope.launch { rematch() }
+    }
+
+    fun recordFrameRate(channelId: Int, fps: Float) {
+        if (fps <= 0f || measuredFrameRate[channelId] == fps) return
+        measuredFrameRate = measuredFrameRate + (channelId to fps)
     }
 
     // MARK: Lists
 
     fun games(sport: Sport) = games.filter { it.league.sport == sport }
+
+    /** A sport's leagues that are switched on. */
+    fun leagues(sport: Sport): List<League> {
+        val hidden = settings.hiddenLeagueSet
+        return sport.leagues.filter { it.id !in hidden }
+    }
+
+    /** Favourites first, then sports with live games, then upcoming, then finished-only, then none; no hidden ones. */
+    fun orderedSports(): List<Sport> {
+        val hidden = settings.hiddenSportSet
+        val favs = settings.favoriteSet
+        fun rank(s: Sport): Int {
+            if (s in favs) return 0
+            val g = games(s)
+            return when {
+                g.any { it.state == GameState.LIVE } -> 1
+                g.any { it.state == GameState.UPCOMING } -> 2
+                g.isEmpty() -> 4
+                else -> 3
+            }
+        }
+        return Sport.entries.filter { it !in hidden }.sortedBy { rank(it) }
+    }
+
+    fun pinnedIsFrom(gameId: String): Boolean {
+        val id = pinned?.channel?.id ?: return false
+        return (matches[gameId] ?: emptyList()).any { it.channel.id == id }
+    }
+
+    /** The streams shown on a game's card: local stations and guesses left out, unless that's all there is. */
+    fun mainStreams(gameId: String): List<StreamMatch> {
+        val all = matches[gameId] ?: emptyList()
+        val main = all.filter { !it.hidden }
+        return main.ifEmpty { all }
+    }
 
     fun currentProgramme(channel: Channel, at: Long = System.currentTimeMillis()): Programme? =
         guide[channel.epgId]?.firstOrNull { it.start <= at && it.end > at }
@@ -181,8 +287,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Full screen. */
-    fun play(channel: Channel, gameTitle: String? = null, lineup: List<Channel> = emptyList()) {
+    fun play(channel: Channel, gameTitle: String? = null, lineup: List<Channel> = emptyList(), from: String = fullScreenFrom) {
         recent.add(channel.id)
+        fullScreenFrom = from
         val item = NowPlaying(channel, gameTitle, lineup.ifEmpty { listOf(channel) })
         nowPlaying = item
         val (ts, hls) = urls(channel) ?: return
