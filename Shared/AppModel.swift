@@ -281,7 +281,8 @@ final class AppModel: ObservableObject {
         do {
             let result = try await gamesTask
             allGames = result.games
-            games = Self.visible(allGames)
+            // Guide-built events (pickleball) stay put until rematch rebuilds them, so their cards don't blink.
+            games = Self.visible(allGames) + games.filter { $0.id.hasPrefix("guide-") }
             leagueLogos.merge(result.logos) { _, new in new }
         } catch {
             errorMessage = "Couldn't load today's schedule. Channels and the guide still work."
@@ -317,7 +318,7 @@ final class AppModel: ObservableObject {
                     let freshIDs = Set(fresh.map(\.id))
                     let kept = self.allGames.filter { !active.contains($0.league) && !freshIDs.contains($0.id) }
                     self.allGames = (kept + fresh).sorted { ($0.start ?? .distantFuture) < ($1.start ?? .distantFuture) }
-                    self.games = Self.visible(self.allGames)
+                    self.games = Self.visible(self.allGames) + self.games.filter { $0.id.hasPrefix("guide-") }
                     await self.rematch()
                 }
             }

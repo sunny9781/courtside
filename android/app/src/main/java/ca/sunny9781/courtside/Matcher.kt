@@ -490,11 +490,17 @@ object Matcher {
         val own = channels.filter { it.channel.name.lowercase().contains(sportName) }
         val ownIds = own.map { it.channel.id }.toSet()
         val found = LinkedHashMap<String, Found>()
+        // Only what's on now or later today (not 3 a.m. tomorrow), at most six hours ahead.
+        val midnight = java.util.Calendar.getInstance().apply {
+            timeInMillis = now; set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0); add(java.util.Calendar.DAY_OF_MONTH, 1)
+        }.timeInMillis
+        val until = minOf(now + 6 * 3600_000L, midnight)
         // The sport's own channels get one card each (below); their schedules aren't split into cards.
         for (c in channels) {
             if (c.channel.epgId.isEmpty() || c.channel.id in ownIds) continue
             for (p in guide[c.channel.epgId] ?: continue) {
-                if (p.end <= now || p.start >= now + 6 * 3600_000L) continue
+                if (p.end <= now || p.start >= until) continue
                 val lower = p.title.lowercase()
                 if (tokens(p.title).none { it in words } && !lower.contains(sportName)) continue
                 val key = lower.filter { it.isLetterOrDigit() } + "-" + (p.start / 900_000L)

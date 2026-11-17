@@ -232,7 +232,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     private suspend fun loadScores() {
         val (list, logos) = Espn.schedule(League.all)
         allGames = list
-        games = visible(list)
+        // Guide-built events (pickleball) stay put until rematch rebuilds them, so their cards don't blink.
+        games = visible(list) + games.filter { it.id.startsWith("guide-") }
         leagueLogos = logos
         rematch()
     }

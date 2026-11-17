@@ -64,6 +64,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.48", date: "2026-11-16", time: "22:27", title: "Steadier pickleball cards", changes: [
+            Change(text: "Pickleball: only shows on now or later today (nothing from after midnight).", apps: everywhere),
+            Change(text: "Pickleball cards no longer disappear and come back every minute when scores update.", apps: everywhere)
+        ]),
         Release(version: "1.47", date: "2026-11-16", time: "22:22", title: "Update screen is back", changes: [
             Change(text: "Install update uses Android's installer screen again (confirm, then \"App installed\" with Open) instead of closing the app. If Courtside isn't allowed to install apps yet, the switch for it still opens first.", apps: android)
         ]),
