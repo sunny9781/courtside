@@ -421,7 +421,8 @@ struct GuideView: View {
     private func channelColumnWidth(_ list: [Channel]) -> CGFloat {
         let font = NSFont.systemFont(ofSize: 14, weight: .semibold)
         let longest = list.prefix(400).map { ($0.name as NSString).size(withAttributes: [.font: font]).width }.max() ?? 100
-        return min(max(longest, 80), 280) + 36 + 64 + 20 + 16
+        // Wide enough for the longest name on one line (up to a limit), plus the number, logo and heart.
+        return min(max(longest, 80), 480) + 36 + 64 + 20 + 16 + 28
     }
 
     private func grid(_ list: [Channel], selected: Channel?, now: Date) -> some View {

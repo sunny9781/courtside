@@ -379,11 +379,12 @@ struct TVLiveView: View {
     // MARK: Channels
 
     private var channelList: some View {
-        ScrollView(.vertical) {
+        let nameWidth = TVLayout.nameWidth(searching ? hits.flatMap(\.channels) : channels)
+        return ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 0) {
                     Text(searching ? "Results for \u{201C}\(search.trimmingCharacters(in: .whitespaces))\u{201D}" : (selected?.name ?? ""))
-                        .frame(width: 430, alignment: .leading)
+                        .frame(width: nameWidth + 22, alignment: .leading)
                     Text("NOW").frame(maxWidth: .infinity, alignment: .leading)
                     Text("NEXT").frame(width: 360, alignment: .leading)
                 }
@@ -403,7 +404,7 @@ struct TVLiveView: View {
                             model.pin(channel, lineup: channels)
                         }
                     } label: {
-                        TVChannelRow(channel: channel, playing: channel.id == playingChannel?.id)
+                        TVChannelRow(channel: channel, playing: channel.id == playingChannel?.id, nameWidth: nameWidth)
                     }
                     .buttonStyle(TVRowButtonStyle())
                     .focused($focusedChannel, equals: channel.id)
@@ -430,6 +431,7 @@ struct TVLiveView: View {
     /// Search results: a header per category (click to fold it), then its matching channels.
     @ViewBuilder
     private var searchResults: some View {
+        let nameWidth = TVLayout.nameWidth(hits.flatMap(\.channels))
         if hits.isEmpty {
             Text("Nothing matches \"\(search)\".")
                 .font(.system(size: 24))
@@ -464,7 +466,7 @@ struct TVLiveView: View {
                             model.pin(channel, lineup: hit.channels)
                         }
                     } label: {
-                        TVChannelRow(channel: channel, playing: channel.id == playingChannel?.id)
+                        TVChannelRow(channel: channel, playing: channel.id == playingChannel?.id, nameWidth: nameWidth)
                     }
                     .buttonStyle(TVRowButtonStyle())
                     .focused($focusedChannel, equals: channel.id)

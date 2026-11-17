@@ -72,6 +72,47 @@ object Theme {
  * Anything you can move to with the remote and click: it grows a little and turns white when it has focus,
  * like the Apple TV app. `content` gets whether it's focused, to switch its text to dark.
  */
+private val PlainBringIntoView = androidx.compose.runtime.staticCompositionLocalOf<Any?> { null }
+
+/**
+ * A page that scrolls under the now-playing bar along the bottom: moving to a row keeps it above the bar (instead of
+ * leaving it hidden behind), while the page itself still runs to the bottom of the screen. Give the list bottom
+ * padding of topInset(model) so its last row can scroll clear of the bar.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@androidx.compose.runtime.Composable
+fun BehindPlayerBar(model: AppModel, content: @androidx.compose.runtime.Composable () -> Unit) {
+    val inset = with(androidx.compose.ui.platform.LocalDensity.current) { topInset(model).toPx() }
+    val original = androidx.compose.foundation.gestures.LocalBringIntoViewSpec.current
+    if (inset <= 0f) { content(); return }
+    val spec = remember(inset) {
+        object : androidx.compose.foundation.gestures.BringIntoViewSpec {
+            override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+                val visible = containerSize - inset
+                val end = offset + size
+                return when {
+                    offset < 0f -> offset
+                    end > visible -> if (size > visible) offset else end - visible
+                    else -> 0f
+                }
+            }
+        }
+    }
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides spec,
+        PlainBringIntoView provides original
+    ) { content() }
+}
+
+/** Inside a BehindPlayerBar page, a sideways row (league chips) scrolls the usual way. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@androidx.compose.runtime.Composable
+fun SidewaysScroll(content: @androidx.compose.runtime.Composable () -> Unit) {
+    val original = PlainBringIntoView.current as? androidx.compose.foundation.gestures.BringIntoViewSpec
+    if (original == null) { content(); return }
+    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides original) { content() }
+}
+
 private val SELECT_KEYS = setOf(android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER,
     android.view.KeyEvent.KEYCODE_NUMPAD_ENTER, android.view.KeyEvent.KEYCODE_BUTTON_A)
 

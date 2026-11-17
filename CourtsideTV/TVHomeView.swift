@@ -495,18 +495,35 @@ struct TVSportChannels: View {
     }
 
     var body: some View {
-        let list = channels
+        // Under a heading per category they come from (like the game screen), names on one line.
+        let all = channels
+        var order: [String] = []
+        let groups = Dictionary(grouping: all) { (c: Channel) -> String in
+            let name = c.categoryName.isEmpty ? "Other" : c.categoryName
+            if !order.contains(name) { order.append(name) }
+            return name
+        }
+        let list = order.flatMap { groups[$0] ?? [] }
         let playing = model.pinned?.channel.id
-        ScrollView(.vertical) {
+        let nameWidth = TVLayout.nameWidth(all)
+        return ScrollView(.vertical) {
             LazyVStack(spacing: 6) {
-                ForEach(list) { channel in
-                    Button {
-                        if channel.id == playing { model.play(channel, lineup: list) } else { model.pin(channel, lineup: list) }
-                    } label: {
-                        TVChannelRow(channel: channel, playing: channel.id == playing)
+                ForEach(order, id: \.self) { category in
+                    Text(category.uppercased())
+                        .font(.system(size: 19, weight: .bold))
+                        .foregroundStyle(Theme.muted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.leading, 22)
+                        .padding(.top, 14)
+                    ForEach(groups[category] ?? []) { channel in
+                        Button {
+                            if channel.id == playing { model.play(channel, lineup: list) } else { model.pin(channel, lineup: list) }
+                        } label: {
+                            TVChannelRow(channel: channel, playing: channel.id == playing, nameWidth: nameWidth)
+                        }
+                        .buttonStyle(TVRowButtonStyle())
+                        .focused($focused, equals: channel.id)
                     }
-                    .buttonStyle(TVRowButtonStyle())
-                    .focused($focused, equals: channel.id)
                 }
             }
             .padding(.vertical, 20)

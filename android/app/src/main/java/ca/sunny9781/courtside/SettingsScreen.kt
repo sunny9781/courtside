@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -22,9 +23,10 @@ import java.util.Date
 
 private enum class Section(val title: String, val icon: ImageVector) {
     ACCOUNT("Account", Icons.Filled.AccountCircle),
-    SPORTS("Sports", Icons.Filled.Sports),
     /** Playback, games, EPG and updates together. */
     GENERAL("General", Icons.Filled.Tune),
+    /** Hidden sports, categories, groups and channels (hold the select button on one to hide it). */
+    HIDDEN("Hidden", Icons.Filled.VisibilityOff),
     CHANGELOG("Changelog", Icons.Filled.AutoAwesome)
 }
 
@@ -35,7 +37,8 @@ fun SettingsScreen(model: AppModel) {
     val side = remember { FocusTargets() }
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { side[section] },
         horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-        Column(Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).padding(vertical = 8.dp).enterAt { side[section] },
+        Column(Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).padding(vertical = 8.dp)
+            .focusRequester(model.leftPanel).enterAt { side[section] },
             verticalArrangement = Arrangement.spacedBy(3.dp)) {
             for (item in Section.entries) {
                 TvButton(onClick = { section = item }, selected = section == item, onFocus = { section = item },
@@ -49,11 +52,13 @@ fun SettingsScreen(model: AppModel) {
                 }
             }
         }
-        Column(Modifier.weight(1f).widthIn(max = 560.dp).fillMaxHeight().verticalScroll(rememberScrollState())
-            .padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // Runs to the bottom of the screen, under the now-playing bar beside the player.
+        val pane = Modifier.weight(1f).widthIn(max = 560.dp).fillMaxHeight()
+        BehindPlayerBar(model) {
+        Column(pane.verticalScroll(rememberScrollState())
+            .padding(top = 8.dp, bottom = 8.dp + topInset(model)), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when (section) {
                 Section.ACCOUNT -> Account(model)
-                Section.SPORTS -> Sports(model)
                 Section.GENERAL -> {
                     PlaybackSection(model)
                     Toggle("Hide SD streams", "Most providers have HD versions of the same channels.", model.settings.hideSD) {
@@ -65,8 +70,10 @@ fun SettingsScreen(model: AppModel) {
                     }
                     Updates(model)
                 }
+                Section.HIDDEN -> Hidden(model)
                 Section.CHANGELOG -> Changelog(model)
             }
+        }
         }
     }
 }
@@ -105,56 +112,6 @@ private fun PlaybackSection(model: AppModel) {
         value = "${s.bufferMs / 1000} s") {
         val list = listOf(1000, 2000, 3000, 5000)
         s.bufferMs = list[(list.indexOf(s.bufferMs) + 1) % list.size]
-    }
-}
-
-@Composable
-private fun Sports(model: AppModel) {
-    val s = model.settings
-    var open by remember { mutableStateOf<Sport?>(null) }
-    Label("Click a sport to show or hide it, or the heart to keep it first on Home. Open a sport to switch its leagues on or off.",
-        size = 11.sp, color = Theme.muted, maxLines = 3, modifier = Modifier.padding(bottom = 6.dp))
-    val hidden = s.hiddenSportSet
-    val favs = s.favoriteSet
-    for (sport in Sport.entries) {
-        val isHidden = sport in hidden
-        Row(Modifier.alpha(if (isHidden) 0.7f else 1f), horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically) {
-            TvButton(onClick = { s.setHidden(sport, !isHidden) }, modifier = Modifier.weight(1f)) { focused ->
-                val color = if (focused) Theme.bg else Theme.text
-                Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Icon(sport.icon, null, tint = color, modifier = Modifier.size(16.dp))
-                    Label(sport.title, size = 13.sp, weight = FontWeight.Medium, color = color, modifier = Modifier.weight(1f))
-                    Label(if (isHidden) "Hidden" else "Shown", size = 12.sp, weight = FontWeight.SemiBold,
-                        color = color.copy(alpha = if (isHidden) 0.5f else 0.8f))
-                }
-            }
-            TvButton(onClick = { s.toggleFavorite(sport) }, background = Theme.raised) { focused ->
-                Icon(if (sport in favs) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder, null,
-                    tint = if (focused) Theme.bg else if (sport in favs) Theme.accent else Theme.muted,
-                    modifier = Modifier.padding(8.dp).size(15.dp))
-            }
-            if (sport.leagues.size > 1) {
-                TvButton(onClick = { open = if (open == sport) null else sport }, background = Theme.raised) { focused ->
-                    Icon(if (open == sport) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, null,
-                        tint = if (focused) Theme.bg else Theme.text, modifier = Modifier.padding(8.dp).size(15.dp))
-                }
-            } else Spacer(Modifier.width(31.dp))
-        }
-        if (open == sport) for (league in sport.leagues) {
-            val off = league.id in s.hiddenLeagueSet
-            TvButton(onClick = { s.setLeagueHidden(league.id, !off); model.leagueFilterChanged() },
-                modifier = Modifier.fillMaxWidth().padding(start = 28.dp, end = 78.dp)) { focused ->
-                val color = if (focused) Theme.bg else Theme.text
-                Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LeagueLogo(model, league, 18.dp)
-                    Label(league.name, size = 12.sp, color = color, modifier = Modifier.weight(1f))
-                    Label(if (off) "Hidden" else "Shown", size = 11.sp, weight = FontWeight.SemiBold, color = color.copy(alpha = if (off) 0.5f else 0.8f))
-                }
-            }
-        }
     }
 }
 
@@ -205,6 +162,37 @@ private fun Changelog(model: AppModel) {
         }
     }
 }
+
+/** Everything hidden (switched off): click one to show it again. */
+@Composable
+private fun Hidden(model: AppModel) {
+    val s = model.settings
+    val sports = Sport.entries.filter { it in s.hiddenSportSet }
+    val leagues = League.all.filter { it.id in s.hiddenLeagueSet && it.sport !in s.hiddenSportSet }
+    val cats = model.hiddenCategoryNames()
+    val chans = model.hiddenChannelNames()
+    if (sports.isEmpty() && leagues.isEmpty() && cats.isEmpty() && chans.isEmpty()) {
+        Label("Nothing is hidden. Hold the select button on a sport on Home, or a category or channel in the EPG, and choose Hide.",
+            size = 13.sp, color = Theme.muted, maxLines = 3, modifier = Modifier.padding(10.dp))
+        return
+    }
+    Label("Click one to show it again.", size = 11.sp, color = Theme.muted, modifier = Modifier.padding(horizontal = 10.dp))
+    if (sports.isNotEmpty() || leagues.isNotEmpty()) {
+        Label("SPORTS", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.padding(start = 10.dp, top = 8.dp))
+        for (sport in sports) Action(sport.title, null, value = "Show") { model.setSportHidden(sport, false) }
+        for (league in leagues) Action(league.name, sport(league), value = "Show") { model.setLeagueHidden(league.id, false) }
+    }
+    if (cats.isNotEmpty()) {
+        Label("CATEGORIES", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.padding(start = 10.dp, top = 8.dp))
+        for ((id, name) in cats) Action(name, null, value = "Show") { model.setCategoryHidden(id, false) }
+    }
+    if (chans.isNotEmpty()) {
+        Label("CHANNELS", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.padding(start = 10.dp, top = 8.dp))
+        for ((id, name) in chans) Action(name, null, value = "Show") { model.setChannelHidden(id, false) }
+    }
+}
+
+private fun sport(league: League) = league.sport.title
 
 @Composable
 private fun Info(label: String, value: String) {

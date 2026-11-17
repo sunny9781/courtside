@@ -121,7 +121,7 @@ struct TVGameView: View {
     private func channelList(_ game: Game) -> some View {
         let list = current
         // Names on one line: as wide as the longest one needs (within reason), the same for every row.
-        let nameWidth = min(max(CGFloat(list.map(\.channel.name.count).max() ?? 0) * 13 + 90, 408), 760)
+        let nameWidth = TVLayout.nameWidth(list.map(\.channel))
         // "All": each group's name above its streams (just a heading).
         let shown = selected == "All" ? groups : [(name: selected, streams: list)]
         return ScrollView(.vertical) {
