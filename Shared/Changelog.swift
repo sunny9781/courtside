@@ -64,6 +64,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.49", date: "2026-11-16", time: "22:32", title: "Player bottom left", changes: [
+            Change(text: "The player is in the bottom-left corner on every tab, with each tab's left panel on top of it and the page to its right from the top.", apps: android),
+            Change(text: "Game screen: the game's name and status sit above the player; the streams fill the right.", apps: android)
+        ]),
         Release(version: "1.48", date: "2026-11-16", time: "22:27", title: "Steadier pickleball cards", changes: [
             Change(text: "Pickleball: only shows on now or later today (nothing from after midnight).", apps: everywhere),
             Change(text: "Pickleball cards no longer disappear and come back every minute when scores update.", apps: everywhere)

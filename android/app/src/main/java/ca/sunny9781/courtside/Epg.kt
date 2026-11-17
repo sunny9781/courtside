@@ -96,7 +96,7 @@ fun EpgScreen(model: AppModel) {
 
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { cats["cat:$categoryTarget"] },
         horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-        LazyColumn(Modifier.width(CATEGORY_WIDTH).fillMaxHeight().padding(top = topInset(model)).enterAt { cats["cat:$categoryTarget"] },
+        LazyColumn(Modifier.width(CATEGORY_WIDTH).fillMaxHeight().padding(bottom = topInset(model)).enterAt { cats["cat:$categoryTarget"] },
             verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             // One search for categories and channels; results show on the right.
             item(key = "filter") { Field("Filter", search, { search = it }, width = CATEGORY_WIDTH) }

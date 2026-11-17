@@ -237,9 +237,9 @@ fun Shell(model: AppModel) {
                     Tab.SETTINGS -> SettingsScreen(model)
                 }
             }
-            // The player: top-left corner, the same spot on every tab. Each tab's left panel sits under it and the page
-            // starts beside it.
-            model.pinned?.let { item -> PlayerStrip(model, item, strip, Modifier.align(Alignment.TopStart)) }
+            // The player: bottom-left corner, the same spot on every tab. Each tab's left panel sits on top of it and
+            // the page fills the space to its right.
+            model.pinned?.let { item -> PlayerStrip(model, item, strip, Modifier.align(Alignment.BottomStart).padding(bottom = Theme.margin)) }
             }
         }
         model.nowPlaying?.let { FullScreenPlayer(model, it) }
@@ -347,7 +347,7 @@ fun PlayerStrip(model: AppModel, item: NowPlaying, targets: FocusTargets, modifi
     }
 }
 
-/** Room the left panels leave above them for the player in the corner. */
+/** Room the left panels leave under them for the player in the corner. */
 fun topInset(model: AppModel) = if (model.pinned != null) Theme.stripHeight else 0.dp
 
 /**
@@ -491,10 +491,10 @@ fun HomeScreen(model: AppModel) {
         }
     }
 
-    // The sports under the player (the same width), the games beside it from the top.
+    // The sports on top of the player (the same width), the games to the right.
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { side[sidebarKey(model.homeSelection)] }) {
         SportList(model, side, compact = false,
-            modifier = Modifier.width(Theme.playerWidth).padding(top = topInset(model)).enterAt { side[sidebarKey(model.homeSelection)] })
+            modifier = Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).enterAt { side[sidebarKey(model.homeSelection)] })
         Spacer(Modifier.width(16.dp))
         GamesPane(model, pane, onOpen = { lastGame = it; model.openGameId = it }, onFocusGame = { lastGame = it },
             modifier = Modifier.weight(1f).enterAt { pane["game:$lastGame"] })
@@ -775,14 +775,18 @@ fun GameScreen(model: AppModel, gameId: String) {
         else model.pin(m.channel, game.title, lineup)
     }
 
-    // Streams start beside the player and wrap underneath it.
+    // With the player in the bottom-left corner, the game's name sits on top of it and the streams fill the right.
     val obstacle = model.pinned != null
-    Column(Modifier.fillMaxSize().background(Theme.bg).padding(horizontal = Theme.margin)
+    Row(Modifier.fillMaxSize().background(Theme.bg).padding(horizontal = Theme.margin)) {
+    if (obstacle) {
+        GameSummary(model, game, Modifier.width(Theme.playerWidth).fillMaxHeight().padding(bottom = topInset(model)))
+        Spacer(Modifier.width(16.dp))
+    }
+    Column(Modifier.weight(1f).fillMaxHeight()
         .verticalScroll(rememberScrollState()).wrapRows().enterAt { targets["s:$previewId"] }) {
         if (!pinnedHere && !obstacle) Hero(model, game)
-        WrapGrid(obstacleWidth = if (obstacle) Theme.playerWidth else 0.dp,
-            obstacleHeight = if (obstacle) Theme.playerWidth * 9 / 16 else 0.dp,
-            cellWidth = 260.dp, spacing = 12.dp, modifier = Modifier.padding(bottom = 12.dp)) {
+        WrapGrid(obstacleWidth = 0.dp, obstacleHeight = 0.dp,
+            cellWidth = 260.dp, spacing = 12.dp, modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)) {
             if (listing.sections.isEmpty()) {
                 Column(Modifier.fullRow(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Label(if (model.channels.isEmpty()) "Channels are still loading…" else "No streams found for this game yet.",
@@ -820,6 +824,28 @@ fun GameScreen(model: AppModel, gameId: String) {
                         Modifier.tracked(targets, "local")) { showLocal = !showLocal }
                 }
                 if (showLocal) section("Local and likely", listing.extras, "x")
+            }
+        }
+    }
+    }
+}
+
+/** The game's league, status and name (no score), in the column above the player. */
+@Composable
+private fun GameSummary(model: AppModel, game: Game, modifier: Modifier) {
+    Column(modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            LeagueLogo(model, game.league, 20.dp)
+            Label(cardHeader(game), size = 11.sp, weight = FontWeight.Bold,
+                color = if (game.state == GameState.LIVE) Theme.accent else Theme.soft)
+        }
+        if (game.isEvent && !game.hasSides) {
+            Label(game.eventTitle, size = 16.sp, weight = FontWeight.Bold, maxLines = 3)
+            if (game.eventDetail.isNotEmpty()) Label(game.eventDetail, size = 12.sp, color = Theme.muted, maxLines = 2)
+        } else for (team in listOf(game.away, game.home)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Logo(team.logo, 24.dp, team.abbr)
+                Label(team.name, size = 14.sp, weight = FontWeight.SemiBold, maxLines = 2)
             }
         }
     }
