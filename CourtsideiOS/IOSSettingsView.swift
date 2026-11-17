@@ -179,7 +179,8 @@ struct IOSSettingsView: View {
                 ForEach(SettingsSection.allCases.reversed()) { item in
                     IOSChip(selected: section == item, action: { section = item }) {
                         HStack(spacing: 6) {
-                            Image(systemName: item.symbol)
+                            // A fixed-size box keeps every icon centred, whatever its shape.
+                            Image(systemName: item.symbol).frame(width: 22, height: 22)
                             if section == item { Text(item.rawValue) }
                         }
                         .frame(minHeight: 30)

@@ -64,6 +64,12 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.57", date: "2026-11-17", time: "10:35", title: "Apple TV matches Android TV", changes: [
+            Change(text: "The player is in the bottom-left corner on every tab, just the video, with each tab's left panel on top of it and the page to its right from the top.", apps: tv),
+            Change(text: "Home: sports are grouped with lines between them (live scores, channel sports like pickleball, nothing today); a channel sport shows its channels as an EPG list.", apps: tv),
+            Change(text: "Game screen: a mini EPG for the game, its stream categories on the left (All first) and the channels on the right with now, next and quality.", apps: tv),
+            Change(text: "Settings: the section icons in the bottom bar are all centred.", apps: ios)
+        ]),
         Release(version: "1.56", date: "2026-11-17", time: "10:17", title: "Live Now in a grid", changes: [
             Change(text: "Home › Live Now: the live games are in one grid of rows, like the TV apps, instead of a sideways-scrolling row per sport. Each card shows its league.", apps: mac),
             Change(text: "Switching streams closes the old one first, and the connection count is checked once you've settled on a stream (20 seconds after the last switch) and every minute while playing, so it no longer shows 2 while only one plays.", apps: android)

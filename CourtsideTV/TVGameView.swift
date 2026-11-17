@@ -1,19 +1,17 @@
 import SwiftUI
 
-/// A game: one panel with the mini player beside the score, then every stream.
-/// Moving onto a stream plays it in the mini player; clicking it goes full screen (no reconnect).
+/// A game as a mini EPG (like the Android TV app): its stream categories on the left ("All" first, then each
+/// section, Foreign, and Local), sitting on top of the player, and that category's channels on the right with what's
+/// on now and next and each stream's quality. Click a channel to play it in the player, again for full screen.
 struct TVGameView: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var nav: TVNav
     @AppStorage(Prefs.hideSD) private var hideSD = true
-    @State private var showLocal = false
-    @AppStorage(Prefs.showForeignStreams) private var showForeign = false
-    /// Sections folded shut (4K, USA, Other…), by name.
-    @State private var folded: Set<String> = []
+    @State private var selected = "All"
+    @FocusState private var focusedCategory: String?
     @FocusState private var focusedStream: Int?
     let gameID: String
 
-    /// Looked up each time so the score stays live.
     private var game: Game? { model.games.first { $0.id == gameID } }
 
     private var allStreams: [StreamMatch] {
@@ -21,29 +19,30 @@ struct TVGameView: View {
         return hideSD ? all.filter { $0.quality != "SD" } : all
     }
 
-    /// 4K, PPV for fights, the league's own channels, home-country broadcasters, other countries (StreamSections).
     private var listing: StreamSections.Result {
         guard let game else { return .empty }
         return StreamSections.build(allStreams, league: game.league)
     }
 
-    private var sections: [StreamSections.Section] { listing.sections }
+    private var main: [StreamMatch] { listing.sections.flatMap(\.streams) }
 
-    private var streams: [StreamMatch] {
-        sections.flatMap(\.streams) + (showForeign ? listing.foreign.flatMap(\.streams) : []) + (showLocal ? listing.extras : [])
+    private var categories: [(name: String, streams: [StreamMatch])] {
+        var out: [(name: String, streams: [StreamMatch])] = [("All", main)]
+        for section in listing.sections { out.append((section.name, section.streams)) }
+        if !listing.foreign.isEmpty { out.append(("Foreign", listing.foreign.flatMap(\.streams))) }
+        if !listing.extras.isEmpty { out.append(("Local and likely", listing.extras)) }
+        return out
     }
 
-    /// On-screen order, which is also what swiping up and down flips through while watching.
-    private var lineup: [Channel] { streams.map(\.channel) }
+    private var current: [StreamMatch] { categories.first { $0.name == selected }?.streams ?? main }
 
-    /// The stream in the player at the top, if it's one of this game's.
     private var previewChannel: Channel? {
         guard let pinned = model.pinned?.channel, model.pinnedIsFrom(gameID: gameID) else { return nil }
         return pinned
     }
 
-    /// Click once to play in the player at the top, click the same stream again for full screen.
     private func select(_ match: StreamMatch, game: Game) {
+        let lineup = current.map(\.channel)
         if previewChannel?.id == match.channel.id {
             model.play(match.channel, gameTitle: game.title, lineup: lineup)
         } else {
@@ -52,12 +51,14 @@ struct TVGameView: View {
     }
 
     var body: some View {
-        // No Back button: the remote's Back goes back to Home.
-        VStack(alignment: .leading, spacing: 30) {
+        HStack(alignment: .top, spacing: TVLayout.playerGap) {
             if let game {
-                // While one of this game's streams plays, the score is in the player strip at the top.
-                if !model.pinnedIsFrom(gameID: gameID) { hero(game) }
-                streamList(game)
+                categoryList
+                    .frame(width: TVLayout.sidebar)
+                    .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : 0)
+                    .focusSection()
+                channelList(game)
+                    .focusSection()
             } else {
                 Text("This game is no longer on today's schedule.")
                     .font(.system(size: 28))
@@ -66,219 +67,75 @@ struct TVGameView: View {
             }
         }
         .padding(.horizontal, TVLayout.margin)
-        .padding(.top, 10)
-        .defaultFocus($focusedStream, previewChannel?.id ?? streams.firstToPlay?.channel.id)
+        .defaultFocus($focusedStream, previewChannel?.id ?? main.firstToPlay?.channel.id)
         .onAppear {
-            // Opening a game plays its first stream in the player at the top (unless one of its streams already
-            // is); after that, only clicking plays something else.
-            if previewChannel == nil, let first = streams.firstToPlay, let game {
-                model.pin(first.channel, gameTitle: game.title, lineup: lineup)
+            // Opening a game plays its first stream that isn't 4K in the player (unless one of its streams already is).
+            if previewChannel == nil, let first = main.firstToPlay, let game {
+                model.pin(first.channel, gameTitle: game.title, lineup: main.map(\.channel))
             }
         }
+        .onChange(of: focusedCategory) {
+            if let focusedCategory, focusedCategory != selected { selected = focusedCategory }
+        }
         .onExitCommand { if !nav.homePath.isEmpty { nav.homePath.removeLast() } }
-        // Back from full screen: focus goes back to the stream you were watching, not up to the tabs.
+        // Back from full screen: focus goes back to the stream you were watching.
         .onChange(of: model.nowPlaying == nil) {
             guard model.nowPlaying == nil, let id = model.lastPlayedChannelID else { return }
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(250))   // once the page can take focus again
+                try? await Task.sleep(for: .milliseconds(250))
                 focusedStream = id
             }
         }
     }
 
-    // MARK: Top: mini player, score, details
-
-    private func hero(_ game: Game) -> some View {
-        HStack(alignment: .top, spacing: 44) {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(spacing: 14) {
-                    TVLeagueLogo(league: game.league, size: 40)
-                    Text(game.headerText)
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundStyle(game.state == .live ? Theme.accent : Theme.soft)
-                }
-
-                if game.isEvent && !game.hasSides {
-                    Text(game.eventTitle)
-                        .font(.system(size: 44, weight: .bold))
-                        .foregroundStyle(Theme.text)
-                        .lineLimit(2)
-                    if !game.eventDetail.isEmpty {
-                        Text(game.eventDetail)
-                            .font(.system(size: 26))
-                            .foregroundStyle(Theme.soft)
-                    }
-                } else {
-                    teamLine(game.away, game: game)
-                    teamLine(game.home, game: game)
-                }
-
-                details(game)
-            }
-            .frame(maxWidth: 700, alignment: .leading)
-
-            if !game.isEvent, !game.away.linescores.isEmpty {
-                boxScore(game)
-            }
-            Spacer(minLength: 0)
-        }
-        .frame(height: 230, alignment: .top)
-        .padding(24)
-        .background(RoundedRectangle(cornerRadius: TVLayout.corner).fill(Theme.card))
-    }
-
-    private func teamLine(_ team: Team, game: Game) -> some View {
-        HStack(spacing: 20) {
-            TVTeamLogo(team: team, size: 64)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(team.name)
-                    .font(.system(size: 32, weight: .semibold))
-                    .foregroundStyle(Theme.text)
-                    .lineLimit(2)
-                if game.state != .upcoming && team.hasLongScore {
-                    Text(team.score)
-                        .font(.system(size: 28, weight: .bold).monospacedDigit())
-                        .foregroundStyle(game.scoreColor(team))
-                }
-                if !team.record.isEmpty {
-                    Text(team.record)
-                        .font(.system(size: 20))
-                        .foregroundStyle(Theme.muted)
-                }
-            }
-            Spacer(minLength: 16)
-            if game.state != .upcoming && !team.hasLongScore {
-                Text(team.score)
-                    .font(.system(size: 52, weight: .bold).monospacedDigit())
-                    .foregroundStyle(game.scoreColor(team))
-            }
-        }
-    }
-
-    private func details(_ game: Game) -> some View {
-        var lines: [String] = []
-        if game.state == .upcoming && !game.isChannel { lines.append("Starts \(game.startText)") }
-        if !game.venue.isEmpty { lines.append(game.venue) }
-        if !game.broadcasters.isEmpty { lines.append("On " + game.broadcasters.joined(separator: ", ")) }
-        return Text(lines.joined(separator: "  ·  "))
-            .font(.system(size: 21))
-            .foregroundStyle(Theme.muted)
-            .lineLimit(2)
-    }
-
-    private func boxScore(_ game: Game) -> some View {
-        let periods = max(game.away.linescores.count, game.home.linescores.count)
-        return Grid(alignment: .trailing, horizontalSpacing: 22, verticalSpacing: 12) {
-            GridRow {
-                Text("")
-                ForEach(0..<periods, id: \.self) { i in
-                    Text("\(i + 1)").foregroundStyle(Theme.muted)
-                }
-                Text("T").foregroundStyle(Theme.muted)
-            }
-            ForEach([game.away, game.home], id: \.abbr) { team in
-                GridRow {
-                    Text(team.abbr).foregroundStyle(Theme.soft).gridColumnAlignment(.leading)
-                    ForEach(0..<periods, id: \.self) { i in
-                        Text(i < team.linescores.count ? team.linescores[i] : "–").foregroundStyle(Theme.text)
-                    }
-                    Text(team.score).bold().foregroundStyle(game.scoreColor(team))
-                }
-            }
-        }
-        .font(.system(size: 22).monospacedDigit())
-        .padding(24)
-        .background(RoundedRectangle(cornerRadius: TVLayout.corner).fill(Theme.raised.opacity(0.5)))
-    }
-
-    // MARK: Streams
-
-    private func sectionView(_ section: StreamSections.Section, game: Game) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
-            // Click a section's name to fold it shut or open it.
-            Button {
-                if folded.contains(section.name) { folded.remove(section.name) } else { folded.insert(section.name) }
-            } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: folded.contains(section.name) ? "chevron.right" : "chevron.down")
-                        .font(.system(size: 20, weight: .bold))
-                    Text(section.name.uppercased())
-                        .font(.system(size: 22, weight: .bold))
-                    Text("\(section.streams.count)")
-                        .font(.system(size: 20))
-                        .opacity(0.6)
-                }
-            }
-            .buttonStyle(TVPillButtonStyle())
-            if !folded.contains(section.name) {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 520), spacing: 34, alignment: .top)],
-                          alignment: .leading, spacing: 34) {
-                    ForEach(section.streams) { match in
-                        Button {
-                            select(match, game: game)
-                        } label: {
-                            TVStreamCell(match: match,
-                                         quality: model.measuredQuality[match.channel.id] ?? match.quality,
-                                         frameRate: model.measuredFrameRate[match.channel.id],
-                                         previewing: match.channel.id == previewChannel?.id)
-                        }
-                        .buttonStyle(.card)
-                        .focused($focusedStream, equals: match.channel.id)
-                    }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func streamList(_ game: Game) -> some View {
+    private var categoryList: some View {
         ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 34) {
-                if sections.isEmpty {
+            VStack(spacing: 6) {
+                ForEach(categories, id: \.name) { item in
+                    Button { selected = item.name } label: {
+                        HStack {
+                            Text(item.name)
+                                .font(.system(size: 26, weight: .semibold))
+                                .lineLimit(1)
+                            Spacer(minLength: 8)
+                            Text("\(item.streams.count)")
+                                .font(.system(size: 21))
+                                .opacity(0.6)
+                        }
+                    }
+                    .buttonStyle(TVRowButtonStyle(selected: selected == item.name))
+                    .focused($focusedCategory, equals: item.name)
+                }
+            }
+            .padding(.vertical, 20)
+        }
+        .defaultFocus($focusedCategory, selected)
+    }
+
+    private func channelList(_ game: Game) -> some View {
+        let list = current
+        return ScrollView(.vertical) {
+            LazyVStack(spacing: 6) {
+                if list.isEmpty {
                     Text(model.channels.isEmpty ? "Channels are still loading…" : "No streams found for this game yet.")
                         .font(.system(size: 26))
                         .foregroundStyle(Theme.muted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                ForEach(sections) { sectionView($0, game: game) }
-
-                // Foreign-language countries, folded into one group.
-                if !listing.foreign.isEmpty {
-                    Button(showForeign ? "Hide foreign streams (\(listing.foreignCount))"
-                                       : "Show foreign streams (\(listing.foreignCount))") {
-                        showForeign.toggle()
+                ForEach(list) { match in
+                    Button { select(match, game: game) } label: {
+                        TVChannelRow(channel: match.channel, playing: match.channel.id == previewChannel?.id,
+                                     badge: model.measuredQuality[match.channel.id] ?? match.quality)
                     }
-                    .buttonStyle(TVPillButtonStyle())
-                    .font(.system(size: 22, weight: .semibold))
-                    if showForeign {
-                        ForEach(listing.foreign) { sectionView($0, game: game) }
-                    }
-                }
-
-                // Local stations and "usually on" guesses, at the very bottom.
-                if !listing.extras.isEmpty {
-                    Button(showLocal ? "Hide local stations and likely channels"
-                                     : "Show \(listing.extras.count) local stations and likely channels") {
-                        showLocal.toggle()
-                    }
-                    .buttonStyle(TVPillButtonStyle())
-                    .font(.system(size: 22, weight: .semibold))
-                    if showLocal {
-                        sectionView(StreamSections.Section(name: "Local and likely", streams: listing.extras), game: game)
-                    }
+                    .buttonStyle(TVRowButtonStyle())
+                    .focused($focusedStream, equals: match.channel.id)
                 }
             }
-            .padding(.vertical, 24)
-            .padding(.horizontal, 36)
+            .padding(.vertical, 20)
         }
-        // Use the full width: no Apple TV side insets on top of our own small margin.
-        .ignoresSafeArea(.container, edges: .horizontal)
-        // Clipped, so streams scrolling up disappear under the edge instead of drawing over the player and score.
-        // The padding inside leaves room for a focused stream to grow.
-        .padding(.horizontal, -36)
     }
 }
 
-/// One stream, like the Mac panel: name, its category, why it matched, and its quality.
 struct TVStreamCell: View {
     @EnvironmentObject var model: AppModel
     let match: StreamMatch

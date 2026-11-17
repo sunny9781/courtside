@@ -65,6 +65,7 @@ struct TVSettingsView: View {
             }
             .padding(.vertical, 20)
             .frame(width: TVLayout.sidebar)
+            .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : 0)
             .focusSection()
 
             ScrollView(.vertical) {

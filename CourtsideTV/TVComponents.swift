@@ -10,7 +10,10 @@ enum TVLayout {
     static let playerWidth: CGFloat = 448
     /// The text beside the player's video starts this far from the video.
     static let playerGap: CGFloat = 36
-    static let sidebar: CGFloat = playerWidth   // same width as the player's video above it
+    static let sidebar: CGFloat = playerWidth   // same width as the player's video
+    /// Height of the player in the bottom-left corner plus equal gaps above and below it: the left panels stop this
+    /// far from the bottom while something plays, so they sit on top of the player.
+    static let playerInset: CGFloat = playerWidth * 9 / 16 + margin * 2
     static let corner: CGFloat = 20
 }
 
