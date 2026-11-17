@@ -809,13 +809,23 @@ private fun SportChannels(model: AppModel, sport: Sport, targets: FocusTargets, 
     val playing = model.pinned?.channel?.id
     var last by remember { mutableStateOf<String?>(null) }
     AfterFullScreen(model, "home") { targets.focus("ch:${model.lastPlayedChannelId}") }
+    // Under a heading per category they come from (like the game screen), names on one line.
+    val byCategory = channels.groupBy { it.categoryName.ifEmpty { "Other" } }
+    val lineup = byCategory.values.flatten()
+    val nameWidth = nameWidthFor(channels)
     BehindPlayerBar(model) {
     LazyColumn(modifier.fillMaxHeight().enterAt { targets[last ?: "ch:$playing"] },
         verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp + topInset(model))) {
-        items(channels, key = { "ch:${it.id}" }) { ch ->
-            val k = "ch:${ch.id}"
-            ChannelRow(model, ch, ch.id == playing, Modifier.tracked(targets, k), onFocus = { last = k }) {
-                if (ch.id == playing) model.play(ch, null, channels, from = "home") else model.pin(ch, null, channels)
+        for ((category, list) in byCategory) {
+            item(key = "h:$category") {
+                Label(category.uppercase(), size = 10.sp, weight = FontWeight.Bold, color = Theme.muted,
+                    modifier = Modifier.padding(start = 10.dp, top = 8.dp, bottom = 2.dp))
+            }
+            items(list, key = { "ch:${it.id}" }) { ch ->
+                val k = "ch:${ch.id}"
+                ChannelRow(model, ch, ch.id == playing, Modifier.tracked(targets, k), nameWidth = nameWidth, onFocus = { last = k }) {
+                    if (ch.id == playing) model.play(ch, null, lineup, from = "home") else model.pin(ch, null, lineup)
+                }
             }
         }
     }
@@ -942,7 +952,7 @@ fun GameScreen(model: AppModel, gameId: String) {
     var selected by remember(gameId) { mutableStateOf("All") }
     val current = categories.firstOrNull { it.first == selected }?.second ?: everything
     // Names on one line: as wide as the longest one needs (within reason), the same for every row so columns line up.
-    val nameWidth = (60 + 7 * (current.maxOfOrNull { it.channel.name.length } ?: 0)).coerceIn(230, 460).dp
+    val nameWidth = nameWidthFor(current.map { it.channel })
     val lineup = current.map { it.channel }
     val pinnedHere = model.pinnedIsFrom(gameId)
     val previewId = if (pinnedHere) model.pinned?.channel?.id else null

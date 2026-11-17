@@ -206,6 +206,7 @@ fun EpgScreen(model: AppModel) {
         }
 
 
+        val nameWidth = nameWidthFor(if (searching) hits.flatMap { it.channels } else channels)
         // The schedule runs to the bottom of the screen, under the now-playing bar beside the player.
         Column(Modifier.weight(1f).fillMaxHeight()) { BehindPlayerBar(model) {
             LazyColumn(Modifier.fillMaxSize().enterAt { rows[lastRow] }, verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -213,7 +214,7 @@ fun EpgScreen(model: AppModel) {
                 item(key = "header") {
                     Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
                         Label(if (searching) "Results for “$hitsFor”" else (selected?.name ?: ""), size = 10.sp,
-                            weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(NAME_WIDTH))
+                            weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(nameWidth))
                         Label("NOW", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.weight(1f))
                         Label("NEXT", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(NEXT_WIDTH))
                     }
@@ -230,14 +231,14 @@ fun EpgScreen(model: AppModel) {
                         if (open) items(hit.channels, key = { "h:${hit.id}:${it.id}" }) { ch ->
                             val k = "h:${hit.id}:${ch.id}"
                             ChannelRow(model, ch, ch.id == playing?.id, Modifier.tracked(rows, k), onLongClick = { holdChannel(ch) },
-                                onFocus = { focusedChannel = ch.id; lastRow = k }) { click(ch, hit.channels) }
+                                nameWidth = nameWidth, onFocus = { focusedChannel = ch.id; lastRow = k }) { click(ch, hit.channels) }
                         }
                     }
                 } else {
                     items(channels, key = { "c:${it.id}" }) { ch ->
                         val k = "c:${ch.id}"
                         ChannelRow(model, ch, ch.id == playing?.id, Modifier.tracked(rows, k), onLongClick = { holdChannel(ch) },
-                            onFocus = { focusedChannel = ch.id; lastRow = k }) { click(ch, channels) }
+                            nameWidth = nameWidth, onFocus = { focusedChannel = ch.id; lastRow = k }) { click(ch, channels) }
                     }
                 }
             }
@@ -285,6 +286,10 @@ internal fun HoldMenu(p: HoldPrompt, dismiss: () -> Unit) {
 private data class Entry(val id: String, val name: String, val categories: List<ChannelCategory>)
 
 private val NAME_WIDTH = 230.dp
+
+/** A name column wide enough for the longest channel name on one line (within reason), the same for every row. */
+internal fun nameWidthFor(channels: List<Channel>): androidx.compose.ui.unit.Dp =
+    (60 + 7 * (channels.maxOfOrNull { it.name.length } ?: 0)).coerceIn(230, 520).dp
 /** The category column: narrow, so the names sit close to their counts. */
 private val CATEGORY_WIDTH = Theme.playerWidth
 private val NEXT_WIDTH = 180.dp

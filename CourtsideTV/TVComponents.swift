@@ -14,6 +14,11 @@ enum TVLayout {
     /// Height of the player in the bottom-left corner plus equal gaps above and below it: the left panels stop this
     /// far from the bottom while something plays, so they sit on top of the player.
     static let playerInset: CGFloat = playerWidth * 9 / 16 + margin * 2
+
+    /// A channel-name column wide enough for the longest name on one line (within reason), the same for every row.
+    static func nameWidth(_ channels: [Channel]) -> CGFloat {
+        min(max(CGFloat(channels.map(\.name.count).max() ?? 0) * 13 + 90, 408), 820)
+    }
     static let corner: CGFloat = 20
 }
 
