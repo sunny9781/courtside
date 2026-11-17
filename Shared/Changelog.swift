@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.65", date: "2026-11-17", time: "15:20", title: "Steadier EPG focus", changes: [
+            Change(text: "EPG: Back from full screen goes back to the channel you were watching, not the category.", apps: android),
+            Change(text: "EPG: opening or leaving a group no longer flashes the EPG time at the top; leaving a group lands on that group.", apps: android)
+        ]),
         Release(version: "1.64", date: "2026-11-17", time: "14:38", title: "Lighter Lite mode", changes: [
             Change(text: "Lite mode has no player in the corner: a channel or stream opens straight in full screen, and Back stops it (freeing the connection).", apps: android),
             Change(text: "Lite mode has no live scores: today's games load once when the app opens, with no scores or game clocks, and nothing is fetched or re-matched every minute.", apps: android)

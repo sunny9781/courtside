@@ -12,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.background
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -121,26 +123,70 @@ fun EpgScreen(model: AppModel) {
         selected != null && level.any { key(it) == selected.id } -> selected.id
         else -> level.firstOrNull()?.let { key(it) }
     }
-    fun go(path: List<String>) { model.guidePath = path; pathMoves++ }
+    // Opening or leaving a group swaps the rows, and the focused one disappears: Android would then hand focus to the
+    // first thing on screen (the EPG time at the top) for a moment. An invisible spot in the category column holds it
+    // instead until the new rows are there.
+    val holder = remember { androidx.compose.ui.focus.FocusRequester() }
+    val holding = remember { BooleanArray(1) }
+    var focusAfterMove by remember { mutableStateOf<String?>(null) }
+    fun go(path: List<String>, then: String? = null) {
+        holding[0] = true
+        runCatching { holder.requestFocus() }
+        focusAfterMove = then
+        model.guidePath = path
+        pathMoves++
+    }
+    fun up() {
+        // Back out of a group lands on that group.
+        val left = model.guidePath.lastOrNull()
+        go(model.guidePath.dropLast(1), left?.let { "cat:g:$it" })
+    }
 
     LaunchedEffect(pathMoves) {
         if (pathMoves == 0) return@LaunchedEffect
-        delay(60)
-        cats.focus("cat:${level.firstOrNull()?.let { key(it) }}")
+        // Wait (briefly) for the new rows to be on screen, then focus the right one.
+        for (i in 0 until 30) {
+            delay(20)
+            val wanted = focusAfterMove?.takeIf { it in cats.live } ?: "cat:${level.firstOrNull()?.let { key(it) }}"
+            if (cats.focus(wanted)) break
+        }
+        holding[0] = false
     }
-    BackHandler(enabled = model.guidePath.isNotEmpty() && model.nowPlaying == null) { go(model.guidePath.dropLast(1)) }
-    // Back from full screen: focus goes back to the channel you were watching.
-    AfterFullScreen(model, "epg") { if (!rows.focus(lastRow)) rows.focus("c:${model.lastPlayedChannelId}") }
+    BackHandler(enabled = model.guidePath.isNotEmpty() && model.nowPlaying == null) { up() }
+
+    // Back from full screen: focus goes back to the channel you were watching (the one you flipped to, if it's in
+    // this list, otherwise the one you opened). For a moment after, anything that brings focus back onto this page
+    // (Android does when the full-screen player goes away) lands there too, not on the category.
+    fun returnRow(): String? {
+        val id = model.lastPlayedChannelId
+        return listOf("c:$id").firstOrNull { it in rows.live }
+            ?: rows.live.firstOrNull { it is String && it.startsWith("h:") && it.endsWith(":$id") } as String?
+            ?: lastRow?.takeIf { it in rows.live }
+    }
+    var backAt by remember { mutableLongStateOf(0L) }
+    var wasFull by remember { mutableStateOf(model.nowPlaying != null) }
+    LaunchedEffect(model.nowPlaying != null) {
+        val full = model.nowPlaying != null
+        if (wasFull && !full && model.fullScreenFrom == "epg") backAt = System.currentTimeMillis()
+        wasFull = full
+    }
+    fun justBack() = System.currentTimeMillis() - backAt < 1500 && returnRow() != null
+    AfterFullScreen(model, "epg") { rows.focus(returnRow()) }
 
     val playing = model.pinned?.channel
     fun click(ch: Channel, lineup: List<Channel>) {
         if (ch.id == playing?.id) model.play(ch, null, lineup, from = "epg") else model.pin(ch, null, lineup)
     }
 
-    Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { cats["cat:$categoryTarget"] },
+    Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin)
+        .enterAt { if (justBack()) rows[returnRow()] else cats["cat:$categoryTarget"] },
         horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+        Box(Modifier.width(CATEGORY_WIDTH).fillMaxHeight()) {
+        // Holds focus while the rows change (see go()); it can't be reached with the remote.
+        Box(Modifier.size(1.dp).focusRequester(holder).focusProperties { canFocus = holding[0] }
+            .focusable())
         LazyColumn(Modifier.width(CATEGORY_WIDTH).fillMaxHeight().padding(bottom = topInset(model)).focusRequester(model.leftPanel)
-            .enterAt { cats["cat:$categoryTarget"] },
+            .enterAt { if (justBack()) rows[returnRow()] else cats["cat:$categoryTarget"] },
             verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             // One search for categories and channels; results show on the right.
             // Enter (or Search) on the keyboard closes it and goes to the first result.
@@ -176,7 +222,7 @@ fun EpgScreen(model: AppModel) {
             if (s.grouped) {
                 if (openNodes.isNotEmpty()) item(key = "up") {
                     CategoryRow(cats, "cat:up", Icons.Filled.ChevronLeft, openNodes.joinToString(" › ") { it.name }, null, false, bold = true) {
-                        go(model.guidePath.dropLast(1))
+                        up()
                     }
                 }
                 // At the top, favourites are already listed above; inside a group they come first.
@@ -205,7 +251,7 @@ fun EpgScreen(model: AppModel) {
                 }
             }
         }
-
+        }
 
         val nameWidth = nameWidthFor(if (searching) hits.flatMap { it.channels } else channels)
         // The schedule runs to the bottom of the screen, under the now-playing bar beside the player.
