@@ -83,6 +83,17 @@ object Updater {
     fun install(context: Context) {
         val file = readyFile ?: return
         val pm = context.packageManager
+        // Installing needs room for the new version beside the old one (about three times the download).
+        val free = minOf(context.filesDir.usableSpace, context.cacheDir.usableSpace)
+        val needed = file.length() * 3
+        if (free < needed) {
+            message = "Not enough space on this TV to update (needs about ${needed / 1_000_000 + 1} MB free, " +
+                "has ${free / 1_000_000} MB). Free some up in Settings › System › Storage, then try again."
+            return
+        }
+        // Remembered, so if Android's installer says "App not installed" the app can explain why when you're back.
+        context.getSharedPreferences("courtside", Context.MODE_PRIVATE).edit()
+            .putInt("installAttempt", readyBuild).putLong("installAttemptAt", System.currentTimeMillis()).apply()
         if (android.os.Build.VERSION.SDK_INT >= 26 && !pm.canRequestPackageInstalls()) {
             message = "Turn on Courtside here so it can install its own updates, then choose Install update again."
             runCatching {
@@ -97,6 +108,27 @@ object Updater {
             setDataAndType(uri, "application/vnd.android.package-archive")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         })
+    }
+
+    /**
+     * Back in the app after the installer screen: if the update we tried didn't take (Android only says "App not
+     * installed"), say what usually causes it. Also tidies away a downloaded update that's already installed.
+     */
+    fun afterInstall(context: Context) {
+        val prefs = context.getSharedPreferences("courtside", Context.MODE_PRIVATE)
+        val attempt = prefs.getInt("installAttempt", 0)
+        val at = prefs.getLong("installAttemptAt", 0)
+        if (attempt == 0) return
+        if (attempt > BuildConfig.VERSION_CODE) {
+            if (System.currentTimeMillis() - at < 30 * 60_000L) {
+                message = "The update didn't install. On TVs this is usually storage: free up 100 MB or so in " +
+                    "Settings › System › Storage and try again. If it still fails, reinstall with Downloader " +
+                    "(is.gd/courtsidetv); your login and settings stay."
+            }
+        } else {
+            File(context.cacheDir, "updates").deleteRecursively()
+        }
+        prefs.edit().remove("installAttempt").remove("installAttemptAt").apply()
     }
 
     private fun get(url: String): String {
