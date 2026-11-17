@@ -224,7 +224,7 @@ fun Shell(model: AppModel) {
             // Moving left or right off the edge of a page goes nowhere (not up to the top bar).
             Box(Modifier.fillMaxSize().focusProperties {
                 exit = { d ->
-                    if (d == FocusDirection.Left || d == FocusDirection.Right || d == FocusDirection.Next || d == FocusDirection.Previous)
+                    if (d == FocusDirection.Right || d == FocusDirection.Next || d == FocusDirection.Previous)
                         FocusRequester.Cancel else FocusRequester.Default
                 }
             }.focusGroup()) {
@@ -237,8 +237,9 @@ fun Shell(model: AppModel) {
                     Tab.SETTINGS -> SettingsScreen(model)
                 }
             }
-            // The player: top-right corner, the same spot on every tab (pages leave room for it on their right).
-            model.pinned?.let { item -> PlayerStrip(model, item, strip, Modifier.align(Alignment.TopEnd)) }
+            // The player: top-left corner, the same spot on every tab. Each tab's left panel sits under it and the page
+            // starts beside it.
+            model.pinned?.let { item -> PlayerStrip(model, item, strip, Modifier.align(Alignment.TopStart)) }
             }
         }
         model.nowPlaying?.let { FullScreenPlayer(model, it) }
@@ -339,30 +340,14 @@ fun PlayerVideo(modifier: Modifier = Modifier, small: Boolean = false) {
  */
 @Composable
 fun PlayerStrip(model: AppModel, item: NowPlaying, targets: FocusTargets, modifier: Modifier = Modifier) {
-    Row(
-        modifier.padding(end = Theme.margin),
-        horizontalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        // What's playing, to the left of the video, lined up on the right.
-        Column(Modifier.widthIn(max = 300.dp).padding(top = 2.dp), horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Label(model.playerTitle(item), size = 15.sp, weight = FontWeight.Bold, maxLines = 2,
-                modifier = Modifier, align = androidx.compose.ui.text.style.TextAlign.End)
-            Label(item.channel.name, size = 11.sp, color = Theme.muted, align = androidx.compose.ui.text.style.TextAlign.End)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (Playback.resolution.isNotEmpty()) Badge(Playback.resolution)
-                if (Playback.frameRate > 0) Badge(Playback.fpsLabel(Playback.frameRate))
-            }
-        }
-        TvButton(onClick = { model.play(item.channel, item.gameTitle, item.lineup, from = "strip") }, focusedScale = 1.03f,
-            modifier = Modifier.focusProperties { canFocus = !model.tabsFocused }.tracked(targets, "video")
-                .size(Theme.playerWidth, Theme.playerWidth * 9 / 16)) { _ ->
-            if (model.nowPlaying == null) PlayerVideo(Modifier.fillMaxSize().padding(2.dp).clip(RoundedCornerShape(8.dp)), small = true)
-        }
+    TvButton(onClick = { model.play(item.channel, item.gameTitle, item.lineup, from = "strip") }, focusedScale = 1.03f,
+        modifier = modifier.padding(start = Theme.margin).focusProperties { canFocus = !model.tabsFocused }
+            .tracked(targets, "video").size(Theme.playerWidth, Theme.playerWidth * 9 / 16)) { _ ->
+        if (model.nowPlaying == null) PlayerVideo(Modifier.fillMaxSize().padding(2.dp).clip(RoundedCornerShape(8.dp)), small = true)
     }
 }
 
-/** Room to leave above a page's right-hand part for the player in the corner. */
+/** Room the left panels leave above them for the player in the corner. */
 fun topInset(model: AppModel) = if (model.pinned != null) Theme.stripHeight else 0.dp
 
 /**
@@ -506,14 +491,13 @@ fun HomeScreen(model: AppModel) {
         }
     }
 
-    // The left column is the sports' icons and live counts, top to bottom; the games fill the rest (below the
-    // player in the corner).
+    // The sports under the player (the same width), the games beside it from the top.
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { side[sidebarKey(model.homeSelection)] }) {
-        SportList(model, side, compact = true,
-            modifier = Modifier.width(64.dp).enterAt { side[sidebarKey(model.homeSelection)] })
-        Spacer(Modifier.width(14.dp))
+        SportList(model, side, compact = false,
+            modifier = Modifier.width(Theme.playerWidth).padding(top = topInset(model)).enterAt { side[sidebarKey(model.homeSelection)] })
+        Spacer(Modifier.width(16.dp))
         GamesPane(model, pane, onOpen = { lastGame = it; model.openGameId = it }, onFocusGame = { lastGame = it },
-            modifier = Modifier.weight(1f).padding(top = topInset(model)).enterAt { pane["game:$lastGame"] })
+            modifier = Modifier.weight(1f).enterAt { pane["game:$lastGame"] })
     }
 }
 
@@ -791,56 +775,105 @@ fun GameScreen(model: AppModel, gameId: String) {
         else model.pin(m.channel, game.title, lineup)
     }
 
-    Column(Modifier.fillMaxSize().background(Theme.bg).padding(horizontal = Theme.margin).padding(top = topInset(model))) {
-        if (!pinnedHere) Hero(model, game)
-        LazyVerticalGrid(GridCells.Adaptive(270.dp),
-            modifier = Modifier.fillMaxSize().wrapRows().enterAt { targets["s:$previewId"] },
-            horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp),
-            contentPadding = PaddingValues(vertical = 10.dp, horizontal = 6.dp)) {
+    // Streams start beside the player and wrap underneath it.
+    val obstacle = model.pinned != null
+    Column(Modifier.fillMaxSize().background(Theme.bg).padding(horizontal = Theme.margin)
+        .verticalScroll(rememberScrollState()).wrapRows().enterAt { targets["s:$previewId"] }) {
+        if (!pinnedHere && !obstacle) Hero(model, game)
+        WrapGrid(obstacleWidth = if (obstacle) Theme.playerWidth else 0.dp,
+            obstacleHeight = if (obstacle) Theme.playerWidth * 9 / 16 else 0.dp,
+            cellWidth = 260.dp, spacing = 12.dp, modifier = Modifier.padding(bottom = 12.dp)) {
             if (listing.sections.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }, key = "none") {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Label(if (model.channels.isEmpty()) "Channels are still loading…" else "No streams found for this game yet.",
-                            size = 14.sp, color = Theme.muted)
-                        if (listing.foreign.isEmpty() && listing.extras.isEmpty()) {
-                            Pill("Back to the games", Modifier.tracked(targets, "back")) { model.closeGame() }
-                        }
+                Column(Modifier.fullRow(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Label(if (model.channels.isEmpty()) "Channels are still loading…" else "No streams found for this game yet.",
+                        size = 14.sp, color = Theme.muted)
+                    if (listing.foreign.isEmpty() && listing.extras.isEmpty()) {
+                        Pill("Back to the games", Modifier.tracked(targets, "back")) { model.closeGame() }
                     }
                 }
             }
+            @Composable
             fun section(name: String, streams: List<StreamMatch>, prefix: String) {
-                item(span = { GridItemSpan(maxLineSpan) }, key = "$prefix:h:$name") {
-                    // Click a section's name to fold it shut or open it.
+                // Click a section's name to fold it shut or open it.
+                Box(Modifier.fullRow()) {
                     SectionHeader(name, streams.size, open = name !in folded) {
                         folded = if (name in folded) folded - name else folded + name
                     }
                 }
-                if (name !in folded) items(streams, key = { "$prefix:$name:${it.channel.id}" }) { m ->
+                if (name !in folded) for (m in streams) key("$prefix:$name:${m.channel.id}") {
                     StreamCell(model, m, previewing = m.channel.id == previewId, modifier = Modifier.tracked(targets, "s:${m.channel.id}")) { select(m) }
                 }
             }
             for (sec in listing.sections) section(sec.name, sec.streams, "m")
             // Foreign-language countries, folded into one group.
             if (listing.foreign.isNotEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }, key = "foreign") {
+                Box(Modifier.fullRow()) {
                     Pill(if (s.showForeign) "Hide foreign streams (${listing.foreignCount})" else "Show foreign streams (${listing.foreignCount})",
-                        Modifier.tracked(targets, "foreign")) {
-                        s.showForeign = !s.showForeign
-                    }
+                        Modifier.tracked(targets, "foreign")) { s.showForeign = !s.showForeign }
                 }
                 if (s.showForeign) for (sec in listing.foreign) section(sec.name, sec.streams, "f")
             }
             // Local stations and "usually on" guesses, at the very bottom.
             if (listing.extras.isNotEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }, key = "local") {
+                Box(Modifier.fullRow()) {
                     Pill(if (showLocal) "Hide local stations and likely channels" else "Show ${listing.extras.size} local stations and likely channels",
-                        Modifier.tracked(targets, "local")) {
-                        showLocal = !showLocal
-                    }
+                        Modifier.tracked(targets, "local")) { showLocal = !showLocal }
                 }
                 if (showLocal) section("Local and likely", listing.extras, "x")
             }
         }
+    }
+}
+
+/** Marks an item in a WrapGrid that takes a whole row (section names, buttons). */
+private object FullRow : androidx.compose.ui.layout.ParentDataModifier {
+    override fun androidx.compose.ui.unit.Density.modifyParentData(parentData: Any?): Any = FullRow
+}
+
+fun Modifier.fullRow(): Modifier = this.then(FullRow)
+
+/**
+ * A grid that flows around the player in the top-left corner: the first rows start beside it, later rows use the
+ * full width. Cells line up in the same columns throughout; full-row items take whatever width the row has.
+ */
+@Composable
+fun WrapGrid(obstacleWidth: androidx.compose.ui.unit.Dp, obstacleHeight: androidx.compose.ui.unit.Dp,
+             cellWidth: androidx.compose.ui.unit.Dp, spacing: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier,
+             content: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(content, modifier) { measurables, constraints ->
+        val width = constraints.maxWidth
+        val gap = spacing.roundToPx()
+        val obstW = obstacleWidth.roundToPx()
+        val obstH = obstacleHeight.roundToPx()
+        val columns = maxOf(1, (width + gap) / (cellWidth.roundToPx() + gap))
+        val cell = (width - gap * (columns - 1)) / columns
+        val firstFreeCol = if (obstW > 0) minOf(columns - 1, (obstW + gap + cell + gap - 1) / (cell + gap)) else 0
+        fun rowStart(y: Int) = if (obstW > 0 && y < obstH) firstFreeCol * (cell + gap) else 0
+        val placed = mutableListOf<Triple<androidx.compose.ui.layout.Placeable, Int, Int>>()
+        var y = 0
+        var x = rowStart(0)
+        var rowH = 0
+        var inRow = false
+        fun newLine() { if (inRow) { y += rowH + gap }; rowH = 0; inRow = false; x = rowStart(y) }
+        for (m in measurables) {
+            if (m.parentData === FullRow) {
+                newLine()
+                val start = if (obstW > 0 && y < obstH) obstW + gap else 0
+                val p = m.measure(androidx.compose.ui.unit.Constraints.fixedWidth(maxOf(0, width - start)))
+                placed.add(Triple(p, start, y))
+                y += p.height + gap
+                x = rowStart(y)
+            } else {
+                if (inRow && x + cell > width) newLine()
+                val p = m.measure(androidx.compose.ui.unit.Constraints.fixedWidth(cell))
+                placed.add(Triple(p, x, y))
+                rowH = maxOf(rowH, p.height)
+                inRow = true
+                x += cell + gap
+            }
+        }
+        val height = maxOf(if (inRow) y + rowH else maxOf(0, y - gap), obstH)
+        layout(width, height) { for ((p, px, py) in placed) p.place(px, py) }
     }
 }
 

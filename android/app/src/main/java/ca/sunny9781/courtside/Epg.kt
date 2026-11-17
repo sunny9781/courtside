@@ -96,7 +96,7 @@ fun EpgScreen(model: AppModel) {
 
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { cats["cat:$categoryTarget"] },
         horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-        LazyColumn(Modifier.width(CATEGORY_WIDTH).fillMaxHeight().enterAt { cats["cat:$categoryTarget"] },
+        LazyColumn(Modifier.width(CATEGORY_WIDTH).fillMaxHeight().padding(top = topInset(model)).enterAt { cats["cat:$categoryTarget"] },
             verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             // One search for categories and channels; results show on the right.
             item(key = "filter") { Field("Filter", search, { search = it }, width = CATEGORY_WIDTH) }
@@ -132,7 +132,7 @@ fun EpgScreen(model: AppModel) {
             }
         }
 
-        Column(Modifier.weight(1f).fillMaxHeight().padding(top = topInset(model))) {
+        Column(Modifier.weight(1f).fillMaxHeight()) {
             InfoPanel(model, focusedChannel?.let { model.channelById[it] } ?: playing, playing)
             LazyColumn(Modifier.fillMaxSize().enterAt { rows[lastRow] }, verticalArrangement = Arrangement.spacedBy(2.dp),
                 contentPadding = PaddingValues(vertical = 6.dp)) {
@@ -175,7 +175,7 @@ private data class Entry(val id: String, val name: String, val categories: List<
 
 private val NAME_WIDTH = 230.dp
 /** The category column: narrow, so the names sit close to their counts. */
-private val CATEGORY_WIDTH = 190.dp
+private val CATEGORY_WIDTH = Theme.playerWidth
 private val NEXT_WIDTH = 180.dp
 
 private fun count(model: AppModel, cats: List<ChannelCategory>) = cats.sumOf { model.channelsByCategory[it.id]?.size ?: 0 }

@@ -35,7 +35,7 @@ fun SettingsScreen(model: AppModel) {
     val side = remember { FocusTargets() }
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { side[section] },
         horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-        Column(Modifier.width(150.dp).padding(vertical = 8.dp).enterAt { side[section] },
+        Column(Modifier.width(Theme.playerWidth).padding(top = topInset(model)).padding(vertical = 8.dp).enterAt { side[section] },
             verticalArrangement = Arrangement.spacedBy(3.dp)) {
             for (item in Section.entries) {
                 TvButton(onClick = { section = item }, selected = section == item, onFocus = { section = item },
@@ -49,7 +49,7 @@ fun SettingsScreen(model: AppModel) {
                 }
             }
         }
-        Column(Modifier.weight(1f).widthIn(max = 560.dp).fillMaxHeight().padding(top = topInset(model)).verticalScroll(rememberScrollState())
+        Column(Modifier.weight(1f).widthIn(max = 560.dp).fillMaxHeight().verticalScroll(rememberScrollState())
             .padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when (section) {
                 Section.ACCOUNT -> Account(model)
