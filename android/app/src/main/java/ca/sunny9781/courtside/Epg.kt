@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.foundation.background
 import androidx.compose.ui.text.font.FontWeight
@@ -210,7 +211,7 @@ fun EpgScreen(model: AppModel) {
         // The schedule runs to the bottom of the screen, under the now-playing bar beside the player.
         Column(Modifier.weight(1f).fillMaxHeight()) { BehindPlayerBar(model) {
             LazyColumn(Modifier.fillMaxSize().enterAt { rows[lastRow] }, verticalArrangement = Arrangement.spacedBy(2.dp),
-                contentPadding = PaddingValues(top = 6.dp, bottom = 6.dp + topInset(model))) {
+                contentPadding = PaddingValues(top = 6.dp, bottom = 6.dp + barInset(model))) {
                 item(key = "header") {
                     Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
                         Label(if (searching) "Results for “$hitsFor”" else (selected?.name ?: ""), size = 10.sp,
@@ -259,8 +260,25 @@ internal class HoldPrompt(val name: String, val options: List<HoldOption>)
 @Composable
 internal fun HoldMenu(p: HoldPrompt, dismiss: () -> Unit) {
     val first = remember { androidx.compose.ui.focus.FocusRequester() }
+    // The menu opens while the select button is still held: letting go of it mustn't pick the first choice. Clicks
+    // count only after that release (or after a moment, in case the release came before the menu opened).
+    var armed by remember { mutableStateOf(false) }
+    var lastHeld by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (!armed) { delay(200); if (System.currentTimeMillis() - lastHeld > 800) armed = true }
+    }
     androidx.compose.ui.window.Dialog(onDismissRequest = dismiss) {
-        Column(Modifier.width(320.dp).background(Theme.card, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).padding(16.dp),
+        Column(Modifier.onPreviewKeyEvent { e ->
+            val k = e.nativeKeyEvent
+            val select = k.keyCode == android.view.KeyEvent.KEYCODE_DPAD_CENTER || k.keyCode == android.view.KeyEvent.KEYCODE_ENTER ||
+                k.keyCode == android.view.KeyEvent.KEYCODE_NUMPAD_ENTER || k.keyCode == android.view.KeyEvent.KEYCODE_BUTTON_A
+            if (armed || !select) false
+            else {
+                lastHeld = System.currentTimeMillis()
+                if (k.action == android.view.KeyEvent.ACTION_UP) armed = true
+                true
+            }
+        }.width(320.dp).background(Theme.card, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Label(p.name, size = 15.sp, weight = FontWeight.Bold, maxLines = 2)
             p.options.forEachIndexed { i, option ->

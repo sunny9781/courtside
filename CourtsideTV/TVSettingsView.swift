@@ -25,7 +25,8 @@ struct TVSettingsView: View {
 
     enum Section: String, CaseIterable, Identifiable {
         case account = "Account"
-        case sports = "Sports"
+        /// Hidden (switched off) sports, categories and channels, to show them again.
+        case hidden = "Hidden"
         /// Playback, games, EPG and updates together.
         case general = "General"
         case changelog = "Changelog"
@@ -35,7 +36,7 @@ struct TVSettingsView: View {
         var symbol: String {
             switch self {
             case .account: return "person.crop.circle"
-            case .sports: return "sportscourt"
+            case .hidden: return "eye.slash"
             case .general: return "slider.horizontal.3"
             case .changelog: return "sparkles"
             }
@@ -76,6 +77,8 @@ struct TVSettingsView: View {
                 .padding(.vertical, 20)
                 .frame(maxWidth: 1000, alignment: .leading)
             }
+            // Runs to the bottom of the screen, under the now-playing bar.
+            .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight : 0, for: .scrollContent)
             // Use the full width: no Apple TV side insets on top of our own small margin.
             .ignoresSafeArea(.container, edges: .horizontal)
             .focusSection()
@@ -110,17 +113,43 @@ struct TVSettingsView: View {
             action("Sign out", detail: nil, destructive: true) { confirmSignOut = true }
                 .padding(.top, 20)
 
-        case .sports:
-            Text("Click a sport to show or hide it, or the heart to keep it first on Home. Open a sport to switch its leagues on or off.")
-                .font(.system(size: 21))
-                .foregroundStyle(Theme.muted)
-                .padding(.bottom, 10)
-            ForEach(Sport.ordered(UserDefaults.standard.string(forKey: Prefs.sportOrder) ?? "")) { sport in
-                sportRow(sport)
-                if openSport == sport {
-                    ForEach(sport.leagues) { league in
-                        leagueRow(league, sportHidden: Sport.hidden(hiddenSports).contains(sport))
+        case .hidden:
+            let sports = Sport.allCases.filter { Sport.hidden(hiddenSports).contains($0) }
+            let leagues = League.all.filter { League.hidden(hiddenLeagues).contains($0.id) && !sports.contains($0.sport) }
+            let cats = model.hiddenCategoryNames
+            let chans = model.hiddenChannelNames
+            if sports.isEmpty && leagues.isEmpty && cats.isEmpty && chans.isEmpty {
+                Text("Nothing is hidden. Hold the select button on a sport on Home, or a category or channel in the EPG, and choose Hide.")
+                    .font(.system(size: 22))
+                    .foregroundStyle(Theme.muted)
+            } else {
+                Text("Click one to show it again. A hidden sport is switched off: no scores are fetched and nothing is matched for it.")
+                    .font(.system(size: 21))
+                    .foregroundStyle(Theme.muted)
+                    .padding(.bottom, 10)
+                if !sports.isEmpty || !leagues.isEmpty { hiddenHeading("Sports") }
+                ForEach(sports) { sport in
+                    action(sport.rawValue, detail: nil, value: "Show") {
+                        var set = Sport.hidden(hiddenSports)
+                        set.remove(sport)
+                        hiddenSports = Sport.allCases.filter { set.contains($0) }.map(\.rawValue).joined(separator: ",")
+                        model.sportsChanged()
                     }
+                }
+                ForEach(leagues) { league in
+                    action(league.name, detail: league.sport.rawValue, value: "Show") {
+                        let set = League.hidden(hiddenLeagues).subtracting([league.id])
+                        hiddenLeagues = League.all.filter { set.contains($0.id) }.map(\.id).joined(separator: ",")
+                        model.sportsChanged()
+                    }
+                }
+                if !cats.isEmpty { hiddenHeading("Categories") }
+                ForEach(cats, id: \.id) { item in
+                    action(item.name, detail: nil, value: "Show") { model.setCategoryHidden(item.id, false) }
+                }
+                if !chans.isEmpty { hiddenHeading("Channels") }
+                ForEach(chans, id: \.id) { item in
+                    action(item.name, detail: nil, value: "Show") { model.setChannelHidden(item.id, false) }
                 }
             }
 
@@ -229,6 +258,13 @@ struct TVSettingsView: View {
             .padding(.vertical, 10)
         }
         .buttonStyle(TVRowButtonStyle())
+    }
+
+    private func hiddenHeading(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.system(size: 19, weight: .bold))
+            .foregroundStyle(Theme.muted)
+            .padding(.top, 14)
     }
 
     private func action(_ title: String, detail: String?, value: String? = nil, destructive: Bool = false,

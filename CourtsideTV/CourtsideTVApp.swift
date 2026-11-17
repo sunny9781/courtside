@@ -131,11 +131,17 @@ struct TVShell: View {
                 .ignoresSafeArea(.container, edges: .horizontal)
                 .focusSection()
             }
-            // The player: bottom-left corner, the same spot on every tab, with each tab's left panel on top of it.
+            // Under everything, one line across the very bottom: what's playing. Pages scroll under it.
+            if let item = model.pinned {
+                TVNowPlayingBar(item: item)
+                    .allowsHitTesting(false)
+            }
+            // The player: bottom-left corner above that line, the same spot on every tab, with each tab's left
+            // panel on top of it.
             if let item = model.pinned {
                 TVPinnedStrip(item: item, game: nil)
                     .padding(.leading, TVLayout.margin)
-                    .padding(.bottom, TVLayout.margin)
+                    .padding(.bottom, TVLayout.margin + TVLayout.barHeight)
                     .focusSection()
                     .transition(.opacity)
             }

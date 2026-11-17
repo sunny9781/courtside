@@ -65,7 +65,10 @@ object Theme {
     /** Width of the player's video at the top (the left column on Home matches it). */
     val playerWidth = 240.dp
     /** Height the player in the top-right corner takes; pages leave this much room above their right-hand part. */
-    val stripHeight = playerWidth * 9 / 16 + margin * 2
+    /** The one-line now-playing bar along the very bottom of the screen. */
+    val barHeight = 30.dp
+    /** The player and its gaps, plus the bar under it: how far the left panels stop from the bottom. */
+    val stripHeight = playerWidth * 9 / 16 + margin * 2 + barHeight
 }
 
 /**
@@ -77,12 +80,12 @@ private val PlainBringIntoView = androidx.compose.runtime.staticCompositionLocal
 /**
  * A page that scrolls under the now-playing bar along the bottom: moving to a row keeps it above the bar (instead of
  * leaving it hidden behind), while the page itself still runs to the bottom of the screen. Give the list bottom
- * padding of topInset(model) so its last row can scroll clear of the bar.
+ * padding of barInset(model) so its last row can scroll clear of the bar.
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @androidx.compose.runtime.Composable
 fun BehindPlayerBar(model: AppModel, content: @androidx.compose.runtime.Composable () -> Unit) {
-    val inset = with(androidx.compose.ui.platform.LocalDensity.current) { topInset(model).toPx() }
+    val inset = with(androidx.compose.ui.platform.LocalDensity.current) { barInset(model).toPx() }
     val original = androidx.compose.foundation.gestures.LocalBringIntoViewSpec.current
     if (inset <= 0f) { content(); return }
     val spec = remember(inset) {

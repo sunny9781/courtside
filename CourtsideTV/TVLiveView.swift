@@ -242,7 +242,7 @@ struct TVLiveView: View {
                             }
                             .buttonStyle(TVRowButtonStyle(selected: selected?.id == "g:" + node.id))
                             .focused($focusedCategory, equals: "g:" + node.id)
-                            .contextMenu { favoriteButton(category: node.id) }
+                            .contextMenu { favoriteButton(category: node.id); hideButton(category: node.id, name: node.name) }
                         } else {
                             categoryRow(Entry(id: node.id, name: node.name, categories: node.categories))
                         }
@@ -285,7 +285,10 @@ struct TVLiveView: View {
         .buttonStyle(TVRowButtonStyle(selected: entry.id == selected?.id))
         .focused($focusedCategory, equals: entry.id)
         .contextMenu {
-            if entry.id != Self.favoritesID { favoriteButton(category: key) }
+            if entry.id != Self.favoritesID {
+                favoriteButton(category: key)
+                hideButton(category: key, name: entry.name)
+            }
         }
     }
 
@@ -294,6 +297,23 @@ struct TVLiveView: View {
         let on = model.isFavorite(category: id)
         return Button(on ? "Remove from Favourites" : "Add to Favourites", systemImage: on ? "heart.slash" : "heart") {
             model.toggleFavorite(category: id)
+        }
+    }
+
+    /// Hold the select button on a row: hide it (Settings › Hidden shows it again).
+    private func hideButton(category id: String, name: String) -> some View {
+        Button("Hide", systemImage: "eye.slash") {
+            if model.isFavorite(category: id) { model.toggleFavorite(category: id) }
+            model.setCategoryHidden(id, true)
+            model.notice = "\(name) is hidden. Settings › Hidden brings it back."
+        }
+    }
+
+    private func hideButton(channel: Channel) -> some View {
+        Button("Hide", systemImage: "eye.slash") {
+            if model.isFavorite(channel: channel.id) { model.toggleFavorite(channel: channel.id) }
+            model.setChannelHidden(channel.id, true)
+            model.notice = "\(channel.name) is hidden. Settings › Hidden brings it back."
         }
     }
 
@@ -408,13 +428,15 @@ struct TVLiveView: View {
                     }
                     .buttonStyle(TVRowButtonStyle())
                     .focused($focusedChannel, equals: channel.id)
-                    .contextMenu { favoriteButton(channel: channel.id) }
+                    .contextMenu { favoriteButton(channel: channel.id); hideButton(channel: channel) }
                 }
             }
             .padding(.vertical, 10)
         }
         // Use the full width: no Apple TV side insets on top of our own small margin.
         .ignoresSafeArea(.container, edges: .horizontal)
+        // Runs to the bottom of the screen, under the now-playing bar (the last row can scroll clear of it).
+        .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight : 0, for: .scrollContent)
     }
 
     private var searching: Bool { search.trimmingCharacters(in: .whitespaces).count >= 2 }
@@ -470,7 +492,7 @@ struct TVLiveView: View {
                     }
                     .buttonStyle(TVRowButtonStyle())
                     .focused($focusedChannel, equals: channel.id)
-                    .contextMenu { favoriteButton(channel: channel.id) }
+                    .contextMenu { favoriteButton(channel: channel.id); hideButton(channel: channel) }
                 }
             }
         }

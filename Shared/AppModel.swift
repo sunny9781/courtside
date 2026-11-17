@@ -61,6 +61,13 @@ final class AppModel: ObservableObject {
     /// "__node:" group). Favourites are listed first.
     @Published private(set) var favoriteChannels: [Int] =
         (UserDefaults.standard.string(forKey: Prefs.favoriteChannels) ?? "").split(separator: ",").compactMap { Int($0) }
+    /// Hidden categories, groups and channels (Settings › Hidden shows them again).
+    @Published private(set) var hiddenChannelIDs: [Int] =
+        (UserDefaults.standard.string(forKey: Prefs.hiddenChannels) ?? "").split(separator: ",").compactMap { Int($0) }
+    @Published private(set) var hiddenCategoryIDs: [String] =
+        (UserDefaults.standard.string(forKey: Prefs.hiddenCategories) ?? "").split(separator: "\n").map(String.init)
+    /// Leagues whose games have been fetched today (a sport shown again is fetched on the next minute's update).
+    private var fetchedLeagues: Set<String> = []
     @Published private(set) var favoriteCategories: [String] =
         (UserDefaults.standard.string(forKey: Prefs.favoriteCategories) ?? "").split(separator: "\n").map(String.init)
 
@@ -259,11 +266,21 @@ final class AppModel: ObservableObject {
     /// Called again when the setting changes.
     func applyFilters() async {
         let hide = UserDefaults.standard.bool(forKey: Prefs.hideAdult)
-        let cats = hide ? rawCategories.filter { !Self.isAdult($0.name) } : rawCategories
+        let hiddenCats = Set(hiddenCategoryIDs)
+        let hiddenChans = Set(hiddenChannelIDs)
+        let cats = rawCategories.filter { (!hide || !Self.isAdult($0.name)) && !hiddenCats.contains($0.id) }
         let kept = Set(cats.map(\.id))
-        let list = hide ? rawChannels.filter { kept.contains($0.categoryID) && !Self.isAdult($0.categoryName) } : rawChannels
+        let list = rawChannels.filter {
+            kept.contains($0.categoryID) && (!hide || !Self.isAdult($0.categoryName)) && !hiddenChans.contains($0.id)
+        }
+        // Hidden groups ("__node:" ids) leave the tree; their categories stay wherever else they're listed.
+        func prune(_ nodes: [CategoryGrouping.Node]) -> [CategoryGrouping.Node] {
+            nodes.filter { !hiddenCats.contains($0.id) }.map {
+                $0.isGroup ? CategoryGrouping.Node(id: $0.id, name: $0.name, children: prune($0.children), categories: $0.categories) : $0
+            }
+        }
         categories = cats
-        categoryTree = CategoryGrouping.build(cats)
+        categoryTree = prune(CategoryGrouping.build(cats))
         channels = list
         channelsByCategory = Dictionary(grouping: list, by: \.categoryID)
         channelByID = Dictionary(list.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
@@ -291,7 +308,8 @@ final class AppModel: ObservableObject {
             stale = false
         }
 
-        async let gamesTask = ScheduleClient().schedule(for: League.all)
+        let fetching = League.active
+        async let gamesTask = ScheduleClient().schedule(for: fetching)
 
         // 2. Channels from the provider only when the saved copy is too old (or you asked).
         if stale {
@@ -325,6 +343,7 @@ final class AppModel: ObservableObject {
         do {
             let result = try await gamesTask
             allGames = result.games
+            fetchedLeagues = Set(fetching.map(\.id))
             // Guide-built events (pickleball) stay put until rematch rebuilds them, so their cards don't blink.
             games = Self.visible(allGames) + games.filter { $0.id.hasPrefix("guide-") }
             leagueLogos.merge(result.logos) { _, new in new }
@@ -356,8 +375,13 @@ final class AppModel: ObservableObject {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(60))
                 guard !Task.isCancelled, let self else { return }
-                let active = Set(self.allGames.filter { $0.state != .finished }.map(\.league))
+                // Leagues with games still to play, and any switched back on since (not fetched yet today).
+                let on = League.active
+                let missing = on.filter { !self.fetchedLeagues.contains($0.id) }
+                let active = Set(self.allGames.filter { $0.state != .finished }.map(\.league)).union(missing)
+                    .filter { on.contains($0) }
                 guard !active.isEmpty else { continue }
+                self.fetchedLeagues.formUnion(missing.map(\.id))
                 if let fresh = try? await ScheduleClient().games(for: Array(active)) {
                     let freshIDs = Set(fresh.map(\.id))
                     let kept = self.allGames.filter { !active.contains($0.league) && !freshIDs.contains($0.id) }
@@ -415,9 +439,8 @@ final class AppModel: ObservableObject {
         var allMatches = result.matches
 
         // Sports with no schedule feed: events from the guide.
-        let hiddenLeagues = League.hiddenSaved
         var guideGames: [Game] = []
-        for league in League.all where league.path.isEmpty && !hiddenLeagues.contains(league.id) {
+        for league in League.active where league.path.isEmpty {
             let found = await Task.detached(priority: .utility) {
                 Matcher.guideEvents(league: league, words: [league.name.lowercased()] + Array(league.keywords), channels: idx, guide: gd,
                                     measured: measured, now: now)
@@ -444,8 +467,54 @@ final class AppModel: ObservableObject {
     }
 
     private static func visible(_ list: [Game]) -> [Game] {
-        let hidden = League.hiddenSaved
-        return list.filter { !hidden.contains($0.league.id) }
+        let on = Set(League.active.map(\.id))
+        return list.filter { on.contains($0.league.id) }
+    }
+
+    /// A sport or league was hidden or shown: hidden ones are switched off (not fetched, not matched); one shown
+    /// again is fetched straight away.
+    func sportsChanged() {
+        games = Self.visible(allGames) + games.filter { $0.id.hasPrefix("guide-") && League.active.contains($0.league) }
+        let missing = League.active.filter { !fetchedLeagues.contains($0.id) && !$0.path.isEmpty }
+        Task {
+            if !missing.isEmpty, let fresh = try? await ScheduleClient().games(for: missing) {
+                fetchedLeagues.formUnion(missing.map(\.id))
+                let ids = Set(fresh.map(\.id))
+                allGames = (allGames.filter { !ids.contains($0.id) } + fresh).sorted { ($0.start ?? .distantFuture) < ($1.start ?? .distantFuture) }
+                games = Self.visible(allGames) + games.filter { $0.id.hasPrefix("guide-") }
+            }
+            await rematch()
+        }
+    }
+
+    // MARK: Hidden categories and channels
+
+    func setChannelHidden(_ id: Int, _ hidden: Bool) {
+        hiddenChannelIDs.removeAll { $0 == id }
+        if hidden { hiddenChannelIDs.append(id) }
+        UserDefaults.standard.set(hiddenChannelIDs.map(String.init).joined(separator: ","), forKey: Prefs.hiddenChannels)
+        Task { await applyFilters(); await rematch() }
+    }
+
+    func setCategoryHidden(_ id: String, _ hidden: Bool) {
+        hiddenCategoryIDs.removeAll { $0 == id }
+        if hidden { hiddenCategoryIDs.append(id) }
+        UserDefaults.standard.set(hiddenCategoryIDs.joined(separator: "\n"), forKey: Prefs.hiddenCategories)
+        Task { await applyFilters(); await rematch() }
+    }
+
+    /// Hidden channels with their names, in the order hidden.
+    var hiddenChannelNames: [(id: Int, name: String)] {
+        let byID = Dictionary(rawChannels.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
+        return hiddenChannelIDs.map { ($0, byID[$0] ?? "Channel \($0)") }
+    }
+
+    /// Hidden categories and groups with their names ("Sports › 4K" for a group).
+    var hiddenCategoryNames: [(id: String, name: String)] {
+        let byID = Dictionary(rawCategories.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
+        return hiddenCategoryIDs.map { id in
+            (id, byID[id] ?? String(id.dropFirst(CategoryGrouping.nodePrefix.count)).replacingOccurrences(of: "/", with: " › "))
+        }
     }
 
     /// Called when a league is switched on or off in Settings.

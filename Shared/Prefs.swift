@@ -25,6 +25,8 @@ enum Prefs {
     static let autoSwitch = "autoSwitch"         // switch to the next stream when one stalls
     static let favoriteChannels = "favoriteChannels"     // EPG: channel ids, comma-separated, in the order added
     static let favoriteCategories = "favoriteCategories" // EPG: category or group ids, newline-separated, in order
+    static let hiddenChannels = "hiddenChannels"         // hidden from the EPG and game screens: channel ids, comma-separated
+    static let hiddenCategories = "hiddenCategories"     // hidden: category or group ids, newline-separated
     static let refreshHours = "refreshHours"     // how long saved channels and guide are reused
     static let guideGrouped = "guideGroupedOn"   // renamed so grouping starts switched on
 

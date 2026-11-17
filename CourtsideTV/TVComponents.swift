@@ -13,7 +13,9 @@ enum TVLayout {
     static let sidebar: CGFloat = playerWidth   // same width as the player's video
     /// Height of the player in the bottom-left corner plus equal gaps above and below it: the left panels stop this
     /// far from the bottom while something plays, so they sit on top of the player.
-    static let playerInset: CGFloat = playerWidth * 9 / 16 + margin * 2
+    /// The one-line now-playing bar along the very bottom of the screen, under the player.
+    static let barHeight: CGFloat = 46
+    static let playerInset: CGFloat = playerWidth * 9 / 16 + margin * 2 + barHeight
 
     /// A channel-name column wide enough for the longest name on one line (within reason), the same for every row.
     static func nameWidth(_ channels: [Channel]) -> CGFloat {

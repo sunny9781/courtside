@@ -120,6 +120,14 @@ struct League: Identifiable, Hashable {
         hidden(UserDefaults.standard.string(forKey: Prefs.hiddenLeagues) ?? "")
     }
 
+    /// The leagues that are switched on: not hidden, and their sport not hidden. Nothing is fetched or matched for
+    /// the others.
+    static var active: [League] {
+        let sports = Sport.hidden(UserDefaults.standard.string(forKey: Prefs.hiddenSports) ?? "")
+        let leagues = hiddenSaved
+        return all.filter { !sports.contains($0.sport) && !leagues.contains($0.id) }
+    }
+
     static let all: [League] = [
         League(id: "nba", name: "NBA", sport: .basketball, path: "basketball/nba", keywords: ["nba"]),
         League(id: "wnba", name: "WNBA", sport: .basketball, path: "basketball/wnba", keywords: ["wnba"]),
