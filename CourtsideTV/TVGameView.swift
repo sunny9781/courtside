@@ -67,11 +67,11 @@ struct TVGameView: View {
         }
         .padding(.horizontal, TVLayout.margin)
         .padding(.top, 10)
-        .defaultFocus($focusedStream, previewChannel?.id ?? streams.first?.channel.id)
+        .defaultFocus($focusedStream, previewChannel?.id ?? streams.firstToPlay?.channel.id)
         .onAppear {
             // Opening a game plays its first stream in the player at the top (unless one of its streams already
             // is); after that, only clicking plays something else.
-            if previewChannel == nil, let first = streams.first, let game {
+            if previewChannel == nil, let first = streams.firstToPlay, let game {
                 model.pin(first.channel, gameTitle: game.title, lineup: lineup)
             }
         }

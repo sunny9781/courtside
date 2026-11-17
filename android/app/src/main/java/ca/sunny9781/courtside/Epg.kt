@@ -191,8 +191,8 @@ private fun CategoryRow(
         Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (icon != null) Icon(icon, null, tint = color.copy(alpha = 0.75f), modifier = Modifier.size(14.dp))
-            Label(name, size = 12.sp, weight = if (bold) FontWeight.Bold else FontWeight.Medium, color = color, modifier = Modifier.weight(1f))
-            if (value != null) Label(value, size = 10.sp, color = color.copy(alpha = 0.6f))
+            Label(name, size = 14.sp, weight = if (bold) FontWeight.Bold else FontWeight.SemiBold, color = color, modifier = Modifier.weight(1f))
+            if (value != null) Label(value, size = 11.sp, color = color.copy(alpha = 0.6f))
             if (trailing != null) Icon(trailing, null, tint = color.copy(alpha = 0.6f), modifier = Modifier.size(13.dp))
         }
     }

@@ -80,3 +80,11 @@ func sortedGames(_ games: [Game]) -> [Game] {
         (rank($0), $0.start ?? .distantFuture) < (rank($1), $1.start ?? .distantFuture)
     }
 }
+
+extension Array where Element == StreamMatch {
+    /// The stream a game screen starts with: the first one that isn't 4K (those are often a different picture or
+    /// hard on the connection), or the first if they're all 4K.
+    var firstToPlay: StreamMatch? {
+        first { !$0.is4K && $0.quality != "4K" } ?? first
+    }
+}
