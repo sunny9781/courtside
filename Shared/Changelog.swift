@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.64", date: "2026-11-17", time: "14:38", title: "Lighter Lite mode", changes: [
+            Change(text: "Lite mode has no player in the corner: a channel or stream opens straight in full screen, and Back stops it (freeing the connection).", apps: android),
+            Change(text: "Lite mode has no live scores: today's games load once when the app opens, with no scores or game clocks, and nothing is fetched or re-matched every minute.", apps: android)
+        ]),
         Release(version: "1.63", date: "2026-11-17", time: "14:21", title: "Room above the now-playing bar", changes: [
             Change(text: "The now-playing bar has the same gap above it as the player has below, so lists scrolling under it don't look squished.", apps: [.tv, .android]),
             Change(text: "If the app closes unexpectedly, the next start says why, and Settings › General shows the details (kept on the TV only).", apps: android)
