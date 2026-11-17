@@ -287,9 +287,35 @@ fun TopBar(model: AppModel) {
                 }
             }
         }
+        // Left: connections in use ("1/2", orange at the limit), and "EPG 9:10 PM ⟳" (download it again).
+        Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val a = model.account
+            val max = a?.maxConnections ?: 0
+            if (max > 0) {
+                val active = a?.activeConnections ?: 0
+                val full = active >= max
+                Row(Modifier.clip(RoundedCornerShape(14.dp)).background(if (full) Theme.accent else Theme.raised)
+                    .padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Icon(Icons.Filled.People, null, tint = if (full) Theme.onAccent else Theme.muted, modifier = Modifier.size(13.dp))
+                    Label("$active/$max", size = 12.sp, weight = FontWeight.SemiBold, color = if (full) Theme.onAccent else Theme.muted)
+                }
+            }
+            if (model.loading) Label("Downloading channels…", size = 12.sp, color = Theme.muted)
+            else model.updatedAt?.let { at ->
+                TvButton(onClick = { model.refresh(force = true) }) { focused ->
+                    Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        val color = if (focused) Theme.bg else Theme.muted
+                        Label("EPG ${clockTime(at)}", size = 12.sp, color = color)
+                        Icon(Icons.Filled.Refresh, null, tint = color, modifier = Modifier.size(13.dp))
+                    }
+                }
+            }
+        }
         Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (model.loading) Label("Downloading channels…", size = 12.sp, color = Theme.muted)
             // The version is the update button: click it to check for a new version; once one has downloaded it
             // turns into "Install update". (Channels refresh on their own, or from Settings › General.)
             val ready = Updater.readyVersion

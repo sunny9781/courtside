@@ -141,11 +141,10 @@ struct TVSettingsView: View {
             toggle("Show finished games", detail: nil, $showFinished)
             toggle("Hide SD streams", detail: "Most providers have HD versions of the same channels.", $hideSD)
 
-            toggle("Hide adult categories", detail: "Any category with \"adult\" in its name, and its channels.", Binding(
-                get: { hideAdult },
-                set: { hideAdult = $0; Task { await model.applyFilters(); await model.rematch() } }
+            toggle("Adult categories", detail: "Any category with \"adult\" in its name, and its channels. Off by default.", Binding(
+                get: { !hideAdult },
+                set: { hideAdult = !$0; Task { await model.applyFilters(); await model.rematch() } }
             ))
-            toggle("Group similar categories", detail: "Sports, Country, 24/7 and so on, opened one level at a time.", $grouped)
 
             action("Download fresh channels and guide after",
                    detail: "Opening the app reuses the saved channels and guide until they're this old. Scores always update every minute.",

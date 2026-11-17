@@ -223,7 +223,20 @@ struct TVTopBar: View {
                 }
             }
 
-            HStack {
+            HStack(spacing: 16) {
+                // Connections in use, and "EPG 9:10 PM ⟳": when the channels and guide were last downloaded
+                // (click to download them again).
+                TVConnectionsPill(account: model.account)
+                if let saved = model.savedAt, !model.downloadingChannels {
+                    Button {
+                        Task { await model.refresh(force: true) }
+                    } label: {
+                        Label("EPG \(saved.formatted(date: .omitted, time: .shortened))", systemImage: "arrow.clockwise")
+                            .font(.system(size: 22, weight: .medium))
+                            .foregroundStyle(Theme.muted)
+                    }
+                    .buttonStyle(TVQuietButtonStyle())
+                }
                 Spacer()
                 status
             }

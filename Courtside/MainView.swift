@@ -161,12 +161,16 @@ struct TopBar: View {
                 TopTab(title: "Settings", symbol: "slider.horizontal.3", selected: route == .settings) { go(.settings) }
             }
 
-            // Back on the left (after the window buttons), refresh status on the right.
+            // Left (after the window buttons): back, connections in use, and "EPG 9:10 PM ⟳" (refresh).
             HStack(spacing: 10) {
+                Spacer().frame(width: 78)
                 if let onBack {
                     RoundIconButton(symbol: "chevron.left", help: "Back (⌘[)", action: onBack)
                         .keyboardShortcut("[", modifiers: .command)
-                        .padding(.leading, 88)
+                }
+                ConnectionsPill(account: model.account)
+                if let saved = model.savedAt, !model.downloadingChannels {
+                    EPGRefreshButton(date: saved) { Task { await model.refresh(force: true) } }
                 }
                 Spacer()
                 if let filter {
@@ -370,4 +374,32 @@ struct TopTab: View {
 extension Notification.Name {
     /// Open a game's screen (object: the game's id), e.g. from the player strip.
     static let openGame = Notification.Name("openGame")
+}
+
+/// "EPG 9:10 PM ⟳": when the channels and guide were last downloaded; click to download them again now.
+struct EPGRefreshButton: View {
+    let date: Date
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Text("EPG " + (Calendar.current.isDateInToday(date)
+                               ? date.formatted(date: .omitted, time: .shortened)
+                               : date.formatted(.dateTime.month(.abbreviated).day().hour().minute())))
+                    .font(.system(size: 12, weight: .medium))
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundStyle(hovering ? Theme.text : Theme.muted)
+            .padding(.horizontal, 12)
+            .frame(height: 32)
+            .background(Capsule().fill(hovering ? Theme.raised : Color.clear))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help("Download channels and the guide again now")
+    }
 }
