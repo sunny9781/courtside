@@ -74,9 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
-        Release(version: "1.65", date: "2026-11-17", time: "15:20", title: "Steadier EPG focus", changes: [
+        Release(version: "1.65", date: "2026-11-17", time: "15:20", title: "Steadier EPG focus, no screensaver mid-game", changes: [
             Change(text: "EPG: Back from full screen goes back to the channel you were watching, not the category.", apps: android),
-            Change(text: "EPG: opening or leaving a group no longer flashes the EPG time at the top; leaving a group lands on that group.", apps: android)
+            Change(text: "EPG: opening or leaving a group no longer flashes the EPG time at the top; leaving a group lands on that group.", apps: android),
+            Change(text: "The screensaver no longer comes on while something is playing (it stopped the stream on Chromecast).", apps: android)
         ]),
         Release(version: "1.64", date: "2026-11-17", time: "14:38", title: "Lighter Lite mode", changes: [
             Change(text: "Lite mode has no player in the corner: a channel or stream opens straight in full screen, and Back stops it (freeing the connection).", apps: android),
