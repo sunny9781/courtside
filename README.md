@@ -1,42 +1,48 @@
 # Courtside
 
-Install on a Mac (Apple Silicon) by pasting this into Terminal:
+## Mac
+
+Apple Silicon Macs. Paste this into Terminal:
 
 ```sh
 curl -fsSL https://github.com/sunny9781/courtside/releases/latest/download/Courtside.zip -o /tmp/Courtside.zip && rm -rf /Applications/Courtside.app && ditto -xk /tmp/Courtside.zip /Applications && xattr -dr com.apple.quarantine /Applications/Courtside.app && open /Applications/Courtside.app
 ```
 
+It updates itself after that.
+
 ## Android TV and Google TV
 
-Works on Google TV and Android TV devices: Nvidia Shield, Chromecast with Google TV, Google TV Streamer, and TVs
-with Google TV or Android TV built in (Sony Bravia, TCL, Hisense and others). Courtside isn't in the Play Store, so
-it's installed once with the free **Downloader** app; after that it updates itself (the version button in its top
-bar turns into "Install update").
+Nvidia Shield, Chromecast with Google TV, Google TV Streamer, and TVs with Google TV or Android TV built in
+(Sony Bravia, TCL, Hisense and others). It updates itself after the first install.
 
-**1. Install Downloader** (by AFTVnews) from the Play Store.
+**1. Install the Downloader app** (by AFTVnews) from the Play Store.
 
-**2. Allow Downloader to install apps.** Which steps depends on the device:
+- **"Can't install… see common ways to fix the problem"** (often after a few percent):
+  - Unplug the TV for a minute (standby isn't a restart), then try again.
+  - Free up space: Settings › System › Storage. Uninstall unused apps, clear cached data.
+  - Settings › Apps › See all apps › **Google Play Store** and **Google Play services** › Force stop, Clear cache, Clear data.
+  - Check Settings › System › Date & time is set to automatic.
+  - Try over your phone's hotspot. If that works, a VPN or ad-blocking DNS on your network is blocking it.
+  - Or install from your phone: play.google.com › Downloader by AFTVnews › Install › pick the TV.
 
-- **Google TV** (Chromecast with Google TV, Google TV Streamer, Sony Bravia and other TVs with the "For you" tab):
-  developer mode has to be on first, or Unknown sources stays greyed out.
-  1. Settings › System › About (on a Chromecast: profile picture, top right › Settings › System › About). Highlight
-     **Android TV OS build** and press OK quickly about 7 times, until it says you're a developer.
-  2. Settings › Apps › Security & restrictions › Unknown sources › turn on **Downloader**
-     (on newer versions: Settings › Apps › Special app access › Install unknown apps › Downloader).
-- **Nvidia Shield and other Android TV devices:** Settings › Device Preferences › Security & restrictions ›
-  Unknown sources › turn on **Downloader** (on some versions it's under Settings › Apps). Developer mode isn't needed.
+**2. Allow Downloader to install apps.**
 
-**3. Install Courtside:** open Downloader, type `is.gd/courtsidetv`, choose **Install**, then **Open**.
-(The full link is `https://github.com/sunny9781/courtside/releases/download/android/Courtside.apk`.)
+- **Google TV** (Chromecast, Google TV Streamer, Sony and other TVs with a "For you" tab):
+  - Settings › System › About › highlight **Android TV OS build** › press OK about 7 times until it says
+    you're a developer. (Chromecast: Settings is under your profile picture, top right.)
+  - Settings › Apps › Security & restrictions › Unknown sources › turn on **Downloader**.
+- **Nvidia Shield and other Android TV:**
+  - Settings › Device Preferences › Security & restrictions › Unknown sources › turn on **Downloader**.
+- **Unknown sources is greyed out:** turn on developer mode first (the Google TV step above).
+- **Can't find Unknown sources:** Settings › Apps › Special app access › Install unknown apps › **Downloader**.
 
-Typing your Xtream login is easier with the keyboard in the Google TV app on your phone.
+**3. Install Courtside.**
 
-**If Downloader won't install** ("Can't install… see common ways to fix the problem", often after a few percent):
+- Open Downloader, type `is.gd/courtsidetv`, choose **Install**, then **Open**.
+- **"App not installed" or blocked:** Downloader isn't allowed yet. Go back to step 2.
+- **The short link doesn't work:** type
+  `https://github.com/sunny9781/courtside/releases/download/android/Courtside.apk` instead.
 
-- Unplug the TV for a minute (standby isn't a restart).
-- Free up space: Settings › System › Storage; uninstall unused apps and clear cached data.
-- Settings › Apps › See all apps › Google Play Store and Google Play services › Force stop, Clear cache, Clear data.
-- Make sure Settings › System › Date & time is automatic.
-- Try once over your phone's hotspot: if it works there, something on your network (a VPN or ad-blocking DNS) is
-  blocking Google's downloads.
-- Or install it from your phone: play.google.com › Downloader by AFTVnews › Install › pick the TV.
+**4. Sign in** with your Xtream details. The keyboard in the Google TV app on your phone makes typing easier.
+
+**Updates:** the version button at the top right turns into **Install update** when there's a new version.
