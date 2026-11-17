@@ -64,6 +64,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.56", date: "2026-11-17", time: "10:17", title: "Live Now in a grid", changes: [
+            Change(text: "Home › Live Now: the live games are in one grid of rows, like the TV apps, instead of a sideways-scrolling row per sport. Each card shows its league.", apps: mac)
+        ]),
         Release(version: "1.55", date: "2026-11-17", time: "00:51", title: "Fighting, channel sports, tidier panels", changes: [
             Change(text: "UFC is now Fighting, with boxing added: boxing shows and channels from the guide join UFC's schedule.", apps: everywhere),
             Change(text: "Home's sports are grouped, with a line between each group: sports with live scores, then sports shown as channels (like pickleball), then sports with nothing today.", apps: android),
