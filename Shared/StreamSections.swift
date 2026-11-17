@@ -35,7 +35,7 @@ enum StreamSections {
         case "bundesliga": return ["Germany"]
         case "ligue1", "top14": return ["France"]
         case "afl": return ["Australia"]
-        case "atp", "wta", "cricket", "pickleball": return []
+        case "atp", "wta", "cricket", "pickleball", "boxing": return []
         default: return ["USA"]
         }
     }

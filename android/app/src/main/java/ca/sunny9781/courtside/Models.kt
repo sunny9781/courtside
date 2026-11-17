@@ -34,7 +34,7 @@ enum class Sport(val title: String, val icon: ImageVector) {
     HOCKEY("Hockey", Icons.Filled.SportsHockey),
     SOCCER("Soccer", Icons.Filled.SportsSoccer),
     BASEBALL("Baseball", Icons.Filled.SportsBaseball),
-    FIGHTING("UFC", Icons.Filled.SportsMma),
+    FIGHTING("Fighting", Icons.Filled.SportsMma),
     TENNIS("Tennis", Icons.Filled.SportsTennis),
     MOTORSPORT("Motorsport", Icons.Filled.SportsMotorsports),
     GOLF("Golf", Icons.Filled.GolfCourse),
@@ -77,6 +77,8 @@ data class League(
             League("bundesliga", "Bundesliga", Sport.SOCCER, "soccer/ger.1", setOf("bundesliga")),
             League("ligue1", "Ligue 1", Sport.SOCCER, "soccer/fra.1", setOf("ligue")),
             League("ufc", "UFC", Sport.FIGHTING, "mma/ufc", setOf("ufc"), isEvent = true),
+            // No free boxing schedule: its events and channels come from the TV guide, like pickleball.
+            League("boxing", "Boxing", Sport.FIGHTING, "", setOf("boxing"), isEvent = true),
             League("atp", "ATP", Sport.TENNIS, "tennis/atp", setOf("atp", "tennis"), isEvent = true),
             League("wta", "WTA", Sport.TENNIS, "tennis/wta", setOf("wta", "tennis"), isEvent = true),
             League("f1", "Formula 1", Sport.MOTORSPORT, "racing/f1", setOf("f1", "formula"), isEvent = true),

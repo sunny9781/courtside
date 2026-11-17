@@ -115,6 +115,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** Home's lists, worked out once when the games, streams or sport settings change (not on every redraw). */
     class HomeIndex(
         val sports: List<Sport>,
+        /** Sports with games from a live-score feed today. */
+        val scoreSports: List<Sport>,
+        /** Sports with no scores today but channels or shows in the guide (pickleball). */
+        val channelSports: List<Sport>,
+        /** Sports with nothing today. */
+        val emptySports: List<Sport>,
         val bySport: Map<Sport, List<Game>>,
         val byLeague: Map<String, List<Game>>,
         val main: Map<String, List<StreamMatch>>
@@ -141,7 +147,10 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             val all = m[g.id] ?: emptyList()
             g.id to all.filter { !it.hidden }.ifEmpty { all }
         }
-        HomeIndex(Sport.entries.filter { it !in hidden }.sortedBy { rank(it) }, bySport, byLeague, main)
+        val ordered = Sport.entries.filter { it !in hidden }.sortedBy { rank(it) }
+        val scored = ordered.filter { s -> bySport[s].orEmpty().any { !it.id.startsWith("guide-") } }
+        val channelOnly = ordered.filter { s -> s !in scored && bySport[s].orEmpty().isNotEmpty() }
+        HomeIndex(ordered, scored, channelOnly, ordered.filter { it !in scored && it !in channelOnly }, bySport, byLeague, main)
     }
 
     /** Signature of the schedule (games and their states), so an unchanged minute doesn't rematch everything. */

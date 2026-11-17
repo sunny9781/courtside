@@ -64,7 +64,7 @@ object Theme {
     /** Width of the player's video at the top (the left column on Home matches it). */
     val playerWidth = 240.dp
     /** Height the player in the top-right corner takes; pages leave this much room above their right-hand part. */
-    val stripHeight = playerWidth * 9 / 16 + 10.dp
+    val stripHeight = playerWidth * 9 / 16 + margin * 2
 }
 
 /**
