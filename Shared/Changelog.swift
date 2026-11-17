@@ -64,6 +64,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.41", date: "2026-11-16", time: "20:56", title: "Edit your account", changes: [
+            Change(text: "Settings › Account › Edit account: change the server, username or password. The new details are checked before they're saved; a different account starts fresh with its own channels.", apps: everywhere),
+            Change(text: "The connection count is checked again a few seconds after a stream starts or stops, and each time you open Settings › Account.", apps: android),
+            Change(text: "New versions are checked for every 30 minutes while the app is open, so \"Install update\" appears on its own.", apps: android)
+        ]),
         Release(version: "1.40", date: "2026-11-16", time: "20:38", title: "Pickleball channels, version button", changes: [
             Change(text: "Pickleball: everything on a pickleball channel in the next six hours shows as an event (not only shows with \"pickleball\" in the title), and the pickleball channels themselves follow after the events.", apps: everywhere),
             Change(text: "Top right: the version is now the button. Click it to check for a new version; when there is one it becomes the update button. Channels refresh on their own, or from Settings › General › Refresh now.", apps: [.mac, .tv, .android]),

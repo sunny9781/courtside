@@ -15,6 +15,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.hiddenLeagues) private var hiddenLeagues = ""
     @State private var section: SettingsSection = .account
     @State private var openSport: Sport?
+    @State private var editingAccount = false
 
     enum SettingsSection: String, CaseIterable, Identifiable {
         case account = "Account"
@@ -66,6 +67,11 @@ struct SettingsView: View {
             }
             .frame(maxWidth: .infinity)
         }
+        .sheet(isPresented: $editingAccount) {
+            LoginView(editing: model.credentials) { editingAccount = false }
+                .environmentObject(model)
+                .frame(width: 560, height: 420)
+        }
     }
 
     @ViewBuilder
@@ -79,6 +85,8 @@ struct SettingsView: View {
                 row("Expires", model.account?.expires?.formatted(date: .long, time: .omitted) ?? "No expiry date")
                 row("Connections", connections)
                 HStack {
+                    Button("Edit account") { editingAccount = true }
+                        .buttonStyle(GhostButtonStyle())
                     Spacer()
                     Button("Sign out") { model.signOut() }
                         .buttonStyle(GhostButtonStyle(tint: Theme.danger))

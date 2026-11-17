@@ -124,6 +124,25 @@ final class AppModel: ObservableObject {
         return nil
     }
 
+    /// Settings › Account › Edit account. The new details are checked first (nothing changes if they don't work);
+    /// a different server or username starts fresh with that account's channels.
+    func updateAccount(server: String, username: String, password: String) async -> String? {
+        let creds = XtreamCredentials(server: server, username: username, password: password)
+        let fresh: AccountInfo
+        do {
+            fresh = try await XtreamClient(creds: creds).login()
+        } catch {
+            return error.localizedDescription
+        }
+        let sameAccount = creds.server == credentials?.server && creds.username == credentials?.username
+        if !sameAccount { signOut() }
+        CredentialStore.save(creds)
+        credentials = creds
+        account = fresh
+        if !sameAccount { await refresh(force: true) }
+        return nil
+    }
+
     func signOut() {
         scoreTask?.cancel()
         guideTask?.cancel()
