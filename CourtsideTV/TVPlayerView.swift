@@ -153,10 +153,8 @@ struct TVPlayerView: View {
         }
     }
 
-    private func showFlipLabel() {
-        guard item.lineup.count > 1 else { return }
-        flipMessage("\(position) of \(item.lineup.count) · \(item.channel.name)", seconds: 2)
-    }
+    /// Flipping by hand: the channel shows in the info bar along the bottom, not at the top as well.
+    private func showFlipLabel() {}
 
     private func flipMessage(_ text: String, seconds: Double = 4) {
         withAnimation(.easeOut(duration: 0.15)) { flipLabel = text }
@@ -175,12 +173,8 @@ struct TVPlayerView: View {
         // Only before the first picture: "buffering" flickers on while streams play fine, so it isn't shown.
         case .opening where controller.resolution.isEmpty, .buffering where controller.resolution.isEmpty,
              .idle where controller.resolution.isEmpty:
-            VStack(spacing: 20) {
-                ProgressView()
-                Text("Opening \(item.channel.name)…")
-                    .font(.system(size: 28))
-                    .foregroundStyle(Theme.soft)
-            }
+            // No "Opening…" message, just the spinner until the picture comes.
+            ProgressView()
         case .failed(let why):
             VStack(spacing: 20) {
                 Image(systemName: "exclamationmark.triangle.fill")

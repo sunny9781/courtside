@@ -74,6 +74,16 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.62", date: "2026-11-17", time: "14:01", title: "Apple TV catches up", changes: [
+            Change(text: "Home: every sport is a list like the EPG, one line per game (status, the teams and scores, the number of streams), under a heading per league. Upcoming games are grey, so live games stand out in white.", apps: [.tv, .android]),
+            Change(text: "What's playing is on one line along the very bottom of the screen, under the player, on every page. Pages scroll under it.", apps: [.tv, .android]),
+            Change(text: "Hold the select button on a sport on Home, or a category or channel in the EPG, to favourite or hide it. A hidden sport is switched off: no scores fetched and nothing matched for it. Settings › Hidden lists everything hidden to show it again, and replaces Settings › Sports.", apps: tv),
+            Change(text: "Hidden sports and leagues are switched off: their scores aren't fetched and nothing is matched for them. Showing one again fetches it straight away.", apps: [.mac, .ios]),
+            Change(text: "Full screen: no \"Opening…\" message, and flipping shows the channel only in the bar at the bottom.", apps: tv),
+            Change(text: "Coming up from the games on Home lands on the selected league chip (All, or the league).", apps: [.tv, .android]),
+            Change(text: "The update button checks and installs in one press.", apps: android),
+            Change(text: "Holding the select button opens its menu and leaves it open when you let go, so you can choose.", apps: android)
+        ], titleApps: [.tv]),
         Release(version: "1.61", date: "2026-11-17", time: "13:12", title: "Home as a guide, now-playing bar", changes: [
             Change(text: "Home: every sport is a list like the EPG (status, the teams and scores, and the number of streams), with a heading per league, instead of score cards.", apps: android),
             Change(text: "What's playing is in a bar along the bottom beside the player, across to the right edge, on every page. Pages scroll under it, and the row you're on always stays above it.", apps: android),
