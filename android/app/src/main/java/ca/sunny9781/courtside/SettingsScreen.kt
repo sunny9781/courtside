@@ -192,7 +192,7 @@ private fun Changelog(model: AppModel) {
             Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(if (open) Icons.Filled.ExpandMore else Icons.Filled.ChevronRight, null, tint = color, modifier = Modifier.size(14.dp))
-                    Label(r.title, size = 13.sp, weight = FontWeight.SemiBold, color = color, modifier = Modifier.weight(1f))
+                    Label(r.title.ifEmpty { if (r.changes.size == 1) "1 change" else "${r.changes.size} changes" }, size = 13.sp, weight = FontWeight.SemiBold, color = color, modifier = Modifier.weight(1f))
                     Label(if (i == 0) "Latest · ${r.label}" else r.label, size = 10.sp, color = color.copy(alpha = 0.6f))
                 }
                 if (open) for (c in r.changes) {

@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
@@ -71,6 +72,9 @@ object Theme {
  * Anything you can move to with the remote and click: it grows a little and turns white when it has focus,
  * like the Apple TV app. `content` gets whether it's focused, to switch its text to dark.
  */
+private val SELECT_KEYS = setOf(android.view.KeyEvent.KEYCODE_DPAD_CENTER, android.view.KeyEvent.KEYCODE_ENTER,
+    android.view.KeyEvent.KEYCODE_NUMPAD_ENTER, android.view.KeyEvent.KEYCODE_BUTTON_A)
+
 @Composable
 fun TvButton(
     onClick: () -> Unit,
@@ -80,14 +84,30 @@ fun TvButton(
     focusedScale: Float = 1.04f,
     onFocus: (() -> Unit)? = null,
     background: Color = Color.Transparent,
+    /** Holding the select button down (instead of clicking). */
+    onLongClick: (() -> Unit)? = null,
     content: @Composable BoxScope.(focused: Boolean) -> Unit
 ) {
     var focused by remember { mutableStateOf(false) }
+    var held by remember { mutableStateOf(false) }
     Box(
         modifier
             .onFocusChanged {
                 focused = it.isFocused
                 if (it.isFocused) onFocus?.invoke()
+            }
+            .onPreviewKeyEvent { e ->
+                val k = e.nativeKeyEvent
+                if (onLongClick == null || k.keyCode !in SELECT_KEYS) return@onPreviewKeyEvent false
+                when (k.action) {
+                    // The remote repeats the key while it's held: that's a long press (once), and no click after.
+                    android.view.KeyEvent.ACTION_DOWN -> if (k.repeatCount > 0) {
+                        if (!held) { held = true; onLongClick() }
+                        true
+                    } else false
+                    android.view.KeyEvent.ACTION_UP -> if (held) { held = false; true } else false
+                    else -> false
+                }
             }
             .scale(if (focused && !Perf.lite) focusedScale else 1f)
             .clip(shape)

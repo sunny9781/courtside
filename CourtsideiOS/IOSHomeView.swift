@@ -260,7 +260,7 @@ struct IOSGamesList: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) { content() }
                 .padding(.horizontal)
-                .frame(minWidth: barWidth, alignment: .trailing)
+                .frame(minWidth: barWidth, alignment: .center)
         }
         .defaultScrollAnchor(.trailing)
     }

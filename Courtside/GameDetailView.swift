@@ -104,7 +104,7 @@ struct GameDetailView: View {
         }
         .onAppear {
             // Opening a game plays its first stream in the pinned player, unless one of its streams already is.
-            if previewChannel == nil, let first = streams.firstToPlay { preview(first.channel) }
+            if previewChannel == nil, let first = streams.firstToPlay(model.measuredQuality) { preview(first.channel) }
         }
     }
 

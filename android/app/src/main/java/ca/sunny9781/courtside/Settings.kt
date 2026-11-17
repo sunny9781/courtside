@@ -50,13 +50,13 @@ class Settings(context: Context) {
     var lite by Flag("lite", !android.os.Build.MANUFACTURER.equals("NVIDIA", ignoreCase = true))
     var bufferMs by Number("bufferMs", 2000)
     /** Opening the app reuses the saved channels and guide until they're this old. */
-    var refreshHours by Number("refreshHours", 12)
+    var refreshHours by Number("refreshHours", 6)
 
     init {
-        // The refresh default went from 6 to 12 hours: move anyone still on the old default over, once.
-        if (!p.getBoolean("refreshHours12", false)) {
-            if (p.getInt("refreshHours", 12) == 6) refreshHours = 12
-            p.edit().putBoolean("refreshHours12", true).apply()
+        // The refresh default went back to 6 hours: move anyone on the 12-hour default over, once.
+        if (!p.getBoolean("refreshHours6", false)) {
+            if (p.getInt("refreshHours", 6) == 12) refreshHours = 6
+            p.edit().putBoolean("refreshHours6", true).apply()
         }
     }
     /** Open streams as HLS first (what the iPhone app uses), with TS as the fallback; off is the other way round. */
@@ -69,6 +69,9 @@ class Settings(context: Context) {
     var hiddenSports by Words("hiddenSports")
     var hiddenLeagues by Words("hiddenLeagues")
     var favoriteSports by Words("favoriteSports")
+    /** EPG favourites, in the order added: channel ids (comma-separated) and category or group ids (one per line). */
+    var favoriteChannels by Words("favoriteChannels")
+    var favoriteCategories by Words("favoriteCategories")
 
     val hiddenSportSet: Set<Sport> get() = sports(hiddenSports)
     val favoriteSet: Set<Sport> get() = sports(favoriteSports)

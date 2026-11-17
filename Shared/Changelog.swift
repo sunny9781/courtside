@@ -31,6 +31,12 @@ enum Changelog {
         let changes: [Change]
         var id: String { version }
 
+        /// The title, or "2 changes" when the release's title was about other apps.
+        var heading: String {
+            if !title.isEmpty { return title }
+            return changes.count == 1 ? "1 change" : "\(changes.count) changes"
+        }
+
         /// "v1.16 · Sun, Nov 15 · 12:35 PM"
         var dateLabel: String {
             let parse = DateFormatter()
@@ -59,11 +65,26 @@ enum Changelog {
         let app = App.current
         return releases.compactMap { r in
             let mine = r.changes.filter { $0.apps.contains(app) }
-            return mine.isEmpty ? nil : Release(version: r.version, date: r.date, time: r.time, title: r.title, changes: mine)
+            // A release that also changed other apps: its title may be about them, so it isn't shown here.
+            let title = mine.count == r.changes.count ? r.title : ""
+            return mine.isEmpty ? nil : Release(version: r.version, date: r.date, time: r.time, title: title, changes: mine)
         }
     }
 
     static let releases: [Release] = [
+        Release(version: "1.58", date: "2026-11-17", time: "11:00", title: "EPG favourites", changes: [
+            Change(text: "EPG favourites: hover a category or channel and click its heart (or right-click it). Favourite channels get their own Favourites list at the top, favourite categories are listed first, and favourite channels come first in their category.", apps: mac),
+            Change(text: "EPG favourites: hold the select button on a category or channel and choose Add to Favourites. Favourite channels get their own Favourites list at the top, favourite categories are listed first, and favourite channels come first in their category.", apps: [.tv, .android]),
+            Change(text: "EPG favourites: tap the heart on a category or channel. Your favourites sit along the bottom above the filter (categories, a line, then channels), and favourites come first in every list.", apps: ios),
+            Change(text: "EPG: swipe from the left edge to go back, like other iPhone apps; the back button is at the top.", apps: ios),
+            Change(text: "Switching streams closes the old one first and waits a moment before opening the next, so it never uses a second connection. Flipping quickly through channels only opens the one you stop on.", apps: [.mac, .tv, .ios, .android]),
+            Change(text: "A game screen starts with a stream that isn't 4K, now also when the 4K only shows in the category name or the picture it played before.", apps: [.mac, .tv, .ios, .android]),
+            Change(text: "Channels and the guide are downloaded fresh every 6 hours by default (was 12).", apps: [.mac, .tv, .ios, .android]),
+            Change(text: "What's new only lists the changes for this app.", apps: [.mac, .tv, .ios, .android]),
+            Change(text: "The bar of icons along the bottom of Home and Settings is centred.", apps: ios),
+            Change(text: "Game screen: \"Local stations and likely channels\" no longer repeats its name inside when opened.", apps: ios),
+            Change(text: "Updating: if the first install doesn't take (common on Chromecast), the app tries again by itself, and frees memory before the installer opens.", apps: android)
+        ]),
         Release(version: "1.57", date: "2026-11-17", time: "10:35", title: "Apple TV matches Android TV", changes: [
             Change(text: "The player is in the bottom-left corner on every tab, just the video, with each tab's left panel on top of it and the page to its right from the top.", apps: tv),
             Change(text: "Home: sports are grouped with lines between them (live scores, channel sports like pickleball, nothing today); a channel sport shows its channels as an EPG list.", apps: tv),

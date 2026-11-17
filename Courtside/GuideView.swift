@@ -26,6 +26,8 @@ struct GuideView: View {
 
     static let allID = "__all"
     static let recentID = "__recent"
+    /// Your favourite channels from every category, at the top of the list.
+    static let favoritesID = "__fav"
 
     private let slotWidth: CGFloat = 200   // width of 30 minutes
     private let rowHeight: CGFloat = 56
@@ -109,7 +111,9 @@ struct GuideView: View {
 
     private func visibleNodes(_ nodes: [CategoryGrouping.Node], depth: Int = 0, parent: String = "") -> [VisibleNode] {
         var out: [VisibleNode] = []
-        for node in nodes {
+        // At the top, favourites are listed above the tree; inside a group they come first.
+        let ordered = depth == 0 ? nodes.filter { !model.isFavorite(category: $0.id) } : model.favoritesFirst(nodes)
+        for node in ordered {
             out.append(VisibleNode(node: node, depth: depth, parent: parent))
             if node.isGroup && expanded.contains(node.id) {
                 out += visibleNodes(node.children, depth: depth + 1, parent: node.id)
@@ -129,6 +133,7 @@ struct GuideView: View {
         switch categoryID {
         case Self.allID: return "All channels"
         case Self.recentID: return "Recently watched"
+        case Self.favoritesID: return "Favourites"
         default:
             if let node = CategoryGrouping.find(categoryID, in: model.categoryTree), node.isGroup {
                 return node.id.dropFirst(CategoryGrouping.nodePrefix.count).replacingOccurrences(of: "/", with: " › ")
@@ -139,7 +144,7 @@ struct GuideView: View {
 
     private func pickDefaultCategory() {
         guard !model.categories.isEmpty else { return }
-        let known = model.categories.contains { $0.id == categoryID }
+        let known = categoryID == Self.favoritesID || model.categories.contains { $0.id == categoryID }
             || CategoryGrouping.find(categoryID, in: model.categoryTree) != nil
         if !known {
             if grouped, let sports = model.categoryTree.first(where: { $0.name == CategoryGrouping.sportsGroup }) {
@@ -180,12 +185,17 @@ struct GuideView: View {
                 LazyVStack(alignment: .leading, spacing: 2) {
                     if searching {
                         searchResults
-                    } else if grouped {
+                    } else {
+                        favoriteRows
+                    }
+                    if !searching && grouped {
                         ForEach(visibleNodes(model.categoryTree)) { item in
                             let node = item.node
                             if node.isGroup {
                                 CategoryRow(name: node.name, count: channelCount(node.categories),
                                             selected: categoryID == node.id, depth: item.depth,
+                                            favorite: model.isFavorite(category: node.id),
+                                            onFavorite: { model.toggleFavorite(category: node.id) },
                                             expanded: expanded.contains(node.id),
                                             onToggle: {
                                                 if expanded.contains(node.id) { expanded.remove(node.id) } else { expanded.insert(node.id) }
@@ -193,13 +203,17 @@ struct GuideView: View {
                             } else {
                                 CategoryRow(name: node.name, count: channelCount(node.categories),
                                             selected: categoryID == node.id, depth: item.depth,
+                                            favorite: model.isFavorite(category: node.id),
+                                            onFavorite: { model.toggleFavorite(category: node.id) },
                                             alignWithArrows: true) { choose(node.id) }
                             }
                         }
-                    } else {
-                        ForEach(model.categories.sorted { CategoryGrouping.sortsBefore($0.name, $1.name) }) { cat in
+                    } else if !searching {
+                        ForEach(model.categories.filter { !model.isFavorite(category: $0.id) }
+                            .sorted { CategoryGrouping.sortsBefore($0.name, $1.name) }) { cat in
                             CategoryRow(name: cat.name, count: model.channelsByCategory[cat.id]?.count ?? 0,
-                                        selected: categoryID == cat.id) { choose(cat.id) }
+                                        selected: categoryID == cat.id,
+                                        favorite: false, onFavorite: { model.toggleFavorite(category: cat.id) }) { choose(cat.id) }
                         }
                     }
                 }
@@ -211,6 +225,23 @@ struct GuideView: View {
         .frame(width: categoryWidth)
         .frame(maxHeight: .infinity)
         .background(Color(hex: 0x11151B))
+    }
+
+    /// Favourites at the top of the list: your favourite channels, then favourite categories and groups, then a line.
+    @ViewBuilder
+    private var favoriteRows: some View {
+        let nodes = model.favoriteCategoryNodes
+        if !model.favoriteChannels.isEmpty {
+            CategoryRow(name: "Favourites", count: model.favoriteChannelList.count,
+                        selected: categoryID == Self.favoritesID, symbol: "heart.fill") { choose(Self.favoritesID) }
+        }
+        ForEach(nodes) { node in
+            CategoryRow(name: node.name, count: channelCount(node.categories), selected: categoryID == node.id,
+                        favorite: true, onFavorite: { model.toggleFavorite(category: node.id) }) { choose(node.id) }
+        }
+        if !nodes.isEmpty || !model.favoriteChannels.isEmpty {
+            Divider().overlay(Theme.raised).padding(.vertical, 6)
+        }
     }
 
     private func isOpen(_ hit: EPGSearch.Hit) -> Bool {
@@ -271,11 +302,13 @@ struct GuideView: View {
             base = model.channels
         case Self.recentID:
             base = model.recentChannels
+        case Self.favoritesID:
+            base = model.favoriteChannelList
         default:
             if let node = CategoryGrouping.find(categoryID, in: model.categoryTree), node.isGroup {
-                base = node.categories.flatMap { model.channelsByCategory[$0.id] ?? [] }
+                base = model.favoritesFirst(node.categories.flatMap { model.channelsByCategory[$0.id] ?? [] })
             } else {
-                base = model.channelsByCategory[categoryID] ?? []
+                base = model.favoritesFirst(model.channelsByCategory[categoryID] ?? [])
             }
         }
         let query = channelSearch.trimmingCharacters(in: .whitespaces).lowercased()
@@ -502,7 +535,9 @@ struct GuideView: View {
         let progs = (model.guide[channel.epgID] ?? []).filter { $0.end > windowStart && $0.start < windowEnd }
 
         return HStack(spacing: 8) {
-            ChannelCell(channel: channel, selected: selected, width: column, height: rowHeight)
+            ChannelCell(channel: channel, selected: selected, width: column, height: rowHeight,
+                        favorite: model.isFavorite(channel: channel.id),
+                        onFavorite: { model.toggleFavorite(channel: channel.id) })
                 .onTapGesture(count: 2) { watch(channel, list) }
                 .onTapGesture { select(channel) }
 
@@ -555,6 +590,11 @@ struct CategoryRow: View {
     let count: Int
     let selected: Bool
     var depth = 0
+    /// A heart to add it to favourites (or take it off): shown on hover, and always when it's a favourite.
+    var favorite: Bool? = nil
+    var onFavorite: (() -> Void)? = nil
+    /// An icon before the name (the Favourites row).
+    var symbol: String? = nil
     /// In the grouped list, rows without an arrow keep its space so names at the same level line up.
     var alignWithArrows = false
     var expanded: Bool? = nil
@@ -583,6 +623,9 @@ struct CategoryRow: View {
 
             Button(action: action) {
                 HStack(spacing: 8) {
+                    if let symbol {
+                        Image(systemName: symbol).foregroundStyle(selected ? Theme.bg : Theme.accent)
+                    }
                     Text(name)
                         .lineLimit(1)
                     Spacer(minLength: 4)
@@ -591,11 +634,30 @@ struct CategoryRow: View {
                         .opacity(0.7)
                 }
                 .padding(.leading, onToggle == nil && !alignWithArrows ? 12 : 2)
-                .padding(.trailing, 12)
+                .padding(.trailing, onFavorite == nil ? 12 : 4)
                 .frame(height: 40)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            if let onFavorite {
+                let on = favorite == true
+                Button(action: onFavorite) {
+                    Image(systemName: on ? "heart.fill" : "heart")
+                        .font(.system(size: 11))
+                        .foregroundStyle(on ? (selected ? Theme.bg : Theme.accent) : Theme.muted)
+                        .frame(width: 24, height: 40)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .opacity(on || hovering ? 1 : 0)
+                .padding(.trailing, 4)
+                .help(on ? "Remove from favourites" : "Add to favourites")
+            }
+        }
+        .contextMenu {
+            if let onFavorite {
+                Button(favorite == true ? "Remove from Favourites" : "Add to Favourites", action: onFavorite)
+            }
         }
         .font(.system(size: 13, weight: selected ? .semibold : .medium))
         .foregroundStyle(selected ? Theme.bg : (depth > 0 ? Theme.muted : Theme.soft))
@@ -611,6 +673,9 @@ struct ChannelCell: View {
     let selected: Bool
     let width: CGFloat
     let height: CGFloat
+    var favorite = false
+    var onFavorite: (() -> Void)? = nil
+    @State private var hovering = false
 
     var body: some View {
         HStack(spacing: 10) {
@@ -637,11 +702,29 @@ struct ChannelCell: View {
                 .lineLimit(1)
 
             Spacer(minLength: 0)
+            if let onFavorite {
+                Button(action: onFavorite) {
+                    Image(systemName: favorite ? "heart.fill" : "heart")
+                        .font(.system(size: 12))
+                        .foregroundStyle(favorite ? Theme.accent : Theme.muted)
+                        .frame(width: 24, height: height)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .opacity(favorite || hovering ? 1 : 0)
+                .help(favorite ? "Remove from favourites" : "Add to favourites")
+            }
         }
         .padding(.horizontal, 6)
         .frame(width: width, height: height, alignment: .leading)
         .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Theme.card : Color.clear))
         .contentShape(Rectangle())
+        .onHover { hovering = $0 }
+        .contextMenu {
+            if let onFavorite {
+                Button(favorite ? "Remove from Favourites" : "Add to Favourites", action: onFavorite)
+            }
+        }
         .help(channel.name)
     }
 }

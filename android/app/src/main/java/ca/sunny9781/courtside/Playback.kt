@@ -142,20 +142,35 @@ object Playback {
         }
     }
 
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var pendingOpen: Runnable? = null
+
     private fun open(url: String) {
         status = Status.OPENING
         firstFrame = false
         openedAt = System.currentTimeMillis()
         attempt++
-        // Close the old stream's connection first, so the provider sees one stream, not two, while switching.
+        // One connection at a time: close the old stream first and give the provider a moment to see it gone
+        // before opening the next, so switching (or flipping quickly through channels) never counts as two.
+        // Flipping fast only opens the channel you stop on.
+        pendingOpen?.let { mainHandler.removeCallbacks(it) }
+        val hadStream = player.mediaItemCount > 0
         player.stop()
         player.clearMediaItems()
-        player.setMediaSource(source(url))
-        player.prepare()
-        player.playWhenReady = true
+        val run = Runnable {
+            pendingOpen = null
+            openedAt = System.currentTimeMillis()
+            player.setMediaSource(source(url))
+            player.prepare()
+            player.playWhenReady = true
+        }
+        pendingOpen = run
+        if (hadStream) mainHandler.postDelayed(run, 400) else run.run()
     }
 
     fun stop() {
+        pendingOpen?.let { mainHandler.removeCallbacks(it) }
+        pendingOpen = null
         player.stop()
         player.clearMediaItems()
         currentUrl = null

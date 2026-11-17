@@ -18,7 +18,7 @@ struct WhatsNewList: View {
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(Theme.muted)
                             .rotationEffect(.degrees(open.contains(release.id) ? 90 : 0))
-                        Text(release.title)
+                        Text(release.heading)
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Theme.text)
                         if index == 0 {

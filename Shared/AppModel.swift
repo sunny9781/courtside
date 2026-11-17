@@ -57,6 +57,12 @@ final class AppModel: ObservableObject {
     @Published var measuredQuality: [Int: String] = [:]
     /// Frame rates seen while playing, by channel id ("60 fps" on stream lists once a stream has been watched).
     @Published var measuredFrameRate: [Int: Double] = [:]
+    /// EPG favourites, in the order they were added: channels by id, categories by id (a provider category, or a
+    /// "__node:" group). Favourites are listed first.
+    @Published private(set) var favoriteChannels: [Int] =
+        (UserDefaults.standard.string(forKey: Prefs.favoriteChannels) ?? "").split(separator: ",").compactMap { Int($0) }
+    @Published private(set) var favoriteCategories: [String] =
+        (UserDefaults.standard.string(forKey: Prefs.favoriteCategories) ?? "").split(separator: "\n").map(String.init)
 
     private var indexed: [Matcher.IndexedChannel] = []
     private var scoreTask: Task<Void, Never>?
@@ -92,6 +98,44 @@ final class AppModel: ObservableObject {
         guide = d.guide
         savedAt = Date()
         lastRefresh = Date()
+    }
+
+    // MARK: Favourites
+
+    func isFavorite(channel id: Int) -> Bool { favoriteChannels.contains(id) }
+    func isFavorite(category id: String) -> Bool { favoriteCategories.contains(id) }
+
+    func toggleFavorite(channel id: Int) {
+        if let i = favoriteChannels.firstIndex(of: id) { favoriteChannels.remove(at: i) } else { favoriteChannels.append(id) }
+        UserDefaults.standard.set(favoriteChannels.map(String.init).joined(separator: ","), forKey: Prefs.favoriteChannels)
+    }
+
+    func toggleFavorite(category id: String) {
+        if let i = favoriteCategories.firstIndex(of: id) { favoriteCategories.remove(at: i) } else { favoriteCategories.append(id) }
+        UserDefaults.standard.set(favoriteCategories.joined(separator: "\n"), forKey: Prefs.favoriteCategories)
+    }
+
+    /// Favourite channels that still exist, in the order added.
+    var favoriteChannelList: [Channel] { favoriteChannels.compactMap { channelByID[$0] } }
+
+    /// Favourite categories and groups that still exist, in the order added.
+    var favoriteCategoryNodes: [CategoryGrouping.Node] {
+        favoriteCategories.compactMap { id in
+            if let node = CategoryGrouping.find(id, in: categoryTree) { return node }
+            return categories.first { $0.id == id }.map { CategoryGrouping.Node(id: $0.id, name: $0.name, children: [], categories: [$0]) }
+        }
+    }
+
+    /// The same channels with favourites first (otherwise in their order).
+    func favoritesFirst(_ channels: [Channel]) -> [Channel] {
+        guard !favoriteChannels.isEmpty else { return channels }
+        return channels.filter { isFavorite(channel: $0.id) } + channels.filter { !isFavorite(channel: $0.id) }
+    }
+
+    /// The same categories or groups with favourites first.
+    func favoritesFirst(_ nodes: [CategoryGrouping.Node]) -> [CategoryGrouping.Node] {
+        guard !favoriteCategories.isEmpty else { return nodes }
+        return nodes.filter { isFavorite(category: $0.id) } + nodes.filter { !isFavorite(category: $0.id) }
     }
 
     func recordFrameRate(_ channelID: Int, _ fps: Double) {

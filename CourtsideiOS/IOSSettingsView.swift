@@ -11,7 +11,7 @@ struct IOSSettingsView: View {
     @AppStorage(Prefs.hiddenLeagues) private var hiddenLeagues = ""
     @AppStorage(Prefs.favoriteSports) private var favoriteSports = ""
     @AppStorage(Prefs.sportOrder) private var sportOrderPref = ""
-    @AppStorage(Prefs.refreshHours) private var refreshHours = 12
+    @AppStorage(Prefs.refreshHours) private var refreshHours = 6
     @AppStorage(Prefs.hideAdult) private var hideAdult = true
     @AppStorage(Prefs.guideGrouped) private var grouped = true
     /// Updates open in What's new: only the newest to start with.
@@ -151,7 +151,7 @@ struct IOSSettingsView: View {
                             }
                         } label: {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(release.title).font(.subheadline.weight(.semibold))
+                                Text(release.heading).font(.subheadline.weight(.semibold))
                                 Text(index == 0 ? "Latest · \(release.dateLabel)" : release.dateLabel)
                                     .font(.caption).foregroundStyle(Theme.muted)
                             }
@@ -172,7 +172,7 @@ struct IOSSettingsView: View {
         }
     }
 
-    /// The sections as chips along the bottom, starting from the right edge (nearest the thumb).
+    /// The sections as chips along the bottom, centred (they scroll from the right edge if they ever overflow).
     private var sectionBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -189,7 +189,7 @@ struct IOSSettingsView: View {
                 }
             }
             .padding(.horizontal)
-            .frame(minWidth: barWidth, alignment: .trailing)
+            .frame(minWidth: barWidth, alignment: .center)
         }
         .defaultScrollAnchor(.trailing)
         .padding(.vertical, 8)

@@ -23,6 +23,8 @@ enum Prefs {
     static let showForeignStreams = "showForeignStreams" // game screens: list foreign-language streams too
     static let pinnedCollapsed = "pinnedCollapsed"     // pinned player showing just its buttons (sound keeps playing)
     static let autoSwitch = "autoSwitch"         // switch to the next stream when one stalls
+    static let favoriteChannels = "favoriteChannels"     // EPG: channel ids, comma-separated, in the order added
+    static let favoriteCategories = "favoriteCategories" // EPG: category or group ids, newline-separated, in order
     static let refreshHours = "refreshHours"     // how long saved channels and guide are reused
     static let guideGrouped = "guideGroupedOn"   // renamed so grouping starts switched on
 
@@ -36,7 +38,7 @@ enum Prefs {
             guideCategory: "",
             sportOrder: "",
             guidePreview: true,
-            refreshHours: 12,
+            refreshHours: 6,
             autoSwitch: true,
             matchFrameRate: true,
             hideAdult: true,
@@ -52,10 +54,10 @@ enum Prefs {
             }
             d.set(true, forKey: "fightingRenamed")
         }
-        // The refresh default went from 6 to 12 hours: move anyone still on the old default over, once.
-        if !d.bool(forKey: "refreshHours12") {
-            if d.object(forKey: refreshHours) as? Int == 6 { d.set(12, forKey: refreshHours) }
-            d.set(true, forKey: "refreshHours12")
+        // The refresh default went back to 6 hours: move anyone on the 12-hour default over, once.
+        if !d.bool(forKey: "refreshHours6") {
+            if d.object(forKey: refreshHours) as? Int == 12 { d.set(6, forKey: refreshHours) }
+            d.set(true, forKey: "refreshHours6")
         }
     }
 }

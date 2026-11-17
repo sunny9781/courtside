@@ -83,8 +83,9 @@ func sortedGames(_ games: [Game]) -> [Game] {
 
 extension Array where Element == StreamMatch {
     /// The stream a game screen starts with: the first one that isn't 4K (those are often a different picture or
-    /// hard on the connection), or the first if they're all 4K.
-    var firstToPlay: StreamMatch? {
-        first { !$0.is4K && $0.quality != "4K" } ?? first
+    /// hard on the connection), or the first if they're all 4K. 4K here means any sign of it: the channel's name,
+    /// its category, its quality label, or the resolution seen when it last played.
+    func firstToPlay(_ measured: [Int: String]) -> StreamMatch? {
+        first { !$0.looksUHD(measured) } ?? first
     }
 }

@@ -84,7 +84,7 @@ struct IOSGameView: View {
                     if !listing.extras.isEmpty {
                         groupHeader("Local stations and likely channels", count: listing.extras.count, open: showLocal) { showLocal.toggle() }
                         if showLocal {
-                            sectionView(StreamSections.Section(name: "Local and likely", streams: listing.extras))
+                            sectionView(StreamSections.Section(name: "Local and likely", streams: listing.extras), header: false)
                         }
                     }
                 }
@@ -100,7 +100,7 @@ struct IOSGameView: View {
         .onAppear {
             // Opening a game plays its first stream in the pinned player (unless one of its streams is already
             // playing); after that, only tapping plays something else.
-            if previewID == nil, let first = streams.firstToPlay, let game {
+            if previewID == nil, let first = streams.firstToPlay(model.measuredQuality), let game {
                 model.pin(first.channel, gameTitle: game.title, lineup: lineup)
             }
         }
@@ -110,8 +110,10 @@ struct IOSGameView: View {
         }
     }
 
-    private func sectionView(_ section: StreamSections.Section) -> some View {
+    /// header: false for a list already under its own heading (Local stations and likely channels).
+    private func sectionView(_ section: StreamSections.Section, header: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 8) {
+            if header {
             Button {
                 withAnimation(.easeOut(duration: 0.15)) {
                     if folded.contains(section.name) { folded.remove(section.name) } else { folded.insert(section.name) }
@@ -129,7 +131,8 @@ struct IOSGameView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            if !folded.contains(section.name) {
+            }
+            if !header || !folded.contains(section.name) {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 320), spacing: 10)], spacing: 10) {
                     ForEach(section.streams) { match in
                         IOSStreamRow(match: match,
