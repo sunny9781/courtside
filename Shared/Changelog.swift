@@ -64,6 +64,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.50", date: "2026-11-16", time: "22:42", title: "Clearer update problems", changes: [
+            Change(text: "Before installing an update, Courtside checks there's enough free space and says how much is needed if there isn't.", apps: android),
+            Change(text: "If Android's installer says \"App not installed\", Courtside explains the usual fix when you're back (free up storage, or reinstall with Downloader). The downloaded update file is deleted once it's installed.", apps: android)
+        ]),
         Release(version: "1.49", date: "2026-11-16", time: "22:32", title: "Player bottom left", changes: [
             Change(text: "The player is in the bottom-left corner on every tab, with each tab's left panel on top of it and the page to its right from the top.", apps: android),
             Change(text: "Game screen: the game's name and status sit above the player; the streams fill the right.", apps: android)

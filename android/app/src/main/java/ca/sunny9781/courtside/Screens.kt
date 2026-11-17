@@ -251,7 +251,7 @@ fun Shell(model: AppModel) {
                 }
             }
             LaunchedEffect(message) {
-                delay(5000)
+                delay(if (message.length > 80) 12_000 else 5000)
                 if (model.notice == message) model.notice = null
             }
         }

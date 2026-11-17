@@ -37,6 +37,11 @@ class MainActivity : ComponentActivity() {
         return super.onKeyLongPress(keyCode, event)
     }
 
+    override fun onResume() {
+        super.onResume()
+        Updater.afterInstall(this)
+    }
+
     override fun onStop() {
         super.onStop()
         // Leaving the app (Home button) stops the stream, so it doesn't keep using a connection.
