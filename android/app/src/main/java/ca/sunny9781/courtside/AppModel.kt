@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -279,6 +280,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 val saved = if (force) null else withContext(Dispatchers.IO) { Cache.loadLive(context) }
                     ?.takeIf { it.server == owner && it.channels.isNotEmpty() && System.currentTimeMillis() - it.savedAt < maxAge }
                 if (saved != null) {
+                    // The saved guide is read alongside the channels and shown before today's scores come in (which
+                    // can take a while on a slower TV), so the EPG is there straight away after an update or reopen.
+                    val savedGuide = async(Dispatchers.IO) { Cache.loadGuide(context) }
                     rawCategories = saved.categories
                     rawChannels = saved.channels
                     applyFilters()
@@ -288,9 +292,10 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                     updatedAt = saved.savedAt
                     loading = false
                     launch { runCatching { account = client.login() } }
-                    loadScores()
-                    val g = withContext(Dispatchers.IO) { Cache.loadGuide(context) }
-                    if (g.isNotEmpty()) { guide = g; rematch() } else loadGuide(client)
+                    val g = savedGuide.await()
+                    if (g.isNotEmpty()) guide = g
+                    loadScores()    // matches today's games with the guide already in place
+                    if (g.isEmpty()) loadGuide(client)
                     return@launch
                 }
                 runCatching { account = client.login() }

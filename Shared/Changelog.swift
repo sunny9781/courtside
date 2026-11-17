@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.60", date: "2026-11-17", time: "11:49", title: "What's playing above the player", changes: [
+            Change(text: "EPG: what's playing (now, its times and progress, and what's next) sits in its own section under the categories, just above the player, so the schedule starts at the top.", apps: [.tv, .android]),
+            Change(text: "The EPG shows straight away after an update or reopening, from the saved guide, instead of a few minutes later once today's scores are in.", apps: android)
+        ], titleApps: [.tv, .android]),
         Release(version: "1.59", date: "2026-11-17", time: "11:29", title: "Every stream under All", changes: [
             Change(text: "Game screen: All lists every stream (local and likely channels too), under headings for each group (USA, Local and likely…). Channel names stay on one line, using the space there is.", apps: [.tv, .android]),
             Change(text: "Home: scrolling through the sports no longer flickers; a sport's games show once you pause on it.", apps: android)
