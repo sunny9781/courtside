@@ -460,6 +460,8 @@ struct TVChannelRow: View {
     var playing = false
     /// The stream's quality (4K, 1080p…), on the game screen.
     var badge: String? = nil
+    /// A set width for the name keeps it on one line (the game screen); otherwise it can wrap onto two.
+    var nameWidth: CGFloat? = nil
 
     var body: some View {
         let now = model.currentProgramme(channel)
@@ -469,7 +471,7 @@ struct TVChannelRow: View {
                 TVChannelIcon(url: channel.icon, size: 48)
                 Text(channel.name)
                     .font(.system(size: 23, weight: .semibold))
-                    .lineLimit(2)
+                    .lineLimit(nameWidth == nil ? 2 : 1)
                 if playing {
                     Image(systemName: "speaker.wave.2.fill")
                         .font(.system(size: 18))
@@ -480,7 +482,7 @@ struct TVChannelRow: View {
                         .foregroundStyle(Theme.accent)
                 }
             }
-            .frame(width: 408, alignment: .leading)
+            .frame(width: nameWidth ?? 408, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(now?.title ?? "–")

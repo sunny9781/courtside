@@ -26,12 +26,18 @@ struct TVGameView: View {
 
     private var main: [StreamMatch] { listing.sections.flatMap(\.streams) }
 
-    private var categories: [(name: String, streams: [StreamMatch])] {
-        var out: [(name: String, streams: [StreamMatch])] = [("All", main)]
+    /// Every group of streams, in order; "All" lists them all under these names.
+    private var groups: [(name: String, streams: [StreamMatch])] {
+        var out: [(name: String, streams: [StreamMatch])] = []
         for section in listing.sections { out.append((section.name, section.streams)) }
         if !listing.foreign.isEmpty { out.append(("Foreign", listing.foreign.flatMap(\.streams))) }
         if !listing.extras.isEmpty { out.append(("Local and likely", listing.extras)) }
         return out
+    }
+
+    private var categories: [(name: String, streams: [StreamMatch])] {
+        let g = groups
+        return [("All", g.flatMap(\.streams))] + g
     }
 
     private var current: [StreamMatch] { categories.first { $0.name == selected }?.streams ?? main }
@@ -114,6 +120,10 @@ struct TVGameView: View {
 
     private func channelList(_ game: Game) -> some View {
         let list = current
+        // Names on one line: as wide as the longest one needs (within reason), the same for every row.
+        let nameWidth = min(max(CGFloat(list.map(\.channel.name.count).max() ?? 0) * 13 + 90, 408), 760)
+        // "All": each group's name above its streams (just a heading).
+        let shown = selected == "All" ? groups : [(name: selected, streams: list)]
         return ScrollView(.vertical) {
             LazyVStack(spacing: 6) {
                 if list.isEmpty {
@@ -122,13 +132,23 @@ struct TVGameView: View {
                         .foregroundStyle(Theme.muted)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                ForEach(list) { match in
-                    Button { select(match, game: game) } label: {
-                        TVChannelRow(channel: match.channel, playing: match.channel.id == previewChannel?.id,
-                                     badge: model.measuredQuality[match.channel.id] ?? match.quality)
+                ForEach(shown, id: \.name) { group in
+                    if selected == "All" && !group.streams.isEmpty {
+                        Text(group.name.uppercased())
+                            .font(.system(size: 19, weight: .bold))
+                            .foregroundStyle(Theme.muted)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.leading, 22)
+                            .padding(.top, 14)
                     }
-                    .buttonStyle(TVRowButtonStyle())
-                    .focused($focusedStream, equals: match.channel.id)
+                    ForEach(group.streams) { match in
+                        Button { select(match, game: game) } label: {
+                            TVChannelRow(channel: match.channel, playing: match.channel.id == previewChannel?.id,
+                                         badge: model.measuredQuality[match.channel.id] ?? match.quality, nameWidth: nameWidth)
+                        }
+                        .buttonStyle(TVRowButtonStyle())
+                        .focused($focusedStream, equals: match.channel.id)
+                    }
                 }
             }
             .padding(.vertical, 20)

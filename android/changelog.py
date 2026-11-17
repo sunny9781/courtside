@@ -12,7 +12,7 @@ def unescape(s):
 
 out = []
 for m in re.finditer(r"Release\(version: " + STR + r", date: " + STR + r", time: " + STR + r", title: " + STR +
-                     r", changes: \[(.*?)\n\s*\](?:, titleApps: (\w+))?\)", src, re.S):
+                     r", changes: \[(.*?)\n\s*\](?:, titleApps: (\w+|\[[^\]]*\]))?\)", src, re.S):
     every = []
     for c in re.finditer(r"Change\(text: " + STR + r", apps: (\w+|\[[^\]]*\])\)", m[5]):
         apps = c[2]
@@ -24,7 +24,12 @@ for m in re.finditer(r"Release\(version: " + STR + r", date: " + STR + r", time:
     changes = [text for text, mine in every if mine]
     if changes:
         # A release that also changed other apps: its title may be about them, so the app shows "2 changes".
-        shown = "android" in sets.get(m[6], set()) if m[6] else len(changes) == len(every)
+        if m[6] and m[6].startswith("["):
+            shown = "android" in {x.strip().lstrip(".") for x in m[6][1:-1].split(",")}
+        elif m[6]:
+            shown = "android" in sets.get(m[6], set())
+        else:
+            shown = len(changes) == len(every)
         title = unescape(m[4]) if shown else ""
         out.append({"version": m[1], "date": m[2], "time": m[3], "title": title, "changes": changes})
 json.dump(out, sys.stdout, ensure_ascii=False, indent=1)
