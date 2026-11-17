@@ -78,7 +78,7 @@ struct TVSettingsView: View {
                 .frame(maxWidth: 1000, alignment: .leading)
             }
             // Runs to the bottom of the screen, under the now-playing bar.
-            .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight : 0, for: .scrollContent)
+            .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : 0, for: .scrollContent)
             // Use the full width: no Apple TV side insets on top of our own small margin.
             .ignoresSafeArea(.container, edges: .horizontal)
             .focusSection()

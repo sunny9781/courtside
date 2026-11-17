@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.63", date: "2026-11-17", time: "14:21", title: "Room above the now-playing bar", changes: [
+            Change(text: "The now-playing bar has the same gap above it as the player has below, so lists scrolling under it don't look squished.", apps: [.tv, .android]),
+            Change(text: "If the app closes unexpectedly, the next start says why, and Settings › General shows the details (kept on the TV only).", apps: android)
+        ]),
         Release(version: "1.62", date: "2026-11-17", time: "14:01", title: "Apple TV catches up", changes: [
             Change(text: "Home: every sport is a list like the EPG, one line per game (status, the teams and scores, the number of streams), under a heading per league. Upcoming games are grey, so live games stand out in white.", apps: [.tv, .android]),
             Change(text: "What's playing is on one line along the very bottom of the screen, under the player, on every page. Pages scroll under it.", apps: [.tv, .android]),

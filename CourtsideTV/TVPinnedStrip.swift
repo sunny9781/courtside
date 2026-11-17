@@ -57,6 +57,8 @@ struct TVNowPlayingBar: View {
         let next = now.flatMap { n in model.guide[channel.epgID]?.first { $0.start >= n.end } }
         let title = item.gameTitle ?? (now?.title.isEmpty == false ? now!.title : channel.name)
         VStack(spacing: 0) {
+            // The same gap above the line as between the player and the line, so pages scrolling under it have room.
+            Color.clear.frame(height: TVLayout.margin)
             Rectangle().fill(Theme.raised).frame(height: 2)
             HStack(spacing: 18) {
                 Image(systemName: "speaker.wave.2.fill").font(.system(size: 17)).foregroundStyle(Theme.accent)
@@ -81,7 +83,7 @@ struct TVNowPlayingBar: View {
             .padding(.horizontal, TVLayout.margin + 8)
             .frame(maxHeight: .infinity)
         }
-        .frame(height: TVLayout.barHeight)
+        .frame(height: TVLayout.barHeight + TVLayout.margin)
         .frame(maxWidth: .infinity)
         .background(Theme.bg)
         .frame(maxHeight: .infinity, alignment: .bottom)

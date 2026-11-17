@@ -436,7 +436,7 @@ struct TVLiveView: View {
         // Use the full width: no Apple TV side insets on top of our own small margin.
         .ignoresSafeArea(.container, edges: .horizontal)
         // Runs to the bottom of the screen, under the now-playing bar (the last row can scroll clear of it).
-        .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight : 0, for: .scrollContent)
+        .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : 0, for: .scrollContent)
     }
 
     private var searching: Bool { search.trimmingCharacters(in: .whitespaces).count >= 2 }
