@@ -490,13 +490,13 @@ object Matcher {
         val own = channels.filter { it.channel.name.lowercase().contains(sportName) }
         val ownIds = own.map { it.channel.id }.toSet()
         val found = LinkedHashMap<String, Found>()
+        // The sport's own channels get one card each (below); their schedules aren't split into cards.
         for (c in channels) {
-            if (c.channel.epgId.isEmpty()) continue
-            val dedicated = c.channel.id in ownIds
+            if (c.channel.epgId.isEmpty() || c.channel.id in ownIds) continue
             for (p in guide[c.channel.epgId] ?: continue) {
                 if (p.end <= now || p.start >= now + 6 * 3600_000L) continue
                 val lower = p.title.lowercase()
-                if (!dedicated && tokens(p.title).none { it in words } && !lower.contains(sportName)) continue
+                if (tokens(p.title).none { it in words } && !lower.contains(sportName)) continue
                 val key = lower.filter { it.isLetterOrDigit() } + "-" + (p.start / 900_000L)
                 found.getOrPut(key) { Found(p.title, p.start, p.end, mutableListOf()) }.channels.add(c)
             }

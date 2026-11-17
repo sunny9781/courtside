@@ -64,6 +64,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.45", date: "2026-11-16", time: "21:56", title: "One card per pickleball channel", changes: [
+            Change(text: "Pickleball: each pickleball channel is one card (showing what's on now) instead of a card for every show in its schedule. Pickleball shows on other channels still get their own cards.", apps: everywhere)
+        ]),
         Release(version: "1.44", date: "2026-11-16", time: "21:53", title: "Install update gets the newest", changes: [
             Change(text: "Install update checks once more first, so it always installs the newest version (not one that's already been replaced).", apps: android)
         ]),
