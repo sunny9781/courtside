@@ -147,6 +147,9 @@ object Playback {
         firstFrame = false
         openedAt = System.currentTimeMillis()
         attempt++
+        // Close the old stream's connection first, so the provider sees one stream, not two, while switching.
+        player.stop()
+        player.clearMediaItems()
         player.setMediaSource(source(url))
         player.prepare()
         player.playWhenReady = true

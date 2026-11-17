@@ -65,7 +65,8 @@ enum Changelog {
 
     static let releases: [Release] = [
         Release(version: "1.56", date: "2026-11-17", time: "10:17", title: "Live Now in a grid", changes: [
-            Change(text: "Home › Live Now: the live games are in one grid of rows, like the TV apps, instead of a sideways-scrolling row per sport. Each card shows its league.", apps: mac)
+            Change(text: "Home › Live Now: the live games are in one grid of rows, like the TV apps, instead of a sideways-scrolling row per sport. Each card shows its league.", apps: mac),
+            Change(text: "Switching streams closes the old one first, and the connection count is checked once you've settled on a stream (20 seconds after the last switch) and every minute while playing, so it no longer shows 2 while only one plays.", apps: android)
         ]),
         Release(version: "1.55", date: "2026-11-17", time: "00:51", title: "Fighting, channel sports, tidier panels", changes: [
             Change(text: "UFC is now Fighting, with boxing added: boxing shows and channels from the guide join UFC's schedule.", apps: everywhere),
