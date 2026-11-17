@@ -243,6 +243,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                     rawCategories = saved.categories
                     rawChannels = saved.channels
                     applyFilters()
+                    // Last time's streams, shown straight away while today's scores load and matching runs again.
+                    val lastMatches = withContext(Dispatchers.IO) { Cache.loadMatches(context, channelById) }
+                    if (matches.isEmpty() && lastMatches.isNotEmpty()) matches = lastMatches
                     updatedAt = saved.savedAt
                     loading = false
                     launch { runCatching { account = client.login() } }
@@ -326,6 +329,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             games = visible(allGames) + guideGames
         }
         matches = found
+        withContext(Dispatchers.IO) { Cache.saveMatches(context, found) }
     }
 
     private fun isAdult(name: String) = name.contains("adult", ignoreCase = true)

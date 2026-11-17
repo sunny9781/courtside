@@ -113,8 +113,56 @@ object Cache {
         out
     }.getOrDefault(emptyMap())
 
+    private fun matchesFile(context: Context) = File(context.filesDir, "matches.json")
+
+    /** Each game's streams, so reopening the app shows them straight away (they're worked out again after). */
+    fun saveMatches(context: Context, matches: Map<String, List<StreamMatch>>) = runCatching {
+        val tmp = File(context.filesDir, "matches.tmp")
+        JsonWriter(tmp.bufferedWriter()).use { w ->
+            w.beginObject()
+            for ((id, list) in matches) {
+                w.name(id).beginArray()
+                for (m in list) {
+                    w.beginArray().value(m.channel.id.toLong()).value(m.reason).value(m.score.toLong()).value(m.quality)
+                        .value(m.qualityRank.toLong()).value(m.recent).value(m.local).value(m.likelyOnly).value(m.country ?: "").endArray()
+                }
+                w.endArray()
+            }
+            w.endObject()
+        }
+        tmp.renameTo(matchesFile(context))
+    }
+
+    fun loadMatches(context: Context, channels: Map<Int, Channel>): Map<String, List<StreamMatch>> = runCatching {
+        val file = matchesFile(context)
+        if (!file.exists()) return emptyMap()
+        val out = HashMap<String, List<StreamMatch>>()
+        JsonReader(file.bufferedReader()).use { r ->
+            r.beginObject()
+            while (r.hasNext()) {
+                val id = r.nextName()
+                val list = ArrayList<StreamMatch>()
+                r.beginArray()
+                while (r.hasNext()) {
+                    r.beginArray()
+                    val ch = channels[r.nextLong().toInt()]
+                    val reason = r.nextString(); val score = r.nextLong().toInt(); val quality = r.nextString()
+                    val rank = r.nextLong().toInt(); val recent = r.nextBoolean(); val local = r.nextBoolean()
+                    val likely = r.nextBoolean(); val country = r.nextString().ifEmpty { null }
+                    r.endArray()
+                    if (ch != null) list.add(StreamMatch(ch, reason, score, quality, rank, recent, local, likely, country))
+                }
+                r.endArray()
+                out[id] = list
+            }
+            r.endObject()
+        }
+        out
+    }.getOrDefault(emptyMap())
+
     fun clear(context: Context) {
         liveFile(context).delete()
         guideFile(context).delete()
+        matchesFile(context).delete()
     }
 }
