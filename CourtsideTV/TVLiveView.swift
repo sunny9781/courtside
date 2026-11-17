@@ -116,16 +116,17 @@ struct TVLiveView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             HStack(alignment: .top, spacing: 50) {
-                categoryList
-                    .frame(width: TVLayout.sidebar)
-                    // On top of the player in the bottom-left corner; the schedule starts at the top.
-                    .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : 0)
-                    .focusSection()
-                VStack(alignment: .leading, spacing: 28) {
-                    infoPanel
-                    channelList
+                // Categories, then what's playing in its own section just above the player in the bottom-left
+                // corner; the schedule starts at the top.
+                VStack(alignment: .leading, spacing: 0) {
+                    categoryList
                         .focusSection()
+                    if let playing = playingChannel { nowPlayingPanel(playing) }
                 }
+                .frame(width: TVLayout.sidebar)
+                .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : 0)
+                channelList
+                    .focusSection()
             }
             .padding(.horizontal, TVLayout.margin)
             // Pressing down from Home / EPG / Settings starts on the category list.
@@ -304,6 +305,37 @@ struct TVLiveView: View {
     }
 
     // MARK: Mini player and programme
+
+    /// What's playing, between the categories and the player: the channel, what's on now (times and progress), and
+    /// what's next. As tall as it needs to be.
+    private func nowPlayingPanel(_ channel: Channel) -> some View {
+        let now = model.currentProgramme(channel)
+        let next = now.flatMap { nextProgramme(channel, after: $0) }
+        return VStack(alignment: .leading, spacing: 6) {
+            Rectangle().fill(Theme.raised).frame(height: 2).padding(.bottom, 10)
+            Label(channel.name, systemImage: "speaker.wave.2.fill")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Theme.soft)
+                .lineLimit(1)
+            Text(now?.title.isEmpty == false ? now!.title : "No guide information")
+                .font(.system(size: 26, weight: .bold))
+                .foregroundStyle(Theme.text)
+                .lineLimit(2)
+            if let now {
+                Text("\(now.start.formatted(date: .omitted, time: .shortened)) – \(now.end.formatted(date: .omitted, time: .shortened))")
+                    .font(.system(size: 19))
+                    .foregroundStyle(Theme.muted)
+                ProgressView(value: progress(now)).tint(Theme.accent)
+            }
+            if let next {
+                Text("Next: \(next.start.formatted(date: .omitted, time: .shortened))  \(next.title)")
+                    .font(.system(size: 19))
+                    .foregroundStyle(Theme.muted)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal, 16)
+    }
 
     /// Two lines about the channel you're on: what's on now (and until when), then what's next. What's playing
     /// is in the player strip at the top.

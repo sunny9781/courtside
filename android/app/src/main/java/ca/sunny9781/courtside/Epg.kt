@@ -122,7 +122,9 @@ fun EpgScreen(model: AppModel) {
 
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { cats["cat:$categoryTarget"] },
         horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-        LazyColumn(Modifier.width(CATEGORY_WIDTH).fillMaxHeight().padding(bottom = topInset(model)).enterAt { cats["cat:$categoryTarget"] },
+        // Categories, then what's playing in its own section just above the player.
+        Column(Modifier.width(CATEGORY_WIDTH).fillMaxHeight().padding(bottom = topInset(model))) {
+        LazyColumn(Modifier.weight(1f).enterAt { cats["cat:$categoryTarget"] },
             verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             // One search for categories and channels; results show on the right.
             // Enter (or Search) on the keyboard closes it and goes to the first result.
@@ -188,8 +190,10 @@ fun EpgScreen(model: AppModel) {
             }
         }
 
+        if (playing != null) NowPlayingPanel(model, playing)
+        }
+
         Column(Modifier.weight(1f).fillMaxHeight()) {
-            InfoPanel(model, focusedChannel?.let { model.channelById[it] } ?: playing, playing)
             LazyColumn(Modifier.fillMaxSize().enterAt { rows[lastRow] }, verticalArrangement = Arrangement.spacedBy(2.dp),
                 contentPadding = PaddingValues(vertical = 6.dp)) {
                 item(key = "header") {
@@ -291,25 +295,28 @@ internal fun CategoryRow(
     }
 }
 
-/** Two lines about the channel you're on: what's on now (and until when), then what's next. */
+/**
+ * What's playing, in its own section between the categories and the player: the channel, what's on now (with its
+ * times and progress), then what's next. As tall as it needs to be.
+ */
 @Composable
-private fun InfoPanel(model: AppModel, channel: Channel?, playing: Channel?) {
-    Column(Modifier.fillMaxWidth().height(46.dp).padding(top = 6.dp, start = 10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        if (channel == null) {
-            Label("Click a channel to play it in the player at the top. Click it again for full screen.", size = 12.sp, color = Theme.muted)
-            return@Column
-        }
-        val now = model.currentProgramme(channel)
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Label(now?.title?.ifEmpty { null } ?: channel.name, size = 15.sp, weight = FontWeight.Bold, modifier = Modifier.weight(1f, fill = false))
-            if (now != null) Label("${clockTime(now.start)} – ${clockTime(now.end)}", size = 11.sp, color = Theme.muted)
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Label(channel.name, size = 11.sp, color = Theme.soft)
-            val next = now?.let { n -> model.guide[channel.epgId]?.firstOrNull { it.start >= n.end } }
-            if (next != null) Label("Next: ${next.title} at ${clockTime(next.start)}", size = 11.sp, color = Theme.muted, modifier = Modifier.weight(1f, fill = false))
-            Spacer(Modifier.weight(1f))
-            Label(if (channel.id == playing?.id) "Click again for full screen" else "Click to play", size = 11.sp, color = Theme.muted.copy(alpha = 0.8f))
+private fun NowPlayingPanel(model: AppModel, channel: Channel) {
+    val now = model.currentProgramme(channel)
+    val next = now?.let { n -> model.guide[channel.epgId]?.firstOrNull { it.start >= n.end } }
+    Column(Modifier.fillMaxWidth()) {
+        Box(Modifier.fillMaxWidth().padding(vertical = 6.dp).height(1.dp).background(Theme.border))
+        Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Filled.GraphicEq, null, tint = Theme.accent, modifier = Modifier.size(11.dp))
+                Label(channel.name, size = 11.sp, weight = FontWeight.SemiBold, color = Theme.soft)
+            }
+            Label(now?.title?.ifEmpty { null } ?: "No guide information", size = 14.sp, weight = FontWeight.Bold, maxLines = 2)
+            if (now != null) {
+                Label("${clockTime(now.start)} – ${clockTime(now.end)}", size = 11.sp, color = Theme.muted)
+                val total = (now.end - now.start).toFloat()
+                ProgressLine(if (total > 0) (System.currentTimeMillis() - now.start) / total else 0f, false, width = Theme.playerWidth - 20.dp)
+            }
+            if (next != null) Label("Next: ${clockTime(next.start)}  ${next.title}", size = 11.sp, color = Theme.muted)
         }
     }
 }
