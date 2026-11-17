@@ -290,7 +290,7 @@ fun TopBar(model: AppModel) {
             val ready = Updater.readyVersion
             val scope = rememberCoroutineScope()
             TvButton(onClick = {
-                if (ready != null) Updater.install(context)
+                if (ready != null) scope.launch { Updater.installLatest(context) }
                 else scope.launch {
                     Updater.check(context, userInitiated = true)
                     if (Updater.readyVersion == null) model.notice = Updater.message ?: "You have the latest version."
@@ -299,7 +299,8 @@ fun TopBar(model: AppModel) {
                 Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     val color = if (focused) Theme.bg else if (ready != null) Theme.onAccent else Theme.muted
-                    Label(if (ready != null) "Install update $ready" else "v${BuildConfig.VERSION_NAME}", size = 12.sp,
+                    Label(if (Updater.installing) "Getting the latest version…" else if (ready != null) "Install update $ready"
+                          else "v${BuildConfig.VERSION_NAME}", size = 12.sp,
                         weight = FontWeight.SemiBold, color = color)
                     Icon(if (ready != null) Icons.Filled.Download else if (Updater.checking) Icons.Filled.HourglassTop else Icons.Filled.Refresh,
                         null, tint = color, modifier = Modifier.size(13.dp))
