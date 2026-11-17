@@ -322,7 +322,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                     loading = false
                     launch { runCatching { account = client.login() } }
                     val g = savedGuide.await()
-                    if (g.isNotEmpty()) guide = g
+                    if (g.isNotEmpty()) { guide = g; matchGuideSports() }
                     loadScores()    // matches today's games with the guide already in place
                     if (g.isEmpty()) loadGuide(client)
                     return@launch
@@ -367,6 +367,32 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         // Guide-built events (pickleball) stay put until rematch rebuilds them, so their cards don't blink.
         games = visible(list) + games.filter { it.id.startsWith("guide-") }
         if (!unchanged) rematch()
+    }
+
+    /**
+     * Channel sports (Fighting, pickleball…) come from the guide only, so they don't need today's scores: on reopen
+     * they're matched from the saved guide straight away instead of waiting for the scores to download.
+     */
+    private suspend fun matchGuideSports() {
+        val ch = indexed
+        val gd = guide
+        val measured = measuredQuality
+        val now = System.currentTimeMillis()
+        val active = activeLeagues().map { it.id }.toSet()
+        val (gs, ms) = withContext(background) {
+            val extra = mutableListOf<Game>()
+            val m = HashMap<String, List<StreamMatch>>()
+            for (league in League.all) {
+                if (league.path.isNotEmpty() || league.id !in active) continue
+                val (g, found) = Matcher.guideEvents(league, ch, gd, measured, now)
+                extra += g
+                m.putAll(found)
+            }
+            extra to m
+        }
+        if (gs.isEmpty()) return
+        games = games.filter { !it.id.startsWith("guide-") } + gs
+        matches = matches + ms
     }
 
     private suspend fun loadGuide(client: XtreamClient) {
