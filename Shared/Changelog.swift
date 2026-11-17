@@ -69,8 +69,8 @@ enum Changelog {
             Change(text: "Home's sports are grouped, with a line between each group: sports with live scores, then sports shown as channels (like pickleball), then sports with nothing today.", apps: android),
             Change(text: "A sport with channels but no live scores (like pickleball) shows its channels as an EPG list instead of score cards.", apps: android),
             Change(text: "Channel names can use two lines, so long names aren't cut off. Enter on the keyboard closes it and goes to the first EPG result.", apps: android),
-            Change(text: "The side panels stop the same distance above the player as the player is from the bottom of the screen.", apps: android,
-            Change(text: "Settings: \"Hide adult categories\" is now \"Adult categories\", off by default. The Group option left Settings (it's on the EPG page).", apps: everywhere),
+            Change(text: "The side panels stop the same distance above the player as the player is from the bottom of the screen.", apps: android),
+            Change(text: "Settings: \"Hide adult categories\" is now \"Adult categories\", off by default. The grouping option left Settings; it's on the EPG page, now called Auto-Group.", apps: everywhere),
             Change(text: "Top bar, left: connections in use (1/2) and \"EPG 9:10 PM\", which downloads the channels and guide again when clicked.", apps: [.mac, .tv, .android])
         ]),
         Release(version: "1.54", date: "2026-11-17", time: "00:12", title: "Lite mode for less powerful TVs", changes: [

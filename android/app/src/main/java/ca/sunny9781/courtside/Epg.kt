@@ -115,7 +115,7 @@ fun EpgScreen(model: AppModel) {
                 }
             }
             item(key = "group") {
-                CategoryRow(cats, "cat:toggle", Icons.Filled.Layers, "Group", if (s.grouped) "On" else "Off", false) {
+                CategoryRow(cats, "cat:toggle", Icons.Filled.Layers, "Auto-Group", if (s.grouped) "On" else "Off", false) {
                     s.grouped = !s.grouped
                     model.guidePath = emptyList()
                 }

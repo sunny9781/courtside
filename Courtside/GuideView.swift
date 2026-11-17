@@ -167,7 +167,7 @@ struct GuideView: View {
     private var categoryList: some View {
         VStack(alignment: .leading, spacing: 12) {
             Toggle(isOn: $grouped) {
-                Text("Group similar categories")
+                Text("Auto-Group")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(Theme.soft)
             }
