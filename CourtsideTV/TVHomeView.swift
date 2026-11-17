@@ -25,6 +25,8 @@ struct TVHomeView: View {
             HStack(alignment: .top, spacing: TVLayout.playerGap - 24) {
                 TVSportList(focused: $sidebarFocus, compact: false)
                     .frame(width: TVLayout.sidebar)
+                    // On top of the player in the bottom-left corner.
+                    .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : 0)
                     .focusSection()
                     // Coming back from the games lands on the sport you left, not the row beside it.
                     .defaultFocus($sidebarFocus, sidebarTarget, priority: .userInitiated)
@@ -85,13 +87,18 @@ struct TVSportList: View {
                     detail: "\(model.games.count) today")
                     .padding(.bottom, 14)
 
-                ForEach(sports) { sport in
-                    let games = model.games(for: sport)
-                    row(.sport(sport), symbol: sport.symbol, name: sport.rawValue,
-                        live: games.filter { $0.state == .live }.count, total: games.count,
-                        detail: games.isEmpty ? "No games" : "\(games.count) today",
-                        favorite: favorites.contains(sport))
-                        .opacity(games.isEmpty ? 0.5 : 1)
+                // Sports with live scores | sports shown as channels (pickleball) | sports with nothing today.
+                ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
+                    Rectangle().fill(Theme.raised).frame(height: 2).padding(.horizontal, 16).padding(.vertical, 8)
+                    ForEach(group) { sport in
+                        let games = model.games(for: sport)
+                        let channelOnly = isChannelSport(sport, model: model)
+                        row(.sport(sport), symbol: sport.symbol, name: sport.rawValue,
+                            live: channelOnly ? 0 : games.filter { $0.state == .live }.count, total: games.count,
+                            detail: games.isEmpty ? "No games" : (channelOnly ? "Channels" : "\(games.count) today"),
+                            favorite: favorites.contains(sport))
+                            .opacity(games.isEmpty ? 0.5 : 1)
+                    }
                 }
             }
             .padding(.vertical, 20)
@@ -109,6 +116,13 @@ struct TVSportList: View {
 
     private var favorites: Set<Sport> {
         Set(favoriteSports.split(separator: ",").compactMap { Sport(rawValue: String($0)) })
+    }
+
+    private var groups: [[Sport]] {
+        let scored = sports.filter { s in model.games(for: s).contains { !$0.id.hasPrefix("guide-") } }
+        let channels = sports.filter { !scored.contains($0) && isChannelSport($0, model: model) }
+        let empty = sports.filter { !scored.contains($0) && !channels.contains($0) }
+        return [scored, channels, empty].filter { !$0.isEmpty }
     }
 
     /// Live games as an orange number; otherwise today's count.
@@ -213,6 +227,15 @@ struct TVGamesPane: View {
     }
 
     var body: some View {
+        // A sport with channels but no live scores (pickleball): its channels as an EPG list, not score cards.
+        if let sport = filterSport, isChannelSport(sport, model: model) {
+            TVSportChannels(sport: sport)
+        } else {
+            cards
+        }
+    }
+
+    private var cards: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 40) {
                 // No title or live count line here: the sport is highlighted on the left, and live counts are on the
@@ -443,5 +466,51 @@ struct TVGameCard: View {
                     .foregroundStyle(game.scoreColor(team))
             }
         }
+    }
+}
+
+/// A sport with no live scores today but channels or shows in the guide (pickleball): shown as channels.
+@MainActor
+func isChannelSport(_ sport: Sport, model: AppModel) -> Bool {
+    let games = model.games(for: sport)
+    return !games.isEmpty && games.allSatisfy { $0.id.hasPrefix("guide-") }
+}
+
+/// Every channel showing a channel sport (its own channels and today's shows), like the EPG. Click to play in the
+/// player, again for full screen.
+struct TVSportChannels: View {
+    @EnvironmentObject var model: AppModel
+    let sport: Sport
+    @FocusState private var focused: Int?
+
+    private var channels: [Channel] {
+        var seen = Set<Int>()
+        let all = model.games(for: sport).flatMap { model.matches[$0.id] ?? [] }.map(\.channel)
+            .filter { seen.insert($0.id).inserted }
+        let name = sport.rawValue.lowercased()
+        return all.sorted { a, b in
+            let ao = a.name.lowercased().contains(name), bo = b.name.lowercased().contains(name)
+            return ao != bo ? ao : a.name < b.name
+        }
+    }
+
+    var body: some View {
+        let list = channels
+        let playing = model.pinned?.channel.id
+        ScrollView(.vertical) {
+            LazyVStack(spacing: 6) {
+                ForEach(list) { channel in
+                    Button {
+                        if channel.id == playing { model.play(channel, lineup: list) } else { model.pin(channel, lineup: list) }
+                    } label: {
+                        TVChannelRow(channel: channel, playing: channel.id == playing)
+                    }
+                    .buttonStyle(TVRowButtonStyle())
+                    .focused($focused, equals: channel.id)
+                }
+            }
+            .padding(.vertical, 20)
+        }
+        .defaultFocus($focused, playing ?? list.first?.id)
     }
 }

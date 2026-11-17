@@ -116,26 +116,29 @@ struct TVShell: View {
     }
 
     private var shell: some View {
-        VStack(spacing: 0) {
-            TVTopBar()
-                .focusSection()
-            // The player, in the same spot on every screen while something plays (never takes focus).
-            if let item = model.pinned {
-                // No score beside the video: the broadcast already shows it.
-                TVPinnedStrip(item: item, game: nil)
+        ZStack(alignment: .bottomLeading) {
+            VStack(spacing: 0) {
+                TVTopBar()
                     .focusSection()
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-            Group {
-                switch nav.tab {
-                case .home: TVHomeView()
-                case .epg: TVLiveView()
-                case .settings: TVSettingsView()
+                Group {
+                    switch nav.tab {
+                    case .home: TVHomeView()
+                    case .epg: TVLiveView()
+                    case .settings: TVSettingsView()
+                    }
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea(.container, edges: .horizontal)
+                .focusSection()
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ignoresSafeArea(.container, edges: .horizontal)
-            .focusSection()
+            // The player: bottom-left corner, the same spot on every tab, with each tab's left panel on top of it.
+            if let item = model.pinned {
+                TVPinnedStrip(item: item, game: nil)
+                    .padding(.leading, TVLayout.margin)
+                    .padding(.bottom, TVLayout.margin)
+                    .focusSection()
+                    .transition(.opacity)
+            }
         }
         // Use almost the whole screen: no Apple TV insets at the sides or top, just our own small margin.
         .ignoresSafeArea(.container, edges: [.horizontal, .top])

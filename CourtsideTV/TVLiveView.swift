@@ -102,6 +102,8 @@ struct TVLiveView: View {
             HStack(alignment: .top, spacing: 50) {
                 categoryList
                     .frame(width: TVLayout.sidebar)
+                    // On top of the player in the bottom-left corner; the schedule starts at the top.
+                    .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : 0)
                     .focusSection()
                 VStack(alignment: .leading, spacing: 28) {
                     infoPanel
@@ -393,6 +395,8 @@ struct TVChannelRow: View {
     @EnvironmentObject var model: AppModel
     let channel: Channel
     var playing = false
+    /// The stream's quality (4K, 1080p…), on the game screen.
+    var badge: String? = nil
 
     var body: some View {
         let now = model.currentProgramme(channel)
@@ -402,7 +406,7 @@ struct TVChannelRow: View {
                 TVChannelIcon(url: channel.icon, size: 48)
                 Text(channel.name)
                     .font(.system(size: 23, weight: .semibold))
-                    .lineLimit(1)
+                    .lineLimit(2)
                 if playing {
                     Image(systemName: "speaker.wave.2.fill")
                         .font(.system(size: 18))
@@ -426,6 +430,10 @@ struct TVChannelRow: View {
                 .opacity(0.65)
                 .lineLimit(1)
                 .frame(width: 360, alignment: .leading)
+            if let badge, !badge.isEmpty {
+                TVBadge(text: badge, fill: badge == "4K" ? Theme.accent : Theme.raised,
+                        color: badge == "4K" ? Theme.onAccent : Theme.soft)
+            }
         }
     }
 
