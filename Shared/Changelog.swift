@@ -64,6 +64,13 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.51", date: "2026-11-16", time: "23:10", title: "Smaller app, steadier picture", changes: [
+            Change(text: "Opening a game starts with its first stream that isn't 4K (or the first one, if they're all 4K).", apps: everywhere),
+            Change(text: "The app is much smaller, so updates need far less free space on the TV.", apps: android),
+            Change(text: "HDR is off by default: full screen shows everything in standard range, so the TV doesn't switch modes. Turn it on in Settings › General › HDR in full screen.", apps: android),
+            Change(text: "Game screen: the streams use the whole page, flowing around the player in the corner (the game name above the player is gone).", apps: android),
+            Change(text: "EPG: the category list uses the same text size as the other side panels.", apps: android)
+        ]),
         Release(version: "1.50", date: "2026-11-16", time: "22:42", title: "Clearer update problems", changes: [
             Change(text: "Before installing an update, Courtside checks there's enough free space and says how much is needed if there isn't.", apps: android),
             Change(text: "If Android's installer says \"App not installed\", Courtside explains the usual fix when you're back (free up storage, or reinstall with Downloader). The downloaded update file is deleted once it's installed.", apps: android)

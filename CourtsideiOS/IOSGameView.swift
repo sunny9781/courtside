@@ -100,7 +100,7 @@ struct IOSGameView: View {
         .onAppear {
             // Opening a game plays its first stream in the pinned player (unless one of its streams is already
             // playing); after that, only tapping plays something else.
-            if previewID == nil, let first = streams.first, let game {
+            if previewID == nil, let first = streams.firstToPlay, let game {
                 model.pin(first.channel, gameTitle: game.title, lineup: lineup)
             }
         }

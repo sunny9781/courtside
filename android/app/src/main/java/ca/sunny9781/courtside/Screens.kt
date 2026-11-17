@@ -315,12 +315,12 @@ fun TopBar(model: AppModel) {
 
 /** The video. Only one view shows the player at a time: the newest one takes it. */
 @Composable
-fun PlayerVideo(modifier: Modifier = Modifier, small: Boolean = false) {
+fun PlayerVideo(modifier: Modifier = Modifier, small: Boolean = false, hdr: Boolean = false) {
     AndroidView(
         factory = { ctx ->
             // The player at the top draws into a texture: a 4K or HDR stream there doesn't switch the TV into HDR
             // or another refresh rate. Full screen uses a real video surface, so HDR works there.
-            (android.view.LayoutInflater.from(ctx).inflate(if (small) R.layout.player_texture else R.layout.player_surface, null) as PlayerView).apply {
+            (android.view.LayoutInflater.from(ctx).inflate(if (small || !hdr) R.layout.player_texture else R.layout.player_surface, null) as PlayerView).apply {
                 useController = false
                 resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 setShutterBackgroundColor(android.graphics.Color.BLACK)
@@ -428,7 +428,7 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
                 }
             }
     ) {
-        PlayerVideo(Modifier.fillMaxSize())
+        PlayerVideo(Modifier.fillMaxSize(), hdr = model.settings.hdr)
         Box(Modifier.align(Alignment.Center)) {
             when (Playback.status) {
                 Playback.Status.FAILED -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -762,7 +762,9 @@ fun GameScreen(model: AppModel, gameId: String) {
     // focus starts on the stream that's playing.
     LaunchedEffect(gameId, all.isNotEmpty()) {
         var id = previewId
-        if (!pinnedHere) shown.firstOrNull()?.let { model.pin(it.channel, game.title, lineup); id = it.channel.id }
+        // The first stream that isn't 4K (or the first, if they all are).
+        if (!pinnedHere) (shown.firstOrNull { !it.is4K && it.quality != "4K" } ?: shown.firstOrNull())
+            ?.let { model.pin(it.channel, game.title, lineup); id = it.channel.id }
         delay(80)
         // Focus always lands somewhere on this screen (not on the Home list hidden behind it).
         targets.focus("s:$id") || targets.focus("foreign") || targets.focus("local") || targets.focus("back")
@@ -775,17 +777,15 @@ fun GameScreen(model: AppModel, gameId: String) {
         else model.pin(m.channel, game.title, lineup)
     }
 
-    // With the player in the bottom-left corner, the game's name sits on top of it and the streams fill the right.
+    // Streams use the whole page, flowing around the player in the bottom-left corner: rows that would reach down
+    // beside it start to its right instead.
     val obstacle = model.pinned != null
-    Row(Modifier.fillMaxSize().background(Theme.bg).padding(horizontal = Theme.margin)) {
-    if (obstacle) {
-        GameSummary(model, game, Modifier.width(Theme.playerWidth).fillMaxHeight().padding(bottom = topInset(model)))
-        Spacer(Modifier.width(16.dp))
-    }
-    Column(Modifier.weight(1f).fillMaxHeight()
+    BoxWithConstraints(Modifier.fillMaxSize().background(Theme.bg).padding(horizontal = Theme.margin)) {
+    val blockedFrom = maxHeight - Theme.stripHeight
+    Column(Modifier.fillMaxSize()
         .verticalScroll(rememberScrollState()).wrapRows().enterAt { targets["s:$previewId"] }) {
         if (!pinnedHere && !obstacle) Hero(model, game)
-        WrapGrid(obstacleWidth = 0.dp, obstacleHeight = 0.dp,
+        WrapGrid(obstacleWidth = if (obstacle) Theme.playerWidth else 0.dp, blockedFrom = if (obstacle) blockedFrom - 8.dp else 0.dp,
             cellWidth = 260.dp, spacing = 12.dp, modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)) {
             if (listing.sections.isEmpty()) {
                 Column(Modifier.fullRow(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -830,27 +830,6 @@ fun GameScreen(model: AppModel, gameId: String) {
     }
 }
 
-/** The game's league, status and name (no score), in the column above the player. */
-@Composable
-private fun GameSummary(model: AppModel, game: Game, modifier: Modifier) {
-    Column(modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-            LeagueLogo(model, game.league, 20.dp)
-            Label(cardHeader(game), size = 11.sp, weight = FontWeight.Bold,
-                color = if (game.state == GameState.LIVE) Theme.accent else Theme.soft)
-        }
-        if (game.isEvent && !game.hasSides) {
-            Label(game.eventTitle, size = 16.sp, weight = FontWeight.Bold, maxLines = 3)
-            if (game.eventDetail.isNotEmpty()) Label(game.eventDetail, size = 12.sp, color = Theme.muted, maxLines = 2)
-        } else for (team in listOf(game.away, game.home)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Logo(team.logo, 24.dp, team.abbr)
-                Label(team.name, size = 14.sp, weight = FontWeight.SemiBold, maxLines = 2)
-            }
-        }
-    }
-}
-
 /** Marks an item in a WrapGrid that takes a whole row (section names, buttons). */
 private object FullRow : androidx.compose.ui.layout.ParentDataModifier {
     override fun androidx.compose.ui.unit.Density.modifyParentData(parentData: Any?): Any = FullRow
@@ -859,46 +838,51 @@ private object FullRow : androidx.compose.ui.layout.ParentDataModifier {
 fun Modifier.fullRow(): Modifier = this.then(FullRow)
 
 /**
- * A grid that flows around the player in the top-left corner: the first rows start beside it, later rows use the
- * full width. Cells line up in the same columns throughout; full-row items take whatever width the row has.
+ * A grid that flows around the player in the bottom-left corner: rows that reach down to `blockedFrom` (where the
+ * player starts, measured on the unscrolled page) start to the player's right, so nothing is ever hidden behind it,
+ * even when scrolled. Cells line up in the same columns throughout; full-row items take whatever width the row has.
  */
 @Composable
-fun WrapGrid(obstacleWidth: androidx.compose.ui.unit.Dp, obstacleHeight: androidx.compose.ui.unit.Dp,
+fun WrapGrid(obstacleWidth: androidx.compose.ui.unit.Dp, blockedFrom: androidx.compose.ui.unit.Dp,
              cellWidth: androidx.compose.ui.unit.Dp, spacing: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier,
              content: @Composable () -> Unit) {
     androidx.compose.ui.layout.Layout(content, modifier) { measurables, constraints ->
         val width = constraints.maxWidth
         val gap = spacing.roundToPx()
         val obstW = obstacleWidth.roundToPx()
-        val obstH = obstacleHeight.roundToPx()
+        val limit = blockedFrom.roundToPx()
         val columns = maxOf(1, (width + gap) / (cellWidth.roundToPx() + gap))
         val cell = (width - gap * (columns - 1)) / columns
         val firstFreeCol = if (obstW > 0) minOf(columns - 1, (obstW + gap + cell + gap - 1) / (cell + gap)) else 0
-        fun rowStart(y: Int) = if (obstW > 0 && y < obstH) firstFreeCol * (cell + gap) else 0
+        fun blocked(top: Int, height: Int) = obstW > 0 && top + height > limit
         val placed = mutableListOf<Triple<androidx.compose.ui.layout.Placeable, Int, Int>>()
         var y = 0
-        var x = rowStart(0)
+        var x = 0
         var rowH = 0
         var inRow = false
-        fun newLine() { if (inRow) { y += rowH + gap }; rowH = 0; inRow = false; x = rowStart(y) }
+        fun newLine() { if (inRow) y += rowH + gap; rowH = 0; inRow = false; x = 0 }
+        val headerGuess = 40.dp.roundToPx()
         for (m in measurables) {
             if (m.parentData === FullRow) {
                 newLine()
-                val start = if (obstW > 0 && y < obstH) obstW + gap else 0
+                val start = if (blocked(y, headerGuess)) obstW + gap else 0
                 val p = m.measure(androidx.compose.ui.unit.Constraints.fixedWidth(maxOf(0, width - start)))
                 placed.add(Triple(p, start, y))
                 y += p.height + gap
-                x = rowStart(y)
             } else {
-                if (inRow && x + cell > width) newLine()
                 val p = m.measure(androidx.compose.ui.unit.Constraints.fixedWidth(cell))
+                if (!inRow) x = if (blocked(y, p.height)) firstFreeCol * (cell + gap) else 0
+                else if (x + cell > width) {
+                    newLine()
+                    x = if (blocked(y, p.height)) firstFreeCol * (cell + gap) else 0
+                }
                 placed.add(Triple(p, x, y))
                 rowH = maxOf(rowH, p.height)
                 inRow = true
                 x += cell + gap
             }
         }
-        val height = maxOf(if (inRow) y + rowH else maxOf(0, y - gap), obstH)
+        val height = if (inRow) y + rowH else maxOf(0, y - gap)
         layout(width, height) { for ((p, px, py) in placed) p.place(px, py) }
     }
 }
