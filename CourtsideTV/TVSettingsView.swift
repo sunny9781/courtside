@@ -8,15 +8,11 @@ struct TVSettingsView: View {
     @AppStorage(Prefs.hideAdult) private var hideAdult = true
     @AppStorage(Prefs.guideGrouped) private var grouped = true
     @AppStorage(Prefs.hideSD) private var hideSD = true
-    @AppStorage(Prefs.showFinished) private var showFinished = true
-    @AppStorage(Prefs.guidePreview) private var guidePreview = true
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
     @AppStorage(Prefs.hiddenSports) private var hiddenSports = ""
     @AppStorage(Prefs.hiddenLeagues) private var hiddenLeagues = ""
-    @AppStorage(Prefs.favoriteSports) private var favoriteSports = ""
     @AppStorage(Prefs.refreshHours) private var refreshHours = 6
     @State private var section: Section = .account
-    @State private var openSport: Sport?
     @State private var confirmSignOut = false
     @State private var editingAccount = false
     @FocusState private var focusedSection: Section?
@@ -25,10 +21,10 @@ struct TVSettingsView: View {
 
     enum Section: String, CaseIterable, Identifiable {
         case account = "Account"
-        /// Hidden (switched off) sports, categories and channels, to show them again.
-        case hidden = "Hidden"
         /// Playback, games, EPG and updates together.
         case general = "General"
+        /// Hidden (switched off) sports, categories and channels, to show them again.
+        case hidden = "Hidden"
         case changelog = "Changelog"
 
         var id: String { rawValue }
@@ -112,6 +108,8 @@ struct TVSettingsView: View {
                 .padding(.top, 20)
             action("Sign out", detail: nil, destructive: true) { confirmSignOut = true }
                 .padding(.top, 20)
+                // The connection count is fetched fresh each time you open Account.
+                .task { await model.refreshAccount() }
 
         case .hidden:
             let sports = Sport.allCases.filter { Sport.hidden(hiddenSports).contains($0) }
@@ -162,13 +160,10 @@ struct TVSettingsView: View {
                           ? "Switches your TV to each stream's frame rate (50 or 60 fps) for smoother motion."
                           : "Also turn on Settings › Video and Audio › Match Content › Match Frame Rate on the Apple TV."),
                    $matchFrameRate)
-            toggle("Mini player", detail: "Click a stream once to play it in the mini player, again for full screen.", $guidePreview)
             action("Buffer", detail: "More buffer means fewer stalls but a longer delay behind live.",
                    value: "\(bufferMs / 1000) s") {
                 bufferMs = next(after: bufferMs, in: [1000, 2000, 3000, 5000])
             }
-
-            toggle("Show finished games", detail: nil, $showFinished)
             toggle("Hide SD streams", detail: "Most providers have HD versions of the same channels.", $hideSD)
 
             toggle("Adult categories", detail: "Any category with \"adult\" in its name, and its channels. Off by default.", Binding(
@@ -291,71 +286,6 @@ struct TVSettingsView: View {
         .buttonStyle(TVRowButtonStyle())
     }
 
-    private func sportRow(_ sport: Sport) -> some View {
-        let hidden = Sport.hidden(hiddenSports).contains(sport)
-        let favorite = favorites.contains(sport)
-        return HStack(spacing: 16) {
-            Button {
-                setHidden(sport, !hidden)
-            } label: {
-                HStack(spacing: 18) {
-                    Image(systemName: sport.symbol)
-                        .font(.system(size: 26))
-                        .frame(width: 40)
-                    Text(sport.rawValue)
-                        .font(.system(size: 26, weight: .medium))
-                    Spacer()
-                    Text(hidden ? "Hidden" : "Shown")
-                        .font(.system(size: 22, weight: .semibold))
-                        .opacity(hidden ? 0.5 : 0.8)
-                }
-            }
-            .buttonStyle(TVRowButtonStyle())
-
-            Button {
-                toggleFavorite(sport)
-            } label: {
-                Image(systemName: favorite ? "heart.fill" : "heart")
-                    .font(.system(size: 24))
-                    .foregroundStyle(favorite ? Theme.accent : Theme.muted)
-            }
-            .buttonStyle(TVPillButtonStyle())
-
-            if sport.leagues.count > 1 {
-                Button {
-                    openSport = openSport == sport ? nil : sport
-                } label: {
-                    Image(systemName: openSport == sport ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 22, weight: .semibold))
-                }
-                .buttonStyle(TVPillButtonStyle())
-            } else {
-                Color.clear.frame(width: 76, height: 60)
-            }
-        }
-        .opacity(hidden ? 0.7 : 1)
-    }
-
-    private func leagueRow(_ league: League, sportHidden: Bool) -> some View {
-        let hidden = League.hidden(hiddenLeagues).contains(league.id)
-        return Button {
-            setLeagueHidden(league, !hidden)
-        } label: {
-            HStack(spacing: 16) {
-                TVLeagueLogo(league: league, size: 36)
-                Text(league.name).font(.system(size: 23))
-                Spacer()
-                Text(hidden ? "Hidden" : "Shown")
-                    .font(.system(size: 21, weight: .semibold))
-                    .opacity(hidden ? 0.5 : 0.8)
-            }
-            .padding(.leading, 56)
-        }
-        .buttonStyle(TVRowButtonStyle())
-        .disabled(sportHidden)
-        .padding(.trailing, 184)
-    }
-
     // MARK: Helpers
 
     private var connections: String {
@@ -369,31 +299,8 @@ struct TVSettingsView: View {
         return "\(v) (\(b))"
     }
 
-    private var favorites: Set<Sport> {
-        Set(favoriteSports.split(separator: ",").compactMap { Sport(rawValue: String($0)) })
-    }
-
     private func next(after value: Int, in list: [Int]) -> Int {
         guard let i = list.firstIndex(of: value) else { return list[0] }
         return list[(i + 1) % list.count]
-    }
-
-    private func setHidden(_ sport: Sport, _ hide: Bool) {
-        var set = Sport.hidden(hiddenSports)
-        if hide { set.insert(sport) } else { set.remove(sport) }
-        hiddenSports = Sport.allCases.filter { set.contains($0) }.map(\.rawValue).joined(separator: ",")
-    }
-
-    private func setLeagueHidden(_ league: League, _ hide: Bool) {
-        var set = League.hidden(hiddenLeagues)
-        if hide { set.insert(league.id) } else { set.remove(league.id) }
-        hiddenLeagues = League.all.filter { set.contains($0.id) }.map(\.id).joined(separator: ",")
-        model.applyLeagueFilter()
-    }
-
-    private func toggleFavorite(_ sport: Sport) {
-        var set = favorites
-        if set.contains(sport) { set.remove(sport) } else { set.insert(sport) }
-        favoriteSports = Sport.allCases.filter { set.contains($0) }.map(\.rawValue).joined(separator: ",")
     }
 }

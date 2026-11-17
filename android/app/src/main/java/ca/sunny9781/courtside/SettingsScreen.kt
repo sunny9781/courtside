@@ -187,7 +187,7 @@ private fun Hidden(model: AppModel) {
             size = 13.sp, color = Theme.muted, maxLines = 3, modifier = Modifier.padding(10.dp))
         return
     }
-    Label("Click one to show it again.", size = 11.sp, color = Theme.muted, modifier = Modifier.padding(horizontal = 10.dp))
+    Label("Click one to show it again. A hidden sport is switched off: no scores are fetched and nothing is matched for it.", size = 11.sp, maxLines = 2, color = Theme.muted, modifier = Modifier.padding(horizontal = 10.dp))
     if (sports.isNotEmpty() || leagues.isNotEmpty()) {
         Label("SPORTS", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.padding(start = 10.dp, top = 8.dp))
         for (sport in sports) Action(sport.title, null, value = "Show") { model.setSportHidden(sport, false) }

@@ -393,14 +393,16 @@ final class AppModel: ObservableObject {
         }
     }
 
-    /// Connections in use change whenever any device on the account starts or stops a stream,
-    /// so the account is checked every 30 seconds while the app is open.
+    /// Connections in use change whenever any device on the account starts or stops a stream: the count is
+    /// checked when the app opens and then every minute while something plays (like the Android TV app).
     private func startAccountUpdates() {
         accountTask?.cancel()
         accountTask = Task { [weak self] in
+            await self?.refreshAccount()
             while !Task.isCancelled {
-                await self?.refreshAccount()
-                try? await Task.sleep(for: .seconds(30))
+                try? await Task.sleep(for: .seconds(60))
+                guard let self, !Task.isCancelled else { return }
+                if self.pinned != nil || self.nowPlaying != nil { await self.refreshAccount() }
             }
         }
     }
@@ -416,8 +418,10 @@ final class AppModel: ObservableObject {
     /// Re-checks the count a few seconds after a stream starts or stops, once the provider has noticed.
     func checkConnectionsSoon() {
         accountCheck?.cancel()
+        // Providers take a while to notice a closed stream, so checking right after flipping counts the old one
+        // too (2/2 while only one plays). Each switch restarts the 20-second wait.
         accountCheck = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(5))
+            try? await Task.sleep(for: .seconds(20))
             guard !Task.isCancelled else { return }
             await self?.refreshAccount()
         }

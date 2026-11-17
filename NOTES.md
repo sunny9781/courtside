@@ -32,6 +32,8 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Home: sports sidebar (groups: live scores / channel sports / nothing today) + EPG-style list of games (one line per
   game; upcoming grey). Channel-only sports (pickleball) show channels grouped by category.
 - Game screen: mini EPG, categories left ("All" first, with group headings), streams right; first non-4K stream autoplays.
+- EPG: no what's-playing panel (the bottom bar shows it); Done/Enter in Filter jumps to the first result.
+- Settings sections (both TVs): Account, General, Hidden, Changelog.
 - EPG: favourites (hold select / heart) listed first; Hide via hold; Settings › Hidden lists hidden sports, leagues,
   categories, channels. Hidden sports/leagues are switched off (not fetched, not matched).
 - Android Lite mode (default on except Nvidia Shield): no corner player (channels open full screen, Back stops),

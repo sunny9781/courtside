@@ -107,7 +107,7 @@ struct TVShell: View {
                     .padding(.top, 50)
                     .zIndex(2)
                     .task(id: message) {
-                        try? await Task.sleep(for: .seconds(5))
+                        try? await Task.sleep(for: .seconds(message.count > 80 ? 12 : 5))
                         if model.notice == message { model.notice = nil }
                     }
             }

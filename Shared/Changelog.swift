@@ -74,6 +74,16 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.65", date: "2026-11-17", time: "14:55", title: "Apple TV and Android TV lined up", changes: [
+            Change(text: "Settings: the sections are in the same order as on Android TV (Account, General, Hidden, Changelog). Mini player and Show finished games are gone: neither did anything on the Apple TV.", apps: tv),
+            Change(text: "Settings › Account checks the connection count each time you open it.", apps: tv),
+            Change(text: "EPG: what's playing is only in the bar along the bottom (the extra panel under the categories is gone), and the channel that's playing is orange in the list.", apps: tv),
+            Change(text: "EPG: Done on the Filter keyboard goes to the first result.", apps: tv),
+            Change(text: "Game screen: with no streams found, a Back to the games button.", apps: tv),
+            Change(text: "Long messages (like update problems) stay on screen for 12 seconds instead of 5.", apps: tv),
+            Change(text: "The connection count is checked 20 seconds after you switch streams (not 5, when the provider still counted the old one), and every minute while something plays.", apps: [.mac, .tv, .ios]),
+            Change(text: "Hiding a sport says Settings › Hidden brings it back (it said Settings › Sports). Settings › Hidden explains that a hidden sport is switched off.", apps: android)
+        ], titleApps: [.tv, .android]),
         Release(version: "1.64", date: "2026-11-17", time: "14:38", title: "Lighter Lite mode", changes: [
             Change(text: "Lite mode has no player in the corner: a channel or stream opens straight in full screen, and Back stops it (freeing the connection).", apps: android),
             Change(text: "Lite mode has no live scores: today's games load once when the app opens, with no scores or game clocks, and nothing is fetched or re-matched every minute.", apps: android)
