@@ -10,6 +10,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.foundation.background
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -72,17 +74,32 @@ fun EpgScreen(model: AppModel) {
             leaves(tree)
         }
     }
+    val favChannels = model.favoriteChannelIds
+    val favNodes = remember(tree, model.categories, s.favoriteCategories) { model.favoriteCategoryNodes() }
+    val favEntries = favNodes.map { Entry(if (it.isGroup) "g:${it.id}" else it.id, it.name, it.categories) }
     val selected: Entry? = run {
         val id = s.guideCategory
+        if (id == FAVORITES && favChannels.isNotEmpty()) return@run Entry(FAVORITES, "Favourites", emptyList())
         if (id.startsWith("g:")) CategoryGrouping.find(id.drop(2), tree)?.let { return@run Entry(id, it.name, it.categories) }
         entries.firstOrNull { it.id == id } ?: entries.firstOrNull()
     }
-    val channels = remember(selected?.id, model.channelsByCategory) {
-        (selected?.categories ?: emptyList()).flatMap { model.channelsByCategory[it.id] ?: emptyList() }.distinctBy { it.id }
+    val channels = remember(selected?.id, model.channelsByCategory, s.favoriteChannels) {
+        if (selected?.id == FAVORITES) model.favoriteChannelList()
+        else model.favoritesFirst((selected?.categories ?: emptyList()).flatMap { model.channelsByCategory[it.id] ?: emptyList() }.distinctBy { it.id })
+    }
+    // Hold the select button on a category or channel: add it to favourites, or take it off.
+    var prompt by remember { mutableStateOf<FavoritePrompt?>(null) }
+    fun holdCategory(id: String, name: String) {
+        val key = id.removePrefix("g:")
+        prompt = FavoritePrompt(name, model.isFavoriteCategory(key)) { model.toggleFavoriteCategory(key) }
+    }
+    fun holdChannel(ch: Channel) {
+        prompt = FavoritePrompt(ch.name, model.isFavoriteChannel(ch.id)) { model.toggleFavoriteChannel(ch.id) }
     }
     fun key(n: CategoryGrouping.Node) = if (n.isGroup) "g:${n.id}" else n.id
     // Coming in from the tabs or the channels: the selected category if it's showing, otherwise the first row.
     val categoryTarget: String? = when {
+        model.guidePath.isEmpty() && selected != null && (selected.id == FAVORITES || favEntries.any { it.id == selected.id }) -> selected.id
         !s.grouped -> selected?.id
         selected != null && level.any { key(it) == selected.id } -> selected.id
         else -> level.firstOrNull()?.let { key(it) }
@@ -120,27 +137,52 @@ fun EpgScreen(model: AppModel) {
                     model.guidePath = emptyList()
                 }
             }
+            // Favourites first: your favourite channels, then favourite categories and groups, then a line.
+            if (model.guidePath.isEmpty()) {
+                if (favChannels.isNotEmpty()) item(key = "fav") {
+                    CategoryRow(cats, "cat:$FAVORITES", Icons.Filled.Favorite, "Favourites", "${model.favoriteChannelList().size}",
+                        selected?.id == FAVORITES, onFocus = { if (s.guideCategory != FAVORITES) s.guideCategory = FAVORITES }) {
+                        s.guideCategory = FAVORITES
+                    }
+                }
+                items(favEntries, key = { "fav:${it.id}" }) { e ->
+                    CategoryRow(cats, "cat:${e.id}", null, e.name, "${count(model, e.categories)}", selected?.id == e.id,
+                        favorite = true, onLongClick = { holdCategory(e.id, e.name) },
+                        onFocus = { if (s.guideCategory != e.id) s.guideCategory = e.id }) { s.guideCategory = e.id }
+                }
+                if (favChannels.isNotEmpty() || favEntries.isNotEmpty()) item(key = "favline") {
+                    Box(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp).height(1.dp)
+                        .background(Theme.raised))
+                }
+            }
             if (s.grouped) {
                 if (openNodes.isNotEmpty()) item(key = "up") {
                     CategoryRow(cats, "cat:up", Icons.Filled.ChevronLeft, openNodes.joinToString(" › ") { it.name }, null, false, bold = true) {
                         go(model.guidePath.dropLast(1))
                     }
                 }
-                items(level, key = { key(it) }) { node ->
+                // At the top, favourites are already listed above; inside a group they come first.
+                val shown = if (model.guidePath.isEmpty()) level.filter { !model.isFavoriteCategory(it.id) }
+                    else level.filter { model.isFavoriteCategory(it.id) } + level.filter { !model.isFavoriteCategory(it.id) }
+                items(shown, key = { key(it) }) { node ->
                     val k = key(node)
+                    val fav = model.isFavoriteCategory(node.id)
                     if (node.isGroup) {
                         CategoryRow(cats, "cat:$k", Icons.Filled.Folder, node.name, "${node.categories.size}", selected?.id == k,
-                            trailing = Icons.Filled.ChevronRight, onFocus = { if (s.guideCategory != k) s.guideCategory = k }) {
+                            trailing = Icons.Filled.ChevronRight, favorite = fav, onLongClick = { holdCategory(k, node.name) },
+                            onFocus = { if (s.guideCategory != k) s.guideCategory = k }) {
                             go(model.guidePath + node.id)
                         }
                     } else {
                         CategoryRow(cats, "cat:$k", null, node.name, "${count(model, node.categories)}", selected?.id == k,
+                            favorite = fav, onLongClick = { holdCategory(k, node.name) },
                             onFocus = { if (s.guideCategory != k) s.guideCategory = k }) { s.guideCategory = k }
                     }
                 }
             } else {
-                items(entries, key = { it.id }) { e ->
+                items(entries.filter { !model.isFavoriteCategory(it.id) }, key = { it.id }) { e ->
                     CategoryRow(cats, "cat:${e.id}", null, e.name, "${count(model, e.categories)}", selected?.id == e.id,
+                        onLongClick = { holdCategory(e.id, e.name) },
                         onFocus = { if (s.guideCategory != e.id) s.guideCategory = e.id }) { s.guideCategory = e.id }
                 }
             }
@@ -169,20 +211,54 @@ fun EpgScreen(model: AppModel) {
                         }
                         if (open) items(hit.channels, key = { "h:${hit.id}:${it.id}" }) { ch ->
                             val k = "h:${hit.id}:${ch.id}"
-                            ChannelRow(model, ch, ch.id == playing?.id, Modifier.tracked(rows, k),
+                            ChannelRow(model, ch, ch.id == playing?.id, Modifier.tracked(rows, k), onLongClick = { holdChannel(ch) },
                                 onFocus = { focusedChannel = ch.id; lastRow = k }) { click(ch, hit.channels) }
                         }
                     }
                 } else {
                     items(channels, key = { "c:${it.id}" }) { ch ->
                         val k = "c:${ch.id}"
-                        ChannelRow(model, ch, ch.id == playing?.id, Modifier.tracked(rows, k),
+                        ChannelRow(model, ch, ch.id == playing?.id, Modifier.tracked(rows, k), onLongClick = { holdChannel(ch) },
                             onFocus = { focusedChannel = ch.id; lastRow = k }) { click(ch, channels) }
                     }
                 }
             }
         }
     }
+    prompt?.let { p -> FavoriteDialog(p) { prompt = null } }
+}
+
+private const val FAVORITES = "fav"
+
+/** What holding the select button on a row asks about. */
+private class FavoritePrompt(val name: String, val isFavorite: Boolean, val toggle: () -> Unit)
+
+/** "Add to Favourites" (or "Remove from Favourites") for the row you held the select button on. */
+@Composable
+private fun FavoriteDialog(p: FavoritePrompt, dismiss: () -> Unit) {
+    val first = remember { androidx.compose.ui.focus.FocusRequester() }
+    androidx.compose.ui.window.Dialog(onDismissRequest = dismiss) {
+        Column(Modifier.width(320.dp).background(Theme.card, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Label(p.name, size = 15.sp, weight = FontWeight.Bold, maxLines = 2)
+            TvButton(onClick = { p.toggle(); dismiss() }, focusedScale = 1f,
+                modifier = Modifier.fillMaxWidth().focusRequester(first)) { focused ->
+                val color = if (focused) Theme.bg else Theme.text
+                Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(if (p.isFavorite) Icons.Filled.HeartBroken else Icons.Filled.Favorite, null,
+                        tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(15.dp))
+                    Label(if (p.isFavorite) "Remove from Favourites" else "Add to Favourites", size = 14.sp,
+                        weight = FontWeight.SemiBold, color = color)
+                }
+            }
+            TvButton(onClick = dismiss, focusedScale = 1f, modifier = Modifier.fillMaxWidth()) { focused ->
+                Label("Cancel", size = 14.sp, color = if (focused) Theme.bg else Theme.soft,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp))
+            }
+        }
+    }
+    LaunchedEffect(Unit) { delay(50); runCatching { first.requestFocus() } }
 }
 
 private data class Entry(val id: String, val name: String, val categories: List<ChannelCategory>)
@@ -198,14 +274,17 @@ private fun count(model: AppModel, cats: List<ChannelCategory>) = cats.sumOf { m
 internal fun CategoryRow(
     targets: FocusTargets, key: String, icon: androidx.compose.ui.graphics.vector.ImageVector?, name: String, value: String?,
     selected: Boolean, bold: Boolean = false, trailing: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    favorite: Boolean = false, onLongClick: (() -> Unit)? = null,
     onFocus: (() -> Unit)? = null, onClick: () -> Unit
 ) {
-    TvButton(onClick = onClick, selected = selected, onFocus = onFocus, modifier = Modifier.fillMaxWidth().tracked(targets, key)) { focused ->
+    TvButton(onClick = onClick, selected = selected, onFocus = onFocus, onLongClick = onLongClick,
+        modifier = Modifier.fillMaxWidth().tracked(targets, key)) { focused ->
         val color = if (focused) Theme.bg else Theme.text
         Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (icon != null) Icon(icon, null, tint = color.copy(alpha = 0.75f), modifier = Modifier.size(14.dp))
             Label(name, size = 14.sp, weight = if (bold) FontWeight.Bold else FontWeight.SemiBold, color = color, modifier = Modifier.weight(1f))
+            if (favorite) Icon(Icons.Filled.Favorite, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(12.dp))
             if (value != null) Label(value, size = 11.sp, color = color.copy(alpha = 0.6f))
             if (trailing != null) Icon(trailing, null, tint = color.copy(alpha = 0.6f), modifier = Modifier.size(13.dp))
         }
@@ -238,10 +317,11 @@ private fun InfoPanel(model: AppModel, channel: Channel?, playing: Channel?) {
 /** A channel: logo and name, what's on now (with progress), and what's next. */
 @Composable
 internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, modifier: Modifier, badge: String? = null,
-                        onFocus: () -> Unit, onClick: () -> Unit) {
+                        onLongClick: (() -> Unit)? = null, onFocus: () -> Unit, onClick: () -> Unit) {
     val now = model.currentProgramme(channel)
     val next = now?.let { n -> model.guide[channel.epgId]?.firstOrNull { it.start >= n.end } }
-    TvButton(onClick = onClick, onFocus = onFocus, focusedScale = 1.02f, modifier = modifier.fillMaxWidth()) { focused ->
+    TvButton(onClick = onClick, onFocus = onFocus, focusedScale = 1.02f, onLongClick = onLongClick,
+        modifier = modifier.fillMaxWidth()) { focused ->
         val color = if (focused) Theme.bg else Theme.text
         Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.width(NAME_WIDTH), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -249,6 +329,8 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
                 Label(channel.name, size = 12.sp, weight = FontWeight.SemiBold, color = if (playing && !focused) Theme.accent else color,
                     maxLines = 2, modifier = Modifier.weight(1f, fill = false))
                 if (playing) Icon(Icons.Filled.GraphicEq, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(11.dp))
+                if (model.isFavoriteChannel(channel.id))
+                    Icon(Icons.Filled.Favorite, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(10.dp))
             }
             Column(Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Label(now?.title ?: "–", size = 12.sp, color = color)

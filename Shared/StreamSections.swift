@@ -134,6 +134,12 @@ enum StreamSections {
 }
 
 extension StreamMatch {
+    /// Any sign this stream is 4K, for picking the one to start with.
+    func looksUHD(_ measured: [Int: String]) -> Bool {
+        is4K || quality == "4K" || measured[channel.id] == "4K"
+            || CategoryGrouping.isUHD(channel.name) || CategoryGrouping.isUHD(channel.categoryName)
+    }
+
     /// 4K only when the channel's own name says so ("4K", "UHD"): the category or a guessed quality isn't enough.
     var is4K: Bool {
         let words = Set(channel.name.uppercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber }).map(String.init))

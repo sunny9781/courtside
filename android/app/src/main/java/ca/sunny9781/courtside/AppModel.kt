@@ -100,6 +100,32 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         private set
     var notice by mutableStateOf<String?>(null)
 
+    // EPG favourites (listed first). Categories by id: a provider category, or a "__node:" group.
+    val favoriteChannelIds: List<Int> get() = settings.favoriteChannels.split(",").mapNotNull { it.toIntOrNull() }
+    val favoriteCategoryIds: List<String> get() = settings.favoriteCategories.split("\n").filter { it.isNotEmpty() }
+    fun isFavoriteChannel(id: Int) = id in favoriteChannelIds
+    fun isFavoriteCategory(id: String) = id in favoriteCategoryIds
+    fun toggleFavoriteChannel(id: Int) {
+        val list = favoriteChannelIds
+        settings.favoriteChannels = (if (id in list) list - id else list + id).joinToString(",")
+    }
+    fun toggleFavoriteCategory(id: String) {
+        val list = favoriteCategoryIds
+        settings.favoriteCategories = (if (id in list) list - id else list + id).joinToString("\n")
+    }
+    /** Favourite channels that still exist, in the order added. */
+    fun favoriteChannelList(): List<Channel> = favoriteChannelIds.mapNotNull { channelById[it] }
+    /** Favourite categories and groups that still exist, in the order added. */
+    fun favoriteCategoryNodes(): List<CategoryGrouping.Node> = favoriteCategoryIds.mapNotNull { id ->
+        CategoryGrouping.find(id, categoryTree)
+            ?: categories.firstOrNull { it.id == id }?.let { CategoryGrouping.Node(it.id, it.name, emptyList(), listOf(it)) }
+    }
+    /** The same channels with favourites first. */
+    fun favoritesFirst(channels: List<Channel>): List<Channel> {
+        val fav = favoriteChannelIds.toSet()
+        return if (fav.isEmpty()) channels else channels.filter { it.id in fav } + channels.filter { it.id !in fav }
+    }
+
     private var indexed: List<Matcher.Indexed> = emptyList()
     private val recent = LinkedHashSet<Int>()
     private var scoresJob: Job? = null

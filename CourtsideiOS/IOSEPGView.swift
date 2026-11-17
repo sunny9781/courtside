@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// EPG: a search field with a "Group" filter, then groups → categories → channels, opened in place.
+/// EPG: groups → categories → channels on a native navigation stack (swipe from the left edge to go back), with
+/// favourites first. Along the bottom: your favourite categories and channels, then Auto-Group and the filter.
 /// Tap a channel to play it in the pinned player at the top; tap it again for full screen (swipe up/down flips
-/// through the category).
+/// through the category). The heart on a row adds it to (or removes it from) favourites.
 struct IOSEPGView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.guideGrouped) private var grouped = true
@@ -14,65 +15,130 @@ struct IOSEPGView: View {
     /// Result groups opened or closed by hand (otherwise they follow Hit.startsOpen).
     @State private var flipped: Set<String> = []
 
-    // MARK: Data
-
-    private var allCategories: [ChannelCategory] {
-        model.categories.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-    }
-
-    private var openNodes: [CategoryGrouping.Node] {
-        var out: [CategoryGrouping.Node] = []
-        var level = model.categoryTree
-        for id in path where !id.hasPrefix("cat:") {
-            guard let node = level.first(where: { $0.id == id }) else { break }
-            out.append(node)
-            level = node.children
-        }
-        return out
-    }
-
-    /// The category whose channels are showing, if one is open.
-    private var openCategory: (name: String, categories: [ChannelCategory])? {
-        guard let last = path.last, last.hasPrefix("cat:") else { return nil }
-        let id = String(last.dropFirst(4))
-        if grouped {
-            if let group = openNodes.last, group.id == id { return (group.name, group.categories) }
-            let level = openNodes.last?.children ?? model.categoryTree
-            if let node = level.first(where: { $0.id == id }) { return (node.name, node.categories) }
-        }
-        if let cat = model.categories.first(where: { $0.id == id }) { return (cat.name, [cat]) }
-        return nil
-    }
-
-    private var channels: [Channel] {
-        guard let open = openCategory else { return [] }
-        return open.categories.flatMap { model.channelsByCategory[$0.id] ?? [] }
-    }
-
     /// What's in the pinned player.
     private var playing: Channel? { model.pinned?.channel }
 
-    /// At the bottom, in easy reach of the right thumb: "back" (when you've opened a group), then Group and the
-    /// filter box, with the filter on the right.
-    private var bottomControls: some View {
-        VStack(spacing: 8) {
-            if !path.isEmpty {
-                Button {
-                    path.removeLast()
-                    search = ""
-                } label: {
-                    HStack(spacing: 6) {
-                        Spacer()
-                        Text(breadcrumb).font(.subheadline.weight(.semibold)).lineLimit(1)
-                        Image(systemName: "arrow.uturn.left").font(.subheadline.weight(.semibold))
+    private var searching: Bool { search.trimmingCharacters(in: .whitespaces).count >= 2 }
+
+    // MARK: Layout
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if model.channels.isEmpty {
+                Spacer()
+                Text(model.downloadingChannels ? "Downloading channels…" : (model.errorMessage ?? "No channels yet."))
+                    .foregroundStyle(Theme.muted)
+                Spacer()
+            } else {
+                NavigationStack(path: $path) {
+                    page(nil)
+                        .toolbar(.hidden, for: .navigationBar)
+                        .navigationDestination(for: String.self) { id in
+                            page(id)
+                                .navigationTitle(title(id))
+                                .navigationBarTitleDisplayMode(.inline)
+                                .toolbarBackground(Theme.bg, for: .navigationBar)
+                        }
+                }
+                .tint(Theme.accent)
+            }
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) { bottomControls }
+        .background(Theme.bg)
+        .onChange(of: search) {
+            // Searching covers every category, so it starts from the top.
+            if searching && !path.isEmpty { path = [] }
+        }
+        .onChange(of: grouped) { path = [] }
+        .task(id: "\(search)|\(grouped)") {
+            // A moment after typing stops, search every category and channel.
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            hits = EPGSearch.run(search, model: model, grouped: grouped)
+            flipped = []
+        }
+    }
+
+    /// One level: the top (nil), a group, or a category's channels ("cat:<id>").
+    private func page(_ id: String?) -> some View {
+        ScrollView {
+            LazyVStack(spacing: 0) {
+                if id == nil && searching {
+                    searchResults
+                } else if let id, id.hasPrefix("cat:") {
+                    let list = channels(String(id.dropFirst(4)))
+                    if list.isEmpty {
+                        Text("No channels.").foregroundStyle(Theme.muted).padding(.top, 30)
                     }
-                    .foregroundStyle(Theme.accent)
-                    .padding(.horizontal)
-                    .frame(minHeight: 32)
+                    ForEach(list) { channel in channelRow(channel, lineup: list) }
+                } else if let id, let group = CategoryGrouping.find(id, in: model.categoryTree) {
+                    categoryRow(id: group.id, "All \(group.name) channels", count: count(group.categories), group: false,
+                                heart: false, target: "cat:" + group.id)
+                    nodeRows(group.children)
+                } else if grouped {
+                    nodeRows(model.categoryTree)
+                } else {
+                    let all = model.categories.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+                    nodeRows(all.map { CategoryGrouping.Node(id: $0.id, name: $0.name, children: [], categories: [$0]) })
                 }
             }
+            .padding(.bottom, 30)
+        }
+        .background(Theme.bg)
+    }
+
+    @ViewBuilder
+    private func nodeRows(_ nodes: [CategoryGrouping.Node]) -> some View {
+        ForEach(model.favoritesFirst(nodes)) { node in
+            if node.isGroup {
+                categoryRow(id: node.id, node.name, count: node.categories.count, group: true, target: node.id)
+            } else {
+                categoryRow(id: node.id, node.name, count: count(node.categories), group: false, target: "cat:" + node.id)
+            }
+        }
+    }
+
+    // MARK: Favourites and filter
+
+    /// At the bottom, in easy reach of the thumb: your favourites (categories, a line, then channels), then
+    /// Auto-Group and the filter box.
+    private var bottomControls: some View {
+        VStack(spacing: 8) {
+            let cats = model.favoriteCategoryNodes
+            let chans = model.favoriteChannelList
+            if !cats.isEmpty || !chans.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "heart.fill")
+                            .font(.caption)
+                            .foregroundStyle(Theme.accent)
+                        ForEach(cats) { node in
+                            IOSChip(selected: path.last == (node.isGroup ? node.id : "cat:" + node.id), action: {
+                                search = ""
+                                path = [node.isGroup ? node.id : "cat:" + node.id]
+                            }) {
+                                Label(node.name, systemImage: node.isGroup ? "folder.fill" : "list.bullet")
+                                    .lineLimit(1)
+                            }
+                        }
+                        if !cats.isEmpty && !chans.isEmpty {
+                            Rectangle().fill(Theme.border).frame(width: 1, height: 24).padding(.horizontal, 4)
+                        }
+                        ForEach(chans) { channel in
+                            IOSChip(selected: channel.id == playing?.id, action: { tap(channel, lineup: chans) }) {
+                                HStack(spacing: 6) {
+                                    IOSChannelIcon(url: channel.icon, size: 20)
+                                    Text(channel.name).lineLimit(1)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                Divider().overlay(Theme.raised)
+            }
             HStack(spacing: 10) {
-                IOSChip(selected: grouped, action: { grouped.toggle(); path = [] }) {
+                IOSChip(selected: grouped, action: { grouped.toggle() }) {
                     Label("Auto-Group", systemImage: "square.stack.3d.up")
                 }
                 HStack(spacing: 8) {
@@ -96,82 +162,34 @@ struct IOSEPGView: View {
         .background(.ultraThinMaterial)
     }
 
-    // MARK: Layout
+    // MARK: Data
 
-    var body: some View {
-        VStack(spacing: 0) {
-            if model.channels.isEmpty {
-                Spacer()
-                Text(model.downloadingChannels ? "Downloading channels…" : (model.errorMessage ?? "No channels yet."))
-                    .foregroundStyle(Theme.muted)
-                Spacer()
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        if search.trimmingCharacters(in: .whitespaces).count >= 2 {
-                            searchResults
-                        } else if openCategory != nil {
-                            ForEach(channels) { channel in
-                                Button { tap(channel) } label: {
-                                    IOSChannelRow(channel: channel, playing: channel.id == playing?.id)
-                                }
-                                .buttonStyle(.plain)
-                                Divider().overlay(Theme.raised).padding(.leading, 62)
-                            }
-                        } else if grouped {
-                            if let group = openNodes.last {
-                                categoryRow("All \(group.name) channels", count: count(group.categories), group: false) {
-                                    open("cat:" + group.id)
-                                }
-                            }
-                            ForEach(openNodes.last?.children ?? model.categoryTree) { node in
-                                if node.isGroup {
-                                    categoryRow(node.name, count: node.categories.count, group: true) { open(node.id) }
-                                } else {
-                                    categoryRow(node.name, count: count(node.categories), group: false) { open("cat:" + node.id) }
-                                }
-                            }
-                        } else {
-                            ForEach(allCategories) { cat in
-                                categoryRow(cat.name, count: model.channelsByCategory[cat.id]?.count ?? 0, group: false) {
-                                    open("cat:" + cat.id)
-                                }
-                            }
-                        }
-                    }
-                    .padding(.bottom, 30)
-                }
-            }
-        }
-        .safeAreaInset(edge: .bottom, spacing: 0) { bottomControls }
-        .background(Theme.bg)
-        .task(id: "\(search)|\(grouped)") {
-            // A moment after typing stops, search every category and channel.
-            try? await Task.sleep(for: .milliseconds(250))
-            guard !Task.isCancelled else { return }
-            hits = EPGSearch.run(search, model: model, grouped: grouped)
-            flipped = []
-        }
+    private func title(_ id: String) -> String {
+        let raw = id.hasPrefix("cat:") ? String(id.dropFirst(4)) : id
+        if let node = CategoryGrouping.find(raw, in: model.categoryTree) { return node.name }
+        return model.categories.first { $0.id == raw }?.name ?? ""
     }
 
-    private var breadcrumb: String {
-        var names = openNodes.map(\.name)
-        if let open = openCategory, open.name != names.last { names.append(open.name) }
-        return names.joined(separator: " › ")
+    /// The channels of a category, or of every category in a group, favourites first.
+    private func channels(_ id: String) -> [Channel] {
+        let cats: [ChannelCategory]
+        if let node = CategoryGrouping.find(id, in: model.categoryTree) {
+            cats = node.categories
+        } else {
+            cats = model.categories.filter { $0.id == id }
+        }
+        return model.favoritesFirst(cats.flatMap { model.channelsByCategory[$0.id] ?? [] })
     }
 
     private func count(_ categories: [ChannelCategory]) -> Int {
         categories.reduce(0) { $0 + (model.channelsByCategory[$1.id]?.count ?? 0) }
     }
 
-    private func open(_ id: String) {
-        path.append(id)
-        search = ""
-    }
-
     private func isOpen(_ hit: EPGSearch.Hit) -> Bool {
         hit.startsOpen(totalHits: hits.count) != flipped.contains(hit.id)
     }
+
+    // MARK: Rows
 
     /// Search results: one foldable group per category, channel hits first.
     @ViewBuilder
@@ -206,54 +224,70 @@ struct IOSEPGView: View {
             }
             .buttonStyle(.plain)
             if isOpen(hit) {
-                ForEach(hit.channels) { channel in
-                    Button {
-                        if channel.id == playing?.id { fullScreen(channel) } else { model.pin(channel, lineup: hit.channels) }
-                    } label: {
-                        IOSChannelRow(channel: channel, playing: channel.id == playing?.id)
-                    }
-                    .buttonStyle(.plain)
-                    Divider().overlay(Theme.raised).padding(.leading, 62)
-                }
+                ForEach(hit.channels) { channel in channelRow(channel, lineup: hit.channels) }
             }
         }
+    }
+
+    private func channelRow(_ channel: Channel, lineup: [Channel]) -> some View {
+        HStack(spacing: 0) {
+            Button { tap(channel, lineup: lineup) } label: {
+                IOSChannelRow(channel: channel, playing: channel.id == playing?.id)
+            }
+            .buttonStyle(.plain)
+            heart(model.isFavorite(channel: channel.id)) { model.toggleFavorite(channel: channel.id) }
+        }
+        .overlay(alignment: .bottom) { Divider().overlay(Theme.raised).padding(.leading, 62) }
+    }
+
+    private func categoryRow(id: String, _ name: String, count: Int, group: Bool, heart showHeart: Bool = true,
+                             target: String) -> some View {
+        HStack(spacing: 0) {
+            Button {
+                search = ""
+                path.append(target)
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: group ? "folder.fill" : "list.bullet")
+                        .foregroundStyle(group ? Theme.accent : Theme.muted)
+                        .frame(width: 24)
+                    Text(name).foregroundStyle(Theme.text).lineLimit(1)
+                    Spacer()
+                    Text("\(count)").font(.subheadline).foregroundStyle(Theme.muted)
+                    Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
+                }
+                .padding(.leading)
+                .padding(.trailing, showHeart ? 4 : 16)
+                .frame(height: 48)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            if showHeart {
+                heart(model.isFavorite(category: id)) { model.toggleFavorite(category: id) }
+            }
+        }
+        .overlay(alignment: .bottom) { Divider().overlay(Theme.raised).padding(.leading, 52) }
+    }
+
+    private func heart(_ on: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: on ? "heart.fill" : "heart")
+                .foregroundStyle(on ? Theme.accent : Theme.muted.opacity(0.6))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, 6)
+        .accessibilityLabel(on ? "Remove from favourites" : "Add to favourites")
     }
 
     /// Tap once to play it in the pinned player at the top, tap again for full screen.
-    private func tap(_ channel: Channel) {
+    private func tap(_ channel: Channel, lineup: [Channel]) {
         if channel.id == playing?.id {
-            fullScreen(channel)
+            model.play(channel, gameTitle: model.pinned?.gameTitle, lineup: model.pinned?.lineup ?? lineup)
         } else {
-            model.pin(channel, lineup: currentLineup(channel))
+            model.pin(channel, lineup: lineup.isEmpty ? [channel] : lineup)
         }
-    }
-
-    private func currentLineup(_ channel: Channel) -> [Channel] {
-        let list = openCategory.map { $0.categories.flatMap { model.channelsByCategory[$0.id] ?? [] } } ?? []
-        return list.isEmpty ? [channel] : list
-    }
-
-    private func fullScreen(_ channel: Channel) {
-        model.play(channel, gameTitle: model.pinned?.gameTitle, lineup: model.pinned?.lineup ?? currentLineup(channel))
-    }
-
-    private func categoryRow(_ name: String, count: Int, group: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 12) {
-                Image(systemName: group ? "folder.fill" : "list.bullet")
-                    .foregroundStyle(group ? Theme.accent : Theme.muted)
-                    .frame(width: 24)
-                Text(name).foregroundStyle(Theme.text).lineLimit(1)
-                Spacer()
-                Text("\(count)").font(.subheadline).foregroundStyle(Theme.muted)
-                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
-            }
-            .padding(.horizontal)
-            .frame(height: 48)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .overlay(alignment: .bottom) { Divider().overlay(Theme.raised).padding(.leading, 52) }
     }
 }
 

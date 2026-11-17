@@ -79,6 +79,8 @@ final class PlaybackController: ObservableObject {
     var onRepeatedFreezing: (() -> Void)?
     private let freezeWatch = FreezeWatch()
     private var lastBufferMs = 2000
+    /// The next stream, waiting for the old one's connection to close (see open).
+    private var pendingOpen: DispatchWorkItem?
 
     func play(_ url: URL, bufferMs: Int) {
         if url == currentURL, status != .idle, status != .ended {
@@ -107,18 +109,45 @@ final class PlaybackController: ObservableObject {
             frameRate = 0
             playingPolls = 0
         }
-        #if canImport(VLCKitSPM)
-        let media = VLCMedia(url: url)
-        media.addOption(":network-caching=\(bufferMs)")
-        player.media = media
-        player.play()
-        #else
-        let item = AVPlayerItem(url: url)
-        item.preferredForwardBufferDuration = Double(bufferMs) / 1000
-        player.replaceCurrentItem(with: item)
-        player.play()
-        #endif
+        // One connection at a time: close the old stream first and give the provider a moment to see it gone
+        // before opening the next, so switching (or flipping quickly through channels) never counts as two.
+        // Flipping fast only opens the channel you stop on.
+        pendingOpen?.cancel()
+        let hadStream = closeCurrent()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.currentURL == url else { return }
+            self.pendingOpen = nil
+            #if canImport(VLCKitSPM)
+            let media = VLCMedia(url: url)
+            media.addOption(":network-caching=\(bufferMs)")
+            self.player.media = media
+            self.player.play()
+            #else
+            let item = AVPlayerItem(url: url)
+            item.preferredForwardBufferDuration = Double(bufferMs) / 1000
+            self.player.replaceCurrentItem(with: item)
+            self.player.play()
+            #endif
+        }
+        pendingOpen = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + (hadStream ? 0.4 : 0), execute: work)
         startPolling()
+    }
+
+    /// Closes whatever stream is open (its network connection included). True if one was.
+    @discardableResult
+    private func closeCurrent() -> Bool {
+        #if canImport(VLCKitSPM)
+        guard player.media != nil else { return false }
+        player.stop()
+        player.media = nil
+        return true
+        #else
+        guard player.currentItem != nil else { return false }
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        return true
+        #endif
     }
 
     /// Opens the current stream again from scratch (Apple TV: after full screen, when the TV switching its
@@ -140,12 +169,9 @@ final class PlaybackController: ObservableObject {
     func stop() {
         timer?.invalidate()
         timer = nil
-        #if canImport(VLCKitSPM)
-        player.stop()
-        #else
-        player.pause()
-        player.replaceCurrentItem(with: nil)
-        #endif
+        pendingOpen?.cancel()
+        pendingOpen = nil
+        closeCurrent()
         currentURL = nil
         status = .idle
         onChange?()
@@ -159,6 +185,8 @@ final class PlaybackController: ObservableObject {
     }
 
     private func poll() {
+        // Between closing one stream and opening the next there's nothing to look at.
+        if pendingOpen != nil { return }
         #if canImport(VLCKitSPM)
         switch player.state {
         case .opening:

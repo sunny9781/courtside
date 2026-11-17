@@ -14,7 +14,7 @@ struct TVSettingsView: View {
     @AppStorage(Prefs.hiddenSports) private var hiddenSports = ""
     @AppStorage(Prefs.hiddenLeagues) private var hiddenLeagues = ""
     @AppStorage(Prefs.favoriteSports) private var favoriteSports = ""
-    @AppStorage(Prefs.refreshHours) private var refreshHours = 12
+    @AppStorage(Prefs.refreshHours) private var refreshHours = 6
     @State private var section: Section = .account
     @State private var openSport: Sport?
     @State private var confirmSignOut = false
@@ -172,7 +172,7 @@ struct TVSettingsView: View {
                             Image(systemName: openReleases.contains(release.id) ? "chevron.down" : "chevron.right")
                                 .font(.system(size: 20, weight: .semibold))
                                 .frame(width: 24)
-                            Text(release.title).font(.system(size: 26, weight: .semibold))
+                            Text(release.heading).font(.system(size: 26, weight: .semibold))
                             Spacer()
                             Text(index == 0 ? "Latest · \(release.dateLabel)" : release.dateLabel)
                                 .font(.system(size: 20)).opacity(0.6)

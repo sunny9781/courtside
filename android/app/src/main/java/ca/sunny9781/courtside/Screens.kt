@@ -835,7 +835,10 @@ fun GameScreen(model: AppModel, gameId: String) {
     // of its streams already is; focus starts on the stream that's playing.
     LaunchedEffect(gameId, all.isNotEmpty()) {
         var id = previewId
-        if (!pinnedHere) (main.firstOrNull { !it.is4K && it.quality != "4K" } ?: main.firstOrNull())
+        if (!pinnedHere) (main.firstOrNull { m ->
+            !(m.is4K || m.quality == "4K" || model.measuredQuality[m.channel.id] == "4K" ||
+                Categories.isUHD(m.channel.name) || Categories.isUHD(m.channel.categoryName))
+        } ?: main.firstOrNull())
             ?.let { model.pin(it.channel, game.title, main.map { m -> m.channel }); id = it.channel.id }
         delay(80)
         rows.focus("s:$id") || cats.focus("cat:All")

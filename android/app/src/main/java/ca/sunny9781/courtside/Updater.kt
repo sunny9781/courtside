@@ -91,9 +91,11 @@ object Updater {
                 "has ${free / 1_000_000} MB). Free some up in Settings › System › Storage, then try again."
             return
         }
-        // Remembered, so if Android's installer says "App not installed" the app can explain why when you're back.
+        // Remembered (with the download), so if Android's installer says "App not installed", or this app was closed
+        // to make room while it installed, the app can try again or explain when you're back.
         context.getSharedPreferences("courtside", Context.MODE_PRIVATE).edit()
-            .putInt("installAttempt", readyBuild).putLong("installAttemptAt", System.currentTimeMillis()).apply()
+            .putInt("installAttempt", readyBuild).putLong("installAttemptAt", System.currentTimeMillis())
+            .putString("installAttemptVersion", readyVersion).apply()
         if (android.os.Build.VERSION.SDK_INT >= 26 && !pm.canRequestPackageInstalls()) {
             message = "Turn on Courtside here so it can install its own updates, then choose Install update again."
             runCatching {
@@ -102,6 +104,11 @@ object Updater {
             }.onFailure { message = "Allow Courtside to install apps: Settings › Apps › Security & restrictions › Unknown sources." }
             return
         }
+        // Less powerful TVs (Chromecast) can close this app to make room for the installer while it's still reading the
+        // update from it, and the install then fails. Free what we can first: the stream and the image cache.
+        runCatching { Playback.stop() }
+        runCatching { coil.Coil.imageLoader(context).memoryCache?.clear() }
+        System.gc()
         // Android's installer screen: asks to confirm, then says "App installed" with Done / Open.
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.updates", file)
         context.startActivity(Intent(Intent.ACTION_VIEW).apply {
@@ -119,16 +126,35 @@ object Updater {
         val attempt = prefs.getInt("installAttempt", 0)
         val at = prefs.getLong("installAttemptAt", 0)
         if (attempt == 0) return
+        val since = System.currentTimeMillis() - at
+        // Some installers pass back through the app on their way to the confirm screen: not a result yet.
+        if (since < 3_000) return
         if (attempt > BuildConfig.VERSION_CODE) {
-            if (System.currentTimeMillis() - at < 30 * 60_000L) {
-                message = "The update didn't finish installing. Try Install update again. If it keeps failing, it's " +
-                    "usually storage: free up some space in Settings › System › Storage, or reinstall with " +
-                    "Downloader (is.gd/courtsidetv); your login and settings stay."
+            // The app may have been closed while installing: pick the download back up.
+            val file = File(File(context.cacheDir, "updates"), "Courtside.apk")
+            if (readyFile == null && file.exists()) {
+                readyFile = file
+                readyBuild = attempt
+                readyVersion = prefs.getString("installAttemptVersion", null)
+            }
+            val retried = prefs.getInt("installRetried", 0) == attempt
+            prefs.edit().remove("installAttempt").remove("installAttemptAt").apply()
+            if (since < 30 * 60_000L) {
+                if (!retried && readyFile != null) {
+                    // The first try often fails on less powerful TVs while the second works: try again by itself.
+                    prefs.edit().putInt("installRetried", attempt).apply()
+                    message = null
+                    install(context)
+                } else {
+                    message = "The update didn't finish installing. Try Install update again. If it keeps failing, " +
+                        "it's usually storage: free up some space in Settings › System › Storage, or reinstall with " +
+                        "Downloader (is.gd/courtsidetv); your login and settings stay."
+                }
             }
         } else {
             File(context.cacheDir, "updates").deleteRecursively()
+            prefs.edit().remove("installAttempt").remove("installAttemptAt").remove("installRetried").apply()
         }
-        prefs.edit().remove("installAttempt").remove("installAttemptAt").apply()
     }
 
     private fun get(url: String): String {

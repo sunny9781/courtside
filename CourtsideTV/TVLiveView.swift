@@ -55,7 +55,13 @@ struct TVLiveView: View {
         openNodes.last?.children ?? model.categoryTree
     }
 
+    /// "Favourites" at the top of the list: your favourite channels from every category.
+    private static let favoritesID = "fav"
+
     private var selected: Entry? {
+        if selectedID == Self.favoritesID, !model.favoriteChannels.isEmpty {
+            return Entry(id: Self.favoritesID, name: "Favourites", categories: [])
+        }
         if selectedID.hasPrefix("g:"), let node = CategoryGrouping.find(String(selectedID.dropFirst(2)), in: model.categoryTree) {
             return Entry(id: selectedID, name: node.name, categories: node.categories)
         }
@@ -65,6 +71,8 @@ struct TVLiveView: View {
     /// The row to land on when coming down from the tabs: the selected category if it's showing, otherwise the
     /// first row of the list.
     private var categoryTarget: String? {
+        if path.isEmpty, let id = selected?.id,
+           id == Self.favoritesID || favoriteEntries.contains(where: { $0.id == id }) { return id }
         guard grouped else { return selected?.id }
         if let id = selected?.id, levelNodes.contains(where: { ($0.isGroup ? "g:" + $0.id : $0.id) == id }) { return id }
         guard let first = levelNodes.first else { return nil }
@@ -77,7 +85,15 @@ struct TVLiveView: View {
 
     private var channels: [Channel] {
         guard let selected else { return [] }
-        return selected.categories.flatMap { model.channelsByCategory[$0.id] ?? [] }
+        if selected.id == Self.favoritesID { return model.favoriteChannelList }
+        return model.favoritesFirst(selected.categories.flatMap { model.channelsByCategory[$0.id] ?? [] })
+    }
+
+    /// Favourite categories and groups, shown first at the top of the list (a group shows all its channels).
+    private var favoriteEntries: [Entry] {
+        model.favoriteCategoryNodes.map { node in
+            Entry(id: node.isGroup ? "g:" + node.id : node.id, name: node.name, categories: node.categories)
+        }
     }
 
     /// The channel in the info panel: the one you're on, or what's playing.
@@ -167,6 +183,19 @@ struct TVLiveView: View {
                 .buttonStyle(TVRowButtonStyle())
                 .padding(.bottom, 6)
 
+                // Favourites first (hold the select button on a category or channel to add or remove one).
+                if path.isEmpty {
+                    if !model.favoriteChannels.isEmpty {
+                        categoryRow(Entry(id: Self.favoritesID, name: "Favourites", categories: []),
+                                    count: model.favoriteChannelList.count, symbol: "heart.fill")
+                    }
+                    ForEach(favoriteEntries) { entry in
+                        categoryRow(entry)
+                    }
+                    if !favoriteEntries.isEmpty || !model.favoriteChannels.isEmpty {
+                        Rectangle().fill(Theme.raised).frame(height: 2).padding(.horizontal, 16).padding(.vertical, 8)
+                    }
+                }
                 if grouped {
                     // Groups first: click one to open it, Back (or the top row) to go up a level.
                     if !path.isEmpty {
@@ -184,7 +213,9 @@ struct TVLiveView: View {
                         }
                         .buttonStyle(TVRowButtonStyle())
                     }
-                    ForEach(levelNodes) { node in
+                    // At the top, favourites are already listed above; inside a group they come first.
+                    ForEach(path.isEmpty ? levelNodes.filter { !model.isFavorite(category: $0.id) }
+                                         : model.favoritesFirst(levelNodes)) { node in
                         if node.isGroup {
                             Button {
                                 path.append(node.id)
@@ -196,6 +227,9 @@ struct TVLiveView: View {
                                     Text(node.name)
                                         .font(.system(size: 24, weight: .semibold))
                                         .lineLimit(1)
+                                    if model.isFavorite(category: node.id) {
+                                        Image(systemName: "heart.fill").font(.system(size: 18)).foregroundStyle(Theme.accent)
+                                    }
                                     Spacer(minLength: 8)
                                     Text("\(node.categories.count)")
                                         .font(.system(size: 19))
@@ -207,12 +241,13 @@ struct TVLiveView: View {
                             }
                             .buttonStyle(TVRowButtonStyle(selected: selected?.id == "g:" + node.id))
                             .focused($focusedCategory, equals: "g:" + node.id)
+                            .contextMenu { favoriteButton(category: node.id) }
                         } else {
                             categoryRow(Entry(id: node.id, name: node.name, categories: node.categories))
                         }
                     }
                 } else {
-                    ForEach(allEntries) { entry in
+                    ForEach(allEntries.filter { !model.isFavorite(category: $0.id) }) { entry in
                         categoryRow(entry)
                     }
                 }
@@ -224,22 +259,48 @@ struct TVLiveView: View {
         .onExitCommand(perform: path.isEmpty ? nil : { path.removeLast() })
     }
 
-    private func categoryRow(_ entry: Entry) -> some View {
-        Button {
+    private func categoryRow(_ entry: Entry, count: Int? = nil, symbol: String? = nil) -> some View {
+        let key = entry.id.hasPrefix("g:") ? String(entry.id.dropFirst(2)) : entry.id
+        let favorite = entry.id != Self.favoritesID && model.isFavorite(category: key)
+        return Button {
             selectedID = entry.id
         } label: {
-            HStack {
+            HStack(spacing: 14) {
+                if let symbol {
+                    Image(systemName: symbol).font(.system(size: 20)).foregroundStyle(Theme.accent)
+                }
                 Text(entry.name)
                     .font(.system(size: 24, weight: .medium))
                     .lineLimit(1)
+                if favorite {
+                    Image(systemName: "heart.fill").font(.system(size: 18)).foregroundStyle(Theme.accent)
+                }
                 Spacer(minLength: 8)
-                Text("\(channelCount(entry.categories))")
+                Text("\(count ?? channelCount(entry.categories))")
                     .font(.system(size: 19))
                     .opacity(0.55)
             }
         }
         .buttonStyle(TVRowButtonStyle(selected: entry.id == selected?.id))
         .focused($focusedCategory, equals: entry.id)
+        .contextMenu {
+            if entry.id != Self.favoritesID { favoriteButton(category: key) }
+        }
+    }
+
+    /// Hold the select button on a row: add it to favourites (listed first), or take it off.
+    private func favoriteButton(category id: String) -> some View {
+        let on = model.isFavorite(category: id)
+        return Button(on ? "Remove from Favourites" : "Add to Favourites", systemImage: on ? "heart.slash" : "heart") {
+            model.toggleFavorite(category: id)
+        }
+    }
+
+    private func favoriteButton(channel id: Int) -> some View {
+        let on = model.isFavorite(channel: id)
+        return Button(on ? "Remove from Favourites" : "Add to Favourites", systemImage: on ? "heart.slash" : "heart") {
+            model.toggleFavorite(channel: id)
+        }
     }
 
     // MARK: Mini player and programme
@@ -314,6 +375,7 @@ struct TVLiveView: View {
                     }
                     .buttonStyle(TVRowButtonStyle())
                     .focused($focusedChannel, equals: channel.id)
+                    .contextMenu { favoriteButton(channel: channel.id) }
                 }
             }
             .padding(.vertical, 10)
@@ -374,6 +436,7 @@ struct TVLiveView: View {
                     }
                     .buttonStyle(TVRowButtonStyle())
                     .focused($focusedChannel, equals: channel.id)
+                    .contextMenu { favoriteButton(channel: channel.id) }
                 }
             }
         }
@@ -410,6 +473,11 @@ struct TVChannelRow: View {
                 if playing {
                     Image(systemName: "speaker.wave.2.fill")
                         .font(.system(size: 18))
+                }
+                if model.isFavorite(channel: channel.id) {
+                    Image(systemName: "heart.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Theme.accent)
                 }
             }
             .frame(width: 408, alignment: .leading)

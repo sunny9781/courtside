@@ -67,10 +67,10 @@ struct TVGameView: View {
             }
         }
         .padding(.horizontal, TVLayout.margin)
-        .defaultFocus($focusedStream, previewChannel?.id ?? main.firstToPlay?.channel.id)
+        .defaultFocus($focusedStream, previewChannel?.id ?? main.firstToPlay(model.measuredQuality)?.channel.id)
         .onAppear {
             // Opening a game plays its first stream that isn't 4K in the player (unless one of its streams already is).
-            if previewChannel == nil, let first = main.firstToPlay, let game {
+            if previewChannel == nil, let first = main.firstToPlay(model.measuredQuality), let game {
                 model.pin(first.channel, gameTitle: game.title, lineup: main.map(\.channel))
             }
         }
