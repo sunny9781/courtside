@@ -79,7 +79,8 @@ enum Changelog {
             Change(text: "What's playing is in a bar along the bottom beside the player, across to the right edge, on every page. Pages scroll under it, and the row you're on always stays above it.", apps: android),
             Change(text: "Flipping channels uses one connection: streams now open as TS first (closed the moment you switch away) instead of HLS, which the provider kept counting for a while after each flip. Settings › General › Stream format switches back.", apps: android),
             Change(text: "Full screen: no \"Opening…\" message, and flipping shows the channel only in the bar at the bottom.", apps: android),
-            Change(text: "Hold the select button on a sport on Home, or a category or channel in the EPG, to favourite or hide it. Settings › Hidden lists hidden categories and channels to show them again (hidden sports are under Sports).", apps: android),
+            Change(text: "Hold the select button on a sport on Home, or a category or channel in the EPG, to favourite or hide it. A hidden sport is switched off: no scores fetched and nothing matched for it.", apps: android),
+            Change(text: "Settings › Hidden lists everything hidden (sports, categories and channels) to show it again. It replaces Settings › Sports.", apps: android),
             Change(text: "Pressing up from the player goes to the panel above it, not the top bar.", apps: android)
         ]),
         Release(version: "1.60", date: "2026-11-17", time: "11:49", title: "What's playing above the player", changes: [

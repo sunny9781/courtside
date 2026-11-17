@@ -355,7 +355,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun loadScores() {
-        val (list, logos) = Espn.schedule(League.all)
+        // Hidden sports and leagues are switched off: no scores fetched, nothing matched.
+        val (list, logos) = Espn.schedule(activeLeagues())
         allGames = list
         leagueLogos = logos
         // Nothing changed since last minute (same games, same states, only scores ticking): just update the cards.
@@ -387,13 +388,13 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val rec = recent.toSet()
         val measured = measuredQuality
         val now = System.currentTimeMillis()
-        val hidden = settings.hiddenLeagueSet
+        val active = activeLeagues().map { it.id }.toSet()
         val (found, guideGames) = withContext(background) {
             val m = Matcher.matchAll(g.filter { !it.id.startsWith("guide-") }, ch, gd, measured, rec, now).toMutableMap()
             // Sports with no schedule feed (pickleball): events and channels from the guide.
             val extra = mutableListOf<Game>()
             for (league in League.all) {
-                if (league.path.isNotEmpty() || league.id in hidden) continue
+                if (league.path.isNotEmpty() || league.id !in active) continue
                 val (gs, ms) = Matcher.guideEvents(league, ch, gd, measured, now)
                 extra += gs
                 m.putAll(ms)
@@ -468,6 +469,26 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     /** Favourites first, then sports with live games, then upcoming, then finished-only, then none; no hidden ones. */
     fun orderedSports(): List<Sport> = home.sports
+
+    /** The leagues that are switched on (not hidden, and their sport not hidden). */
+    fun activeLeagues(): List<League> {
+        val sports = settings.hiddenSportSet
+        val leagues = settings.hiddenLeagueSet
+        return League.all.filter { it.sport !in sports && it.id !in leagues }
+    }
+
+    /** Hide (switch off) or show a sport: nothing is fetched or matched for it while hidden. */
+    fun setSportHidden(sport: Sport, hidden: Boolean) {
+        settings.setHidden(sport, hidden)
+        scheduleSignature = ""
+        viewModelScope.launch { runCatching { loadScores() } }
+    }
+
+    fun setLeagueHidden(id: String, hidden: Boolean) {
+        settings.setLeagueHidden(id, hidden)
+        scheduleSignature = ""
+        viewModelScope.launch { runCatching { loadScores() } }
+    }
 
     fun pinnedIsFrom(gameId: String): Boolean {
         val id = pinned?.channel?.id ?: return false

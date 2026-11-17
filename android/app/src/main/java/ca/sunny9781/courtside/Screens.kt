@@ -626,7 +626,7 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
                             HoldOption(if (fav) "Remove from Favourites" else "Add to Favourites",
                                 if (fav) Icons.Filled.HeartBroken else Icons.Filled.Favorite) { model.settings.toggleFavorite(sport) },
                             HoldOption("Hide", Icons.Filled.VisibilityOff) {
-                                model.settings.setHidden(sport, true)
+                                model.setSportHidden(sport, true)
                                 if (open == sport) model.homeSelection = HomeSelection.LiveNow
                                 model.notice = "${sport.title} is hidden. Settings › Sports brings it back."
                             }))
