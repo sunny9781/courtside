@@ -173,7 +173,7 @@ private fun Updates(model: AppModel) {
         value = if (model.loading) "Downloading…" else null) { model.refresh(force = true) }
     val ready = Updater.readyVersion
     if (ready != null) {
-        Action("Install version $ready", "Downloaded and ready. Android asks you to confirm the install.") { Updater.install(context) }
+        Action("Install version $ready", "Downloaded and ready. Android asks you to confirm the install.") { scope.launch { Updater.installLatest(context) } }
     } else {
         Action("Check for updates", Updater.message ?: "Courtside checks by itself every time it opens.",
             value = if (Updater.checking) "Checking…" else null) { scope.launch { Updater.check(context, userInitiated = true) } }

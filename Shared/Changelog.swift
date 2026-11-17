@@ -64,6 +64,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.44", date: "2026-11-16", time: "21:53", title: "Install update gets the newest", changes: [
+            Change(text: "Install update checks once more first, so it always installs the newest version (not one that's already been replaced).", apps: android)
+        ]),
         Release(version: "1.43", date: "2026-11-16", time: "21:44", title: "Player in the corner", changes: [
             Change(text: "The player sits in the top-right corner on every tab, with what's playing to its left. Pages use the space beside and below it.", apps: android),
             Change(text: "Home: the left column is sport icons and live counts, top to bottom.", apps: android),

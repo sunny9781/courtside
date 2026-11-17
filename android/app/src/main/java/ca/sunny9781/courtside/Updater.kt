@@ -59,6 +59,24 @@ object Updater {
 
     /** Opens Android's installer for the downloaded update. */
     /**
+     * "Install update": checks once more first, so if an even newer version came out since the last download, that
+     * one is fetched and installed instead (no installing 1.42 only to be offered 1.43 straight after).
+     */
+    suspend fun installLatest(context: Context) {
+        installing = true
+        try {
+            check(context)
+        } finally {
+            installing = false
+        }
+        withContext(Dispatchers.Main) { install(context) }
+    }
+
+    /** "Install update" was pressed and the latest version is being fetched. */
+    var installing by mutableStateOf(false)
+        private set
+
+    /**
      * Installs the downloaded update through Android's package installer (more reliable on Google TV sets than
      * opening the file). Courtside itself needs "Install unknown apps" for this; if it's off (common on Google TV),
      * the switch for it opens first.
