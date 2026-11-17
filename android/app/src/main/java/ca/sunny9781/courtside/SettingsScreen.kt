@@ -77,12 +77,15 @@ fun SettingsScreen(model: AppModel) {
 
 @Composable
 private fun Account(model: AppModel) {
+    // The connection count is fetched fresh each time you open Account.
+    LaunchedEffect(Unit) { model.refreshAccount() }
     val a = model.account
     Info("Username", model.credentials?.username ?: "")
     Info("Status", a?.status ?: "–")
     Info("Expires", a?.expires?.let { DateFormat.getDateInstance(DateFormat.LONG).format(Date(it * 1000)) } ?: "No expiry date")
     Info("Connections", a?.maxConnections?.let { "${a.activeConnections ?: 0} of $it in use" } ?: "–")
     Spacer(Modifier.height(10.dp))
+    Action("Edit account", "Change the server, username or password.") { model.editingAccount = true }
     var confirm by remember { mutableStateOf(false) }
     Action(if (confirm) "Click again to sign out" else "Sign out", if (confirm) "Press Back or move away to cancel." else null,
         destructive = true, modifier = Modifier.onFocusChanged { if (!it.isFocused) confirm = false }) {

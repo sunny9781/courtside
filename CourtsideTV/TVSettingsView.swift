@@ -18,6 +18,7 @@ struct TVSettingsView: View {
     @State private var section: Section = .account
     @State private var openSport: Sport?
     @State private var confirmSignOut = false
+    @State private var editingAccount = false
     @FocusState private var focusedSection: Section?
     /// Updates open in What's new (the newest starts open).
     @State private var openReleases: Set<String> = Set(Changelog.forThisApp.prefix(1).map(\.id))
@@ -88,6 +89,11 @@ struct TVSettingsView: View {
             Button("Sign out", role: .destructive) { model.signOut() }
             Button("Cancel", role: .cancel) {}
         }
+        .fullScreenCover(isPresented: $editingAccount) {
+            TVLoginView(editing: model.credentials) { editingAccount = false }
+                .environmentObject(model)
+                .background(Theme.bg)
+        }
     }
 
     @ViewBuilder
@@ -98,6 +104,8 @@ struct TVSettingsView: View {
             info("Status", model.account?.status ?? "–")
             info("Expires", model.account?.expires?.formatted(date: .long, time: .omitted) ?? "No expiry date")
             info("Connections", connections)
+            action("Edit account", detail: "Change the server, username or password.") { editingAccount = true }
+                .padding(.top, 20)
             action("Sign out", detail: nil, destructive: true) { confirmSignOut = true }
                 .padding(.top, 20)
 

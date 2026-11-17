@@ -59,7 +59,11 @@ import kotlinx.coroutines.launch
 @Composable
 fun CourtsideApp(model: AppModel) {
     Box(Modifier.fillMaxSize().background(Theme.bg)) {
-        if (model.credentials == null) LoginScreen(model) else Shell(model)
+        when {
+            model.credentials == null -> LoginScreen(model)
+            model.editingAccount -> LoginScreen(model, model.credentials) { model.editingAccount = false }
+            else -> Shell(model)
+        }
     }
 }
 
@@ -94,10 +98,10 @@ fun Modifier.wrapRows(): Modifier {
 // MARK: Login
 
 @Composable
-fun LoginScreen(model: AppModel) {
-    var server by remember { mutableStateOf("") }
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+fun LoginScreen(model: AppModel, editing: Credentials? = null, onDone: (() -> Unit)? = null) {
+    var server by remember { mutableStateOf(editing?.server ?: "") }
+    var username by remember { mutableStateOf(editing?.username ?: "") }
+    var password by remember { mutableStateOf(editing?.password ?: "") }
     var working by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
@@ -108,7 +112,8 @@ fun LoginScreen(model: AppModel) {
     ) {
         Label("Courtside", size = 30.sp, weight = FontWeight.Bold)
         Spacer(Modifier.height(6.dp))
-        Label("Sign in with your Xtream Codes details", size = 14.sp, color = Theme.muted)
+        Label(if (editing == null) "Sign in with your Xtream Codes details" else "Change your Xtream Codes details",
+            size = 14.sp, color = Theme.muted)
         Spacer(Modifier.height(24.dp))
         Field("Server (http://example.com:8080)", server, { server = it }, KeyboardType.Uri)
         Field("Username", username, { username = it })
@@ -119,12 +124,23 @@ fun LoginScreen(model: AppModel) {
             working = true
             error = null
             scope.launch {
-                error = model.signIn(Credentials(server.trim(), username.trim(), password))
+                val creds = Credentials(server.trim(), username.trim(), password)
+                error = if (editing == null) model.signIn(creds) else model.updateAccount(creds)
                 working = false
+                if (error == null) onDone?.invoke()
             }
         }, background = Theme.accent) { focused ->
-            Label(if (working) "Signing in…" else "Sign in", size = 15.sp, weight = FontWeight.SemiBold,
+            Label(if (working) (if (editing == null) "Signing in…" else "Checking…") else (if (editing == null) "Sign in" else "Save"),
+                size = 15.sp, weight = FontWeight.SemiBold,
                 color = if (focused) Theme.bg else Theme.onAccent, modifier = Modifier.padding(horizontal = 28.dp, vertical = 10.dp))
+        }
+        if (onDone != null) {
+            Spacer(Modifier.height(8.dp))
+            TvButton(onClick = onDone) { focused ->
+                Label("Cancel", size = 14.sp, color = if (focused) Theme.bg else Theme.muted,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+            }
+            BackHandler { onDone() }
         }
         error?.let {
             Spacer(Modifier.height(12.dp))
@@ -604,8 +620,16 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     LazyVerticalGrid(GridCells.FixedSize(cardWidth), modifier = modifier.fillMaxHeight().wrapRows(), state = model.homeGrid,
         horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, start = 6.dp, end = 6.dp)) {
-        if (sport != null && model.leagues(sport).size > 1) {
-            item(span = { GridItemSpan(maxLineSpan) }, key = "chips") { LeagueChips(model, sport, targets) }
+        // The sport's name (the left column is only icons), with its leagues beside it when it has more than one.
+        item(span = { GridItemSpan(maxLineSpan) }, key = "chips") {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    modifier = Modifier.padding(vertical = 6.dp)) {
+                    Icon(sport?.icon ?: Icons.Filled.Sensors, null, tint = Theme.accent, modifier = Modifier.size(17.dp))
+                    Label(sport?.title ?: "Live Now", size = 17.sp, weight = FontWeight.Bold)
+                }
+                if (sport != null && model.leagues(sport).size > 1) LeagueChips(model, sport, targets)
+            }
         }
         if (sections.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }, key = "empty") {

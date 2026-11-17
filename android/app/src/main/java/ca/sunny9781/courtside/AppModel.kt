@@ -68,6 +68,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     var tab by mutableStateOf(Tab.HOME)
     /** Focus is on Home / EPG / Settings: the player's video can't take focus then, so down lands on the page. */
     var tabsFocused by mutableStateOf(false)
+    /** Settings › Account › Edit account is open. */
+    var editingAccount by mutableStateOf(false)
     /** The EPG groups you've opened, outermost first. */
     var guidePath by mutableStateOf<List<String>>(emptyList())
     /** Where full screen was opened from ("strip", "game", "epg"), so focus goes back there afterwards. */
@@ -102,7 +104,49 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         Playback.init(app)
         Playback.onRepeatedFreezing = { skipFrozenStream() }
         if (credentials != null) refresh()
-        viewModelScope.launch { Updater.check(app) }
+        // Checks for a new version now and every 30 minutes, so "Install update" appears on its own.
+        viewModelScope.launch {
+            while (true) {
+                Updater.check(app)
+                kotlinx.coroutines.delay(30 * 60_000L)
+            }
+        }
+    }
+
+    private var accountJob: kotlinx.coroutines.Job? = null
+
+    /** The provider's own connection count, fetched again (it's only right once the provider has noticed a change). */
+    fun refreshAccount() {
+        val creds = credentials ?: return
+        viewModelScope.launch { runCatching { account = XtreamClient(creds).login() } }
+    }
+
+    /** A stream started or stopped: check the connection count again in a few seconds. */
+    private fun checkAccountSoon() {
+        accountJob?.cancel()
+        accountJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(5000)
+            refreshAccount()
+        }
+    }
+
+    /**
+     * Settings › Account › Edit account. The new details are checked first (nothing changes if they don't work);
+     * a different server or username starts fresh with that account's channels.
+     */
+    suspend fun updateAccount(creds: Credentials): String? {
+        val info = try {
+            XtreamClient(creds).login()
+        } catch (e: Exception) {
+            return e.message ?: "Couldn't sign in with those details."
+        }
+        val same = creds.server == credentials?.server && creds.username == credentials?.username
+        if (!same) signOut()
+        credentials = creds
+        account = info
+        Prefs.saveCredentials(context, creds)
+        if (!same) refresh(force = true)
+        return null
     }
 
     // MARK: Login
@@ -336,6 +380,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         pinned = NowPlaying(channel, gameTitle, lineup.ifEmpty { listOf(channel) })
         val (ts, hls) = urls(channel) ?: return
         Playback.play(ts, hls)
+        checkAccountSoon()
     }
 
     /** Full screen. */
@@ -346,6 +391,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         nowPlaying = item
         val (ts, hls) = urls(channel) ?: return
         Playback.play(ts, hls)
+        checkAccountSoon()
     }
 
     /** Leaving full screen: the stream carries on in the player at the top. */
@@ -359,6 +405,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun stopPinned() {
         Playback.stop()
         pinned = null
+        checkAccountSoon()
     }
 
     fun step(delta: Int) {

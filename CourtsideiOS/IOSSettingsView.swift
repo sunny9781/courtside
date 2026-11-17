@@ -18,6 +18,7 @@ struct IOSSettingsView: View {
     @State private var openReleases: Set<String> = Set(Changelog.forThisApp.prefix(1).map(\.id))
     @State private var confirmSignOut = false
     @State private var castNote: String?
+    @State private var editingAccount = false
     /// The section showing; the bar at the bottom switches it (like Home's sports), so nothing needs long scrolling.
     @State private var section: SettingsSection = .account
     @State private var barWidth: CGFloat = 390
@@ -44,6 +45,7 @@ struct IOSSettingsView: View {
                     LabeledContent("Status", value: model.account?.status ?? "–")
                     LabeledContent("Expires", value: model.account?.expires?.formatted(date: .long, time: .omitted) ?? "No expiry date")
                     LabeledContent("Connections", value: connections)
+                    Button("Edit account") { editingAccount = true }
                     HStack {
                         Spacer()
                         Button("Sign out", role: .destructive) { confirmSignOut = true }
@@ -164,6 +166,10 @@ struct IOSSettingsView: View {
             .confirmationDialog("Sign out of Courtside?", isPresented: $confirmSignOut, titleVisibility: .visible) {
                 Button("Sign out", role: .destructive) { model.signOut() }
             }
+            .sheet(isPresented: $editingAccount) {
+                IOSLoginView(editing: model.credentials) { editingAccount = false }
+                    .environmentObject(model)
+            }
         }
     }
 
@@ -272,6 +278,9 @@ struct IOSSettingsView: View {
 
 struct IOSLoginView: View {
     @EnvironmentObject var model: AppModel
+    /// Settings › Account › Edit account: starts filled in, and saves instead of signing in.
+    var editing: XtreamCredentials? = nil
+    var onDone: (() -> Void)? = nil
     @State private var server = ""
     @State private var username = ""
     @State private var password = ""
@@ -286,7 +295,7 @@ struct IOSLoginView: View {
                     .foregroundStyle(Theme.accent)
                     .padding(.top, 60)
                 Text("Courtside").font(.largeTitle.bold()).foregroundStyle(Theme.text)
-                Text("Sign in with your IPTV provider's Xtream Codes login.")
+                Text(editing == nil ? "Sign in with your IPTV provider's Xtream Codes login." : "Change your Xtream Codes login.")
                     .font(.subheadline)
                     .foregroundStyle(Theme.muted)
                     .multilineTextAlignment(.center)
@@ -309,15 +318,16 @@ struct IOSLoginView: View {
                 Button {
                     Task {
                         working = true
-                        error = await model.signIn(server: server.trimmingCharacters(in: .whitespaces),
-                                                   username: username.trimmingCharacters(in: .whitespaces),
-                                                   password: password)
+                        let s = server.trimmingCharacters(in: .whitespaces), u = username.trimmingCharacters(in: .whitespaces)
+                        error = editing == nil ? await model.signIn(server: s, username: u, password: password)
+                                               : await model.updateAccount(server: s, username: u, password: password)
                         working = false
+                        if error == nil { onDone?() }
                     }
                 } label: {
                     HStack {
                         if working { ProgressView().tint(Theme.onAccent) }
-                        Text(working ? "Signing in…" : "Sign in").bold()
+                        Text(working ? (editing == nil ? "Signing in…" : "Checking…") : (editing == nil ? "Sign in" : "Save")).bold()
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
@@ -325,12 +335,19 @@ struct IOSLoginView: View {
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.accent))
                 }
                 .disabled(working || server.isEmpty || username.isEmpty || password.isEmpty)
+
+                if let onDone {
+                    Button("Cancel", action: onDone).foregroundStyle(Theme.muted)
+                }
             }
             .padding(24)
             .frame(maxWidth: 460)
             .frame(maxWidth: .infinity)
         }
         .background(Theme.bg)
+        .onAppear {
+            if let editing { server = editing.server; username = editing.username; password = editing.password }
+        }
     }
 
     private func field(_ placeholder: String, text: Binding<String>) -> some View {
