@@ -64,6 +64,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.52", date: "2026-11-16", time: "23:30", title: "Much faster on Chromecast", changes: [
+            Change(text: "Faster everywhere, especially on the Chromecast with Google TV: the app is prepared for speed when it's installed, Home works out its lists once instead of on every move, stream matching runs at low priority and only when the schedule actually changes, the guide keeps the next 8 hours, the EPG Filter searches in the background, and logos use less memory.", apps: android),
+            Change(text: "On low-memory players (like the Chromecast), full screen uses the faster video path.", apps: android)
+        ]),
         Release(version: "1.51", date: "2026-11-16", time: "23:10", title: "Smaller app, steadier picture", changes: [
             Change(text: "Opening a game starts with its first stream that isn't 4K (or the first one, if they're all 4K).", apps: everywhere),
             Change(text: "The app is much smaller, so updates need far less free space on the TV.", apps: android),

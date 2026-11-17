@@ -70,4 +70,7 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    // Prepares the app's code for speed when it's installed (the Play Store does this for its apps; sideloaded
+    // apps need this library or everything runs slower).
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 }

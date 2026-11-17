@@ -34,9 +34,18 @@ fun EpgScreen(model: AppModel) {
     val cats = remember { FocusTargets() }
     val rows = remember { FocusTargets() }
     var search by remember { mutableStateOf("") }
-    val searching = search.trim().length >= 2
-    val hits = remember(search, s.grouped, model.channels, model.guide) {
-        if (searching) EpgSearch.run(search, model, s.grouped) else emptyList()
+    // Searched in the background a moment after you stop typing, so the keyboard never stutters.
+    var hits by remember { mutableStateOf<List<EpgSearch.Hit>>(emptyList()) }
+    var hitsFor by remember { mutableStateOf("") }
+    val searching = hitsFor.length >= 2
+    LaunchedEffect(search, s.grouped, model.channels, model.guide) {
+        val q = search.trim()
+        if (q.length < 2) { hits = emptyList(); hitsFor = ""; return@LaunchedEffect }
+        delay(300)
+        val grouped = s.grouped
+        val found = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) { EpgSearch.run(q, model, grouped) }
+        hits = found
+        hitsFor = q
     }
     var flipped by remember(hits) { mutableStateOf(setOf<String>()) }
     var focusedChannel by remember { mutableStateOf<Int?>(null) }
@@ -138,7 +147,7 @@ fun EpgScreen(model: AppModel) {
                 contentPadding = PaddingValues(vertical = 6.dp)) {
                 item(key = "header") {
                     Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
-                        Label(if (searching) "Results for “${search.trim()}”" else (selected?.name ?: ""), size = 10.sp,
+                        Label(if (searching) "Results for “$hitsFor”" else (selected?.name ?: ""), size = 10.sp,
                             weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(NAME_WIDTH))
                         Label("NOW", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.weight(1f))
                         Label("NEXT", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(NEXT_WIDTH))
@@ -146,7 +155,7 @@ fun EpgScreen(model: AppModel) {
                 }
                 if (searching) {
                     if (hits.isEmpty()) item(key = "none") {
-                        Label("Nothing matches \"$search\".", size = 14.sp, color = Theme.muted, modifier = Modifier.padding(10.dp))
+                        Label("Nothing matches \"$hitsFor\".", size = 14.sp, color = Theme.muted, modifier = Modifier.padding(10.dp))
                     }
                     for (hit in hits) {
                         val open = hit.startsOpen(hits.size) != (hit.id in flipped)

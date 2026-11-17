@@ -51,6 +51,12 @@ object Playback {
     var attempt by mutableStateOf(0)
         private set
     private var firstFrame = false
+    /**
+     * Low-power players (the Chromecast with Google TV has 2 GB): full screen always uses the fast video surface,
+     * since drawing 4K the other way is too much for them.
+     */
+    var lowPower = false
+        private set
     private var openedAt = 0L
     private lateinit var http: DefaultHttpDataSource.Factory
 
@@ -70,6 +76,10 @@ object Playback {
         val load = DefaultLoadControl.Builder()
             .setBufferDurationsMs(maxOf(bufferMs, 2500), maxOf(bufferMs * 4, 15_000), bufferMs, bufferMs)
             .build()
+        lowPower = (context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager).let { am ->
+            val info = android.app.ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }
+            am.isLowRamDevice || info.totalMem < 3L * 1024 * 1024 * 1024
+        }
         // Some providers only answer players they know and send streams on through redirects (even to https).
         http = DefaultHttpDataSource.Factory()
             .setUserAgent("VLC/3.0.21 LibVLC/3.0.21")

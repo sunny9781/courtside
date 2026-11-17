@@ -1,5 +1,9 @@
 package ca.sunny9781.courtside
 
+import kotlinx.coroutines.asCoroutineDispatcher
+
+import androidx.compose.runtime.derivedStateOf
+
 import android.app.Application
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -99,6 +103,49 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     private var indexed: List<Matcher.Indexed> = emptyList()
     private val recent = LinkedHashSet<Int>()
     private var scoresJob: Job? = null
+
+    /**
+     * Heavy work (matching streams to games, guide events) runs on one low-priority thread, so it never competes
+     * with drawing the screen or moving focus.
+     */
+    private val background = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "courtside-matching").apply { priority = Thread.MIN_PRIORITY; isDaemon = true }
+    }.asCoroutineDispatcher()
+
+    /** Home's lists, worked out once when the games, streams or sport settings change (not on every redraw). */
+    class HomeIndex(
+        val sports: List<Sport>,
+        val bySport: Map<Sport, List<Game>>,
+        val byLeague: Map<String, List<Game>>,
+        val main: Map<String, List<StreamMatch>>
+    )
+
+    val home: HomeIndex by derivedStateOf {
+        val list = games
+        val m = matches
+        val hidden = settings.hiddenSportSet
+        val favs = settings.favoriteSet
+        val bySport = list.groupBy { it.league.sport }
+        val byLeague = list.groupBy { it.league.id }
+        fun rank(s: Sport): Int {
+            if (s in favs) return 0
+            val g = bySport[s] ?: emptyList()
+            return when {
+                g.any { it.state == GameState.LIVE } -> 1
+                g.any { it.state == GameState.UPCOMING } -> 2
+                g.isEmpty() -> 4
+                else -> 3
+            }
+        }
+        val main = list.associate { g ->
+            val all = m[g.id] ?: emptyList()
+            g.id to all.filter { !it.hidden }.ifEmpty { all }
+        }
+        HomeIndex(Sport.entries.filter { it !in hidden }.sortedBy { rank(it) }, bySport, byLeague, main)
+    }
+
+    /** Signature of the schedule (games and their states), so an unchanged minute doesn't rematch everything. */
+    private var scheduleSignature = ""
 
     init {
         Playback.init(app)
@@ -232,10 +279,14 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     private suspend fun loadScores() {
         val (list, logos) = Espn.schedule(League.all)
         allGames = list
+        leagueLogos = logos
+        // Nothing changed since last minute (same games, same states, only scores ticking): just update the cards.
+        val signature = list.joinToString("|") { it.id + it.state.name }
+        val unchanged = signature == scheduleSignature && matches.isNotEmpty()
+        scheduleSignature = signature
         // Guide-built events (pickleball) stay put until rematch rebuilds them, so their cards don't blink.
         games = visible(list) + games.filter { it.id.startsWith("guide-") }
-        leagueLogos = logos
-        rematch()
+        if (!unchanged) rematch()
     }
 
     private suspend fun loadGuide(client: XtreamClient) {
@@ -243,7 +294,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         if (wanted.isEmpty()) return
         val now = System.currentTimeMillis()
         runCatching {
-            val g = client.guide(wanted, now - 3 * 3600_000L, now + 18 * 3600_000L)
+            // Last hour to the next 8: plenty for now/next and today's games, and light on a 2 GB TV.
+            val g = client.guide(wanted, now - 3600_000L, now + 8 * 3600_000L)
             guide = g
             withContext(Dispatchers.IO) { Cache.saveGuide(context, g) }
         }
@@ -258,7 +310,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val measured = measuredQuality
         val now = System.currentTimeMillis()
         val hidden = settings.hiddenLeagueSet
-        val (found, guideGames) = withContext(Dispatchers.Default) {
+        val (found, guideGames) = withContext(background) {
             val m = Matcher.matchAll(g.filter { !it.id.startsWith("guide-") }, ch, gd, measured, rec, now).toMutableMap()
             // Sports with no schedule feed (pickleball): events and channels from the guide.
             val extra = mutableListOf<Game>()
@@ -310,7 +362,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun recordQuality(channelId: Int, label: String) {
         if (label.isEmpty() || measuredQuality[channelId] == label) return
         measuredQuality = measuredQuality + (channelId to label)
-        viewModelScope.launch { rematch() }
+        // Shown on the stream straight away; the order catches up at the next rematch.
     }
 
     fun recordFrameRate(channelId: Int, fps: Float) {
@@ -320,7 +372,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     // MARK: Lists
 
-    fun games(sport: Sport) = games.filter { it.league.sport == sport }
+    fun games(sport: Sport): List<Game> = home.bySport[sport] ?: emptyList()
+
+    fun gamesIn(leagueId: String): List<Game> = home.byLeague[leagueId] ?: emptyList()
 
     /** A sport's leagues that are switched on. */
     fun leagues(sport: Sport): List<League> {
@@ -329,21 +383,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** Favourites first, then sports with live games, then upcoming, then finished-only, then none; no hidden ones. */
-    fun orderedSports(): List<Sport> {
-        val hidden = settings.hiddenSportSet
-        val favs = settings.favoriteSet
-        fun rank(s: Sport): Int {
-            if (s in favs) return 0
-            val g = games(s)
-            return when {
-                g.any { it.state == GameState.LIVE } -> 1
-                g.any { it.state == GameState.UPCOMING } -> 2
-                g.isEmpty() -> 4
-                else -> 3
-            }
-        }
-        return Sport.entries.filter { it !in hidden }.sortedBy { rank(it) }
-    }
+    fun orderedSports(): List<Sport> = home.sports
 
     fun pinnedIsFrom(gameId: String): Boolean {
         val id = pinned?.channel?.id ?: return false
@@ -351,10 +391,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** The streams shown on a game's card: local stations and guesses left out, unless that's all there is. */
-    fun mainStreams(gameId: String): List<StreamMatch> {
+    fun mainStreams(gameId: String): List<StreamMatch> = home.main[gameId] ?: run {
         val all = matches[gameId] ?: emptyList()
-        val main = all.filter { !it.hidden }
-        return main.ifEmpty { all }
+        all.filter { !it.hidden }.ifEmpty { all }
     }
 
     fun currentProgramme(channel: Channel, at: Long = System.currentTimeMillis()): Programme? =
