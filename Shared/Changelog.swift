@@ -64,6 +64,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.54", date: "2026-11-17", time: "00:12", title: "Lite mode for less powerful TVs", changes: [
+            Change(text: "Lite mode (Settings › General), on by default on every TV except an Nvidia Shield: no zoom when moving around, no team logos on Home cards, and the fastest way of drawing video, the small player included, so scrolling stays smooth while it plays.", apps: android)
+        ]),
         Release(version: "1.53", date: "2026-11-16", time: "23:48", title: "Game screen as a mini EPG", changes: [
             Change(text: "Game screen: a mini EPG for the game. Its stream categories are on the left (All first, then each section, Foreign, and Local), and the channels on the right with what's on now and next and each stream's quality.", apps: android),
             Change(text: "Reopening the app shows each game's streams straight away (from last time) while today's are worked out again.", apps: android)

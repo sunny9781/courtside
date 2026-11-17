@@ -15,6 +15,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Perf.lite = model.settings.lite
         // Logos: a small memory cache and no fade-in animation (cheap on low-power TVs).
         coil.Coil.setImageLoader(coil.ImageLoader.Builder(this)
             .memoryCache { coil.memory.MemoryCache.Builder(this).maxSizePercent(0.08).build() }
@@ -26,6 +27,7 @@ class MainActivity : ComponentActivity() {
             // In full screen, switch the TV to a refresh rate that matches the stream (Settings › Player).
             val fps = Playback.frameRate
             val full = model.nowPlaying != null
+            LaunchedEffect(model.settings.lite) { Perf.lite = model.settings.lite }
             LaunchedEffect(full, model.settings.matchFrameRate) { Playback.setFullScreen(full, model.settings.matchFrameRate) }
             LaunchedEffect(fps, full) {
                 matchRefreshRate(if (full && model.settings.matchFrameRate) fps else 0f)

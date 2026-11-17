@@ -89,7 +89,7 @@ fun TvButton(
                 focused = it.isFocused
                 if (it.isFocused) onFocus?.invoke()
             }
-            .scale(if (focused) focusedScale else 1f)
+            .scale(if (focused && !Perf.lite) focusedScale else 1f)
             .clip(shape)
             .background(
                 when {
@@ -229,4 +229,9 @@ fun ProgressLine(fraction: Float, focused: Boolean, width: Dp = 160.dp) {
     Box(Modifier.width(width).height(3.dp).clip(RoundedCornerShape(2.dp)).background(if (focused) Theme.muted else Theme.raised)) {
         Box(Modifier.fillMaxWidth(fraction.coerceIn(0f, 1f)).fillMaxHeight().background(if (focused) Theme.bg else Theme.accent))
     }
+}
+
+/** Lite mode (Settings › General), read by every button and card; kept in step with the setting. */
+object Perf {
+    var lite by androidx.compose.runtime.mutableStateOf(false)
 }
