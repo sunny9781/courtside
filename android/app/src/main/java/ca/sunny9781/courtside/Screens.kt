@@ -782,7 +782,8 @@ private fun GameRow(model: AppModel, game: Game, showLeague: Boolean, modifier: 
             else -> Theme.text
         }
         Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-            Label(if (showLeague) "${cardHeader(game)} · ${game.league.name}" else cardHeader(game), size = 11.sp,
+            val status = if (Perf.lite && game.state == GameState.LIVE) "LIVE" else cardHeader(game)
+            Label(if (showLeague) "$status · ${game.league.name}" else status, size = 11.sp,
                 weight = FontWeight.Bold, color = if (focused) Theme.bg else if (game.state == GameState.LIVE) Theme.accent else Theme.muted,
                 modifier = Modifier.width(STATUS_WIDTH))
             Row(Modifier.weight(1f).padding(end = 10.dp), verticalAlignment = Alignment.CenterVertically,
@@ -792,7 +793,8 @@ private fun GameRow(model: AppModel, game: Game, showLeague: Boolean, modifier: 
                     if (game.eventDetail.isNotEmpty()) Label(game.eventDetail, size = 11.sp, color = text.copy(alpha = 0.75f),
                         modifier = Modifier.weight(1f, fill = false))
                 } else {
-                    val showScore = game.state != GameState.UPCOMING
+                    // Lite mode: no scores (they aren't updated live there).
+                    val showScore = game.state != GameState.UPCOMING && !Perf.lite
                     listOf(game.away, game.home).forEachIndexed { i, team ->
                         if (i == 1) Label("@", size = 12.sp, color = text.copy(alpha = 0.6f))
                         if (!Perf.lite) Logo(team.logo, 16.dp, team.abbr)
@@ -976,7 +978,8 @@ fun GameScreen(model: AppModel, gameId: String) {
     // of its streams already is; focus starts on the stream that's playing.
     LaunchedEffect(gameId, all.isNotEmpty()) {
         var id = previewId
-        if (!pinnedHere) (main.firstOrNull { m ->
+        // Lite mode has no player in the corner, so nothing starts until you pick a stream.
+        if (!pinnedHere && !model.settings.lite) (main.firstOrNull { m ->
             !(m.is4K || m.quality == "4K" || model.measuredQuality[m.channel.id] == "4K" ||
                 Categories.isUHD(m.channel.name) || Categories.isUHD(m.channel.categoryName))
         } ?: main.firstOrNull())

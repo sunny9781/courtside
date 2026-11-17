@@ -347,7 +347,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         scoresJob = viewModelScope.launch {
             while (true) {
                 delay(60_000)
-                runCatching { loadScores() }
+                // Lite mode: no live scores. Today's games are fetched when the app opens, and not again.
+                if (!settings.lite) runCatching { loadScores() }
                 // While something plays, the connection count is checked each minute too.
                 if (pinned != null || nowPlaying != null) refreshAccount()
             }
@@ -521,6 +522,15 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     /** Plays in the player at the top. */
     fun pin(channel: Channel, gameTitle: String? = null, lineup: List<Channel> = emptyList()) {
+        // Lite mode has no player in the corner: a channel goes straight to full screen.
+        if (settings.lite) {
+            play(channel, gameTitle, lineup, from = when {
+                tab == Tab.EPG -> "epg"
+                tab == Tab.HOME && openGameId != null -> "game"
+                else -> "home"
+            })
+            return
+        }
         recent.add(channel.id)
         pinned = NowPlaying(channel, gameTitle, lineup.ifEmpty { listOf(channel) })
         val (ts, hls) = urls(channel) ?: return
@@ -544,7 +554,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val closing = nowPlaying ?: return
         lastPlayedChannelId = closing.channel.id
         nowPlaying = null
-        pinned = closing
+        if (settings.lite) {
+            // Lite mode: no player in the corner, so leaving full screen stops the stream (and frees the connection).
+            Playback.stop()
+            pinned = null
+            checkAccountSoon()
+        } else pinned = closing
     }
 
     fun stopPinned() {
