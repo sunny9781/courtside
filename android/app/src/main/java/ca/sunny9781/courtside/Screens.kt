@@ -620,8 +620,16 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     LazyVerticalGrid(GridCells.FixedSize(cardWidth), modifier = modifier.fillMaxHeight().wrapRows(), state = model.homeGrid,
         horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, start = 6.dp, end = 6.dp)) {
-        if (sport != null && model.leagues(sport).size > 1) {
-            item(span = { GridItemSpan(maxLineSpan) }, key = "chips") { LeagueChips(model, sport, targets) }
+        // The sport's name (the left column is only icons), with its leagues beside it when it has more than one.
+        item(span = { GridItemSpan(maxLineSpan) }, key = "chips") {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
+                    modifier = Modifier.padding(vertical = 6.dp)) {
+                    Icon(sport?.icon ?: Icons.Filled.Sensors, null, tint = Theme.accent, modifier = Modifier.size(17.dp))
+                    Label(sport?.title ?: "Live Now", size = 17.sp, weight = FontWeight.Bold)
+                }
+                if (sport != null && model.leagues(sport).size > 1) LeagueChips(model, sport, targets)
+            }
         }
         if (sections.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }, key = "empty") {
