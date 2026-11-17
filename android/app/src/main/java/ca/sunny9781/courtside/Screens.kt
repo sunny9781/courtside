@@ -550,13 +550,21 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
     val sports = model.orderedSports()
     val favs = model.settings.favoriteSet
     val open = selectedSport(model.homeSelection)
+    // Moving through the list shows a sport's games once you pause on it (about a fifth of a second), so scrolling
+    // past several sports doesn't redraw the games beside it for each one (that flickered). Clicking is instant.
+    val scope = rememberCoroutineScope()
+    var pending by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    fun choose(s: HomeSelection, now: Boolean) {
+        pending?.cancel()
+        if (now) { if (model.homeSelection != s) model.homeSelection = s; return }
+        pending = scope.launch { delay(180); if (model.homeSelection != s) model.homeSelection = s }
+    }
     Column(modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp)) {
         val shown = sports.flatMap { model.games(it) }
         SportRow(targets, "live", Icons.Filled.Sensors, "Live Now", shown.count { it.state == GameState.LIVE }, shown.size,
-            "${model.games.size} today", compact, selected = model.homeSelection == HomeSelection.LiveNow) {
-            if (model.homeSelection != HomeSelection.LiveNow) model.homeSelection = HomeSelection.LiveNow
-        }
+            "${model.games.size} today", compact, selected = model.homeSelection == HomeSelection.LiveNow,
+            onFocus = { choose(HomeSelection.LiveNow, false) }) { choose(HomeSelection.LiveNow, true) }
         // Live Now | sports with live scores | sports that are channels (pickleball) | sports with nothing today.
         val home = model.home
         for (group in listOf(home.scoreSports, home.channelSports, home.emptySports)) {
@@ -567,9 +575,10 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
                 val channelOnly = sport in home.channelSports
                 SportRow(targets, sport.name, sport.icon, sport.title, if (channelOnly) 0 else games.count { it.state == GameState.LIVE },
                     games.size, when { games.isEmpty() -> "No games"; channelOnly -> "Channels"; else -> "${games.size} today" },
-                    compact, selected = open == sport, favorite = sport in favs, dimmed = games.isEmpty()) {
+                    compact, selected = open == sport, favorite = sport in favs, dimmed = games.isEmpty(),
                     // Coming back to the sport whose league you picked on the right keeps that league.
-                    if (open != sport) model.homeSelection = HomeSelection.OfSport(sport)
+                    onFocus = { if (selectedSport(model.homeSelection) != sport) choose(HomeSelection.OfSport(sport), false) else pending?.cancel() }) {
+                    if (selectedSport(model.homeSelection) != sport) choose(HomeSelection.OfSport(sport), true)
                 }
             }
         }
@@ -581,9 +590,9 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
 private fun SportRow(
     targets: FocusTargets, key: String, icon: androidx.compose.ui.graphics.vector.ImageVector, name: String, live: Int,
     total: Int, detail: String, compact: Boolean, selected: Boolean, favorite: Boolean = false, dimmed: Boolean = false,
-    select: () -> Unit
+    onFocus: () -> Unit = {}, select: () -> Unit
 ) {
-    TvButton(onClick = select, selected = selected, onFocus = select,
+    TvButton(onClick = select, selected = selected, onFocus = onFocus,
         modifier = Modifier.fillMaxWidth().tracked(targets, key).alpha(if (dimmed) 0.5f else 1f)) { focused ->
         val color = if (focused) Theme.bg else Theme.text
         Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -818,14 +827,18 @@ fun GameScreen(model: AppModel, gameId: String) {
     val listing = remember(all, game.league) { StreamSections.build(all, game.league) }
     // A mini EPG for this game: its stream categories on the left ("All" first), the channels on the right.
     val main = listing.sections.flatMap { it.streams }
-    val categories = buildList {
-        add("All" to main)
+    // Every group of streams, in order; "All" lists them all under these names.
+    val groups = buildList {
         for (sec in listing.sections) add(sec.name to sec.streams)
         if (listing.foreign.isNotEmpty()) add("Foreign" to listing.foreign.flatMap { it.streams })
         if (listing.extras.isNotEmpty()) add("Local and likely" to listing.extras)
     }
+    val everything = groups.flatMap { it.second }
+    val categories = listOf("All" to everything) + groups
     var selected by remember(gameId) { mutableStateOf("All") }
-    val current = categories.firstOrNull { it.first == selected }?.second ?: main
+    val current = categories.firstOrNull { it.first == selected }?.second ?: everything
+    // Names on one line: as wide as the longest one needs (within reason), the same for every row so columns line up.
+    val nameWidth = (60 + 7 * (current.maxOfOrNull { it.channel.name.length } ?: 0)).coerceIn(230, 460).dp
     val lineup = current.map { it.channel }
     val pinnedHere = model.pinnedIsFrom(gameId)
     val previewId = if (pinnedHere) model.pinned?.channel?.id else null
@@ -871,11 +884,19 @@ fun GameScreen(model: AppModel, gameId: String) {
                     Pill("Back to the games", Modifier.tracked(rows, "back")) { model.closeGame() }
                 }
             }
-            items(current, key = { "s:${it.channel.id}" }) { m ->
-                val k = "s:${m.channel.id}"
-                ChannelRow(model, m.channel, m.channel.id == previewId, Modifier.tracked(rows, k),
-                    badge = model.measuredQuality[m.channel.id] ?: m.quality,
-                    onFocus = { lastRow = k }) { select(m) }
+            // "All": each group's name above its streams (just a heading).
+            val shownGroups = if (selected == "All") groups else listOf(selected to current)
+            for ((name, streams) in shownGroups) {
+                if (selected == "All" && streams.isNotEmpty()) item(key = "h:$name") {
+                    Label(name.uppercase(), size = 10.sp, weight = FontWeight.Bold, color = Theme.muted,
+                        modifier = Modifier.padding(start = 10.dp, top = 8.dp, bottom = 2.dp))
+                }
+                items(streams, key = { "$name:${it.channel.id}" }) { m ->
+                    val k = "s:${m.channel.id}"
+                    ChannelRow(model, m.channel, m.channel.id == previewId, Modifier.tracked(rows, k),
+                        badge = model.measuredQuality[m.channel.id] ?: m.quality, nameWidth = nameWidth,
+                        onFocus = { lastRow = k }) { select(m) }
+                }
             }
         }
     }

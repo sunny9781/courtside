@@ -317,6 +317,7 @@ private fun InfoPanel(model: AppModel, channel: Channel?, playing: Channel?) {
 /** A channel: logo and name, what's on now (with progress), and what's next. */
 @Composable
 internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, modifier: Modifier, badge: String? = null,
+                        nameWidth: androidx.compose.ui.unit.Dp? = null,
                         onLongClick: (() -> Unit)? = null, onFocus: () -> Unit, onClick: () -> Unit) {
     val now = model.currentProgramme(channel)
     val next = now?.let { n -> model.guide[channel.epgId]?.firstOrNull { it.start >= n.end } }
@@ -324,10 +325,11 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
         modifier = modifier.fillMaxWidth()) { focused ->
         val color = if (focused) Theme.bg else Theme.text
         Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.width(NAME_WIDTH), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // A set name width (the game screen) keeps names on one line; otherwise they can wrap onto two.
+            Row(Modifier.width(nameWidth ?: NAME_WIDTH), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ChannelIcon(channel.icon, 24.dp)
                 Label(channel.name, size = 12.sp, weight = FontWeight.SemiBold, color = if (playing && !focused) Theme.accent else color,
-                    maxLines = 2, modifier = Modifier.weight(1f, fill = false))
+                    maxLines = if (nameWidth != null) 1 else 2, modifier = Modifier.weight(1f, fill = false))
                 if (playing) Icon(Icons.Filled.GraphicEq, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(11.dp))
                 if (model.isFavoriteChannel(channel.id))
                     Icon(Icons.Filled.Favorite, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(10.dp))

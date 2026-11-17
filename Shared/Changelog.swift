@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.59", date: "2026-11-17", time: "11:29", title: "Every stream under All", changes: [
+            Change(text: "Game screen: All lists every stream (local and likely channels too), under headings for each group (USA, Local and likely…). Channel names stay on one line, using the space there is.", apps: [.tv, .android]),
+            Change(text: "Home: scrolling through the sports no longer flickers; a sport's games show once you pause on it.", apps: android)
+        ], titleApps: [.tv, .android]),
         Release(version: "1.58", date: "2026-11-17", time: "11:00", title: "EPG favourites", changes: [
             Change(text: "EPG favourites: hover a category or channel and click its heart (or right-click it). Favourite channels get their own Favourites list at the top, favourite categories are listed first, and favourite channels come first in their category.", apps: mac),
             Change(text: "EPG favourites: hold the select button on a category or channel and choose Add to Favourites. Favourite channels get their own Favourites list at the top, favourite categories are listed first, and favourite channels come first in their category.", apps: [.tv, .android]),
