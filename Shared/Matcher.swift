@@ -431,9 +431,12 @@ enum Matcher {
         let sportName = league.name.lowercased()
         let own = channels.filter { $0.channel.name.lowercased().contains(sportName) }
         let ownIDs = Set(own.map(\.channel.id))
+        // Only what's on now or later today (not 3 a.m. tomorrow), at most six hours ahead.
+        let midnight = Calendar.current.date(byAdding: .day, value: 1, to: Calendar.current.startOfDay(for: now)) ?? now
+        let until = min(now.addingTimeInterval(6 * 3600), midnight)
         // The sport's own channels get one card each (below); their schedules aren't split into cards.
         for c in channels where !c.channel.epgID.isEmpty && !ownIDs.contains(c.channel.id) {
-            for p in guide[c.channel.epgID] ?? [] where p.end > now && p.start < now.addingTimeInterval(6 * 3600) {
+            for p in guide[c.channel.epgID] ?? [] where p.end > now && p.start < until {
                 let lower = p.title.lowercased()
                 guard !wordSet.isDisjoint(with: tokens(p.title)) || lower.contains(sportName) else { continue }
                 let slot = Int(p.start.timeIntervalSince1970 / 900)
