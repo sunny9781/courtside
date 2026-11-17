@@ -207,6 +207,8 @@ fun Shell(model: AppModel) {
         current?.let { model.recordFrameRate(it.channel.id, Playback.frameRate) }
     }
     AfterFullScreen(model, "strip") { strip.focus("video") }
+    // Update messages ("Turn on Courtside here…", "The update didn't install…") show as a notice.
+    LaunchedEffect(Updater.message) { Updater.message?.let { model.notice = it } }
 
     Box(
         Modifier.fillMaxSize().onKeyEvent { e ->
@@ -218,9 +220,9 @@ fun Shell(model: AppModel) {
     ) {
         Column(Modifier.fillMaxSize().padding(top = Theme.margin).alpha(if (full) 0f else 1f).enterAt({ full }) { FocusRequester.Default }) {
             TopBar(model)
-            model.pinned?.let { item -> PlayerStrip(model, item, strip) }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
             // Moving left or right off the edge of a page goes nowhere (not up to the top bar).
-            Box(Modifier.weight(1f).fillMaxWidth().focusProperties {
+            Box(Modifier.fillMaxSize().focusProperties {
                 exit = { d ->
                     if (d == FocusDirection.Left || d == FocusDirection.Right || d == FocusDirection.Next || d == FocusDirection.Previous)
                         FocusRequester.Cancel else FocusRequester.Default
@@ -234,6 +236,9 @@ fun Shell(model: AppModel) {
                     Tab.EPG -> EpgScreen(model)
                     Tab.SETTINGS -> SettingsScreen(model)
                 }
+            }
+            // The player: top-right corner, the same spot on every tab (pages leave room for it on their right).
+            model.pinned?.let { item -> PlayerStrip(model, item, strip, Modifier.align(Alignment.TopEnd)) }
             }
         }
         model.nowPlaying?.let { FullScreenPlayer(model, it) }
@@ -332,26 +337,32 @@ fun PlayerVideo(modifier: Modifier = Modifier, small: Boolean = false) {
  * page). Play/Pause on the remote stops it.
  */
 @Composable
-fun PlayerStrip(model: AppModel, item: NowPlaying, targets: FocusTargets) {
+fun PlayerStrip(model: AppModel, item: NowPlaying, targets: FocusTargets, modifier: Modifier = Modifier) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = Theme.margin, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(18.dp)
+        modifier.padding(end = Theme.margin),
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        TvButton(onClick = { model.play(item.channel, item.gameTitle, item.lineup, from = "strip") }, focusedScale = 1.03f,
-            modifier = Modifier.focusProperties { canFocus = !model.tabsFocused }.tracked(targets, "video")
-                .size(Theme.playerWidth, Theme.playerWidth * 9 / 16)) { _ ->
-            if (model.nowPlaying == null) PlayerVideo(Modifier.fillMaxSize().padding(2.dp).clip(RoundedCornerShape(8.dp)), small = true)
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 2.dp)) {
-            Label(model.playerTitle(item), size = 16.sp, weight = FontWeight.Bold)
-            Label(item.channel.name, size = 11.sp, color = Theme.muted)
+        // What's playing, to the left of the video, lined up on the right.
+        Column(Modifier.widthIn(max = 300.dp).padding(top = 2.dp), horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Label(model.playerTitle(item), size = 15.sp, weight = FontWeight.Bold, maxLines = 2,
+                modifier = Modifier, align = androidx.compose.ui.text.style.TextAlign.End)
+            Label(item.channel.name, size = 11.sp, color = Theme.muted, align = androidx.compose.ui.text.style.TextAlign.End)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (Playback.resolution.isNotEmpty()) Badge(Playback.resolution)
                 if (Playback.frameRate > 0) Badge(Playback.fpsLabel(Playback.frameRate))
             }
         }
+        TvButton(onClick = { model.play(item.channel, item.gameTitle, item.lineup, from = "strip") }, focusedScale = 1.03f,
+            modifier = Modifier.focusProperties { canFocus = !model.tabsFocused }.tracked(targets, "video")
+                .size(Theme.playerWidth, Theme.playerWidth * 9 / 16)) { _ ->
+            if (model.nowPlaying == null) PlayerVideo(Modifier.fillMaxSize().padding(2.dp).clip(RoundedCornerShape(8.dp)), small = true)
+        }
     }
 }
+
+/** Room to leave above a page's right-hand part for the player in the corner. */
+fun topInset(model: AppModel) = if (model.pinned != null) Theme.stripHeight else 0.dp
 
 /**
  * Full screen. Up/down: previous/next stream for this game (or channel in this category). Any other button shows
@@ -494,14 +505,14 @@ fun HomeScreen(model: AppModel) {
         }
     }
 
-    // The left column (sport names) is lined up with the player above it and always the same width, so nothing
-    // moves when you go across to the games.
+    // The left column is the sports' icons and live counts, top to bottom; the games fill the rest (below the
+    // player in the corner).
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { side[sidebarKey(model.homeSelection)] }) {
-        SportList(model, side, compact = false,
-            modifier = Modifier.width(Theme.playerWidth).enterAt { side[sidebarKey(model.homeSelection)] })
+        SportList(model, side, compact = true,
+            modifier = Modifier.width(64.dp).enterAt { side[sidebarKey(model.homeSelection)] })
         Spacer(Modifier.width(14.dp))
         GamesPane(model, pane, onOpen = { lastGame = it; model.openGameId = it }, onFocusGame = { lastGame = it },
-            modifier = Modifier.weight(1f).enterAt { pane["game:$lastGame"] })
+            modifier = Modifier.weight(1f).padding(top = topInset(model)).enterAt { pane["game:$lastGame"] })
     }
 }
 
@@ -779,7 +790,7 @@ fun GameScreen(model: AppModel, gameId: String) {
         else model.pin(m.channel, game.title, lineup)
     }
 
-    Column(Modifier.fillMaxSize().background(Theme.bg).padding(horizontal = Theme.margin)) {
+    Column(Modifier.fillMaxSize().background(Theme.bg).padding(horizontal = Theme.margin).padding(top = topInset(model))) {
         if (!pinnedHere) Hero(model, game)
         LazyVerticalGrid(GridCells.Adaptive(270.dp),
             modifier = Modifier.fillMaxSize().wrapRows().enterAt { targets["s:$previewId"] },

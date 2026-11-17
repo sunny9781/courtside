@@ -27,7 +27,6 @@ object Updater {
     var checking by mutableStateOf(false)
         private set
     var message by mutableStateOf<String?>(null)
-        private set
     private var readyFile: File? = null
     private var readyBuild = 0
 
@@ -59,14 +58,47 @@ object Updater {
     }
 
     /** Opens Android's installer for the downloaded update. */
+    /**
+     * Installs the downloaded update through Android's package installer (more reliable on Google TV sets than
+     * opening the file). Courtside itself needs "Install unknown apps" for this; if it's off (common on Google TV),
+     * the switch for it opens first.
+     */
     fun install(context: Context) {
         val file = readyFile ?: return
-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.updates", file)
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(uri, "application/vnd.android.package-archive")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        val pm = context.packageManager
+        if (android.os.Build.VERSION.SDK_INT >= 26 && !pm.canRequestPackageInstalls()) {
+            message = "Turn on Courtside here so it can install its own updates, then choose Install update again."
+            runCatching {
+                context.startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    android.net.Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }.onFailure { message = "Allow Courtside to install apps: Settings › Apps › Security & restrictions › Unknown sources." }
+            return
         }
-        context.startActivity(intent)
+        try {
+            val installer = pm.packageInstaller
+            val params = android.content.pm.PackageInstaller.SessionParams(android.content.pm.PackageInstaller.SessionParams.MODE_FULL_INSTALL)
+            params.setAppPackageName(context.packageName)
+            val id = installer.createSession(params)
+            installer.openSession(id).use { session ->
+                file.inputStream().use { input ->
+                    session.openWrite("Courtside.apk", 0, file.length()).use { out ->
+                        input.copyTo(out)
+                        session.fsync(out)
+                    }
+                }
+                val flags = android.app.PendingIntent.FLAG_UPDATE_CURRENT or
+                    (if (android.os.Build.VERSION.SDK_INT >= 31) android.app.PendingIntent.FLAG_MUTABLE else 0)
+                val pending = android.app.PendingIntent.getBroadcast(context, id, Intent(context, InstallReceiver::class.java), flags)
+                session.commit(pending.intentSender)
+            }
+        } catch (e: Exception) {
+            // Fall back to opening the file with Android's installer.
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.updates", file)
+            context.startActivity(Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/vnd.android.package-archive")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            })
+        }
     }
 
     private fun get(url: String): String {
@@ -79,6 +111,9 @@ object Updater {
         try {
             val tmp = File(to.parentFile, "download.tmp")
             conn.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
+            // A cut-off download would fail to install ("App not installed"), so it's checked first.
+            val expected = conn.contentLengthLong
+            if (expected > 0 && tmp.length() != expected) { tmp.delete(); error("The download was incomplete.") }
             to.delete()
             tmp.renameTo(to)
         } finally {
@@ -112,4 +147,22 @@ object Prefs {
     fun setMatchFrameRate(context: Context, on: Boolean) = prefs(context).edit().putBoolean("matchFrameRate", on).apply()
     fun showForeign(context: Context) = prefs(context).getBoolean("showForeign", false)
     fun setShowForeign(context: Context, on: Boolean) = prefs(context).edit().putBoolean("showForeign", on).apply()
+}
+
+/** Hears back from Android's package installer: asks you to confirm, or says why the update didn't install. */
+class InstallReceiver : android.content.BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        when (intent.getIntExtra(android.content.pm.PackageInstaller.EXTRA_STATUS, -999)) {
+            android.content.pm.PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                @Suppress("DEPRECATION")
+                val confirm: Intent? = if (android.os.Build.VERSION.SDK_INT >= 33)
+                    intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java) else intent.getParcelableExtra(Intent.EXTRA_INTENT)
+                confirm?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                runCatching { context.startActivity(confirm) }
+            }
+            android.content.pm.PackageInstaller.STATUS_SUCCESS -> {}
+            else -> Updater.message = "The update didn't install (" +
+                (intent.getStringExtra(android.content.pm.PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "no reason given") + ")."
+        }
+    }
 }
