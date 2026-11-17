@@ -64,6 +64,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.47", date: "2026-11-16", time: "22:22", title: "Update screen is back", changes: [
+            Change(text: "Install update uses Android's installer screen again (confirm, then \"App installed\" with Open) instead of closing the app. If Courtside isn't allowed to install apps yet, the switch for it still opens first.", apps: android)
+        ]),
         Release(version: "1.46", date: "2026-11-16", time: "22:17", title: "Player top left, pages beside it", changes: [
             Change(text: "The player is back in the top-left corner on every tab, just the video. Each tab's left panel (sports, EPG categories, Settings sections) sits under it at the same width, and the page starts right beside it at the top.", apps: android),
             Change(text: "Game screen: streams start beside the player and wrap underneath it.", apps: android)
