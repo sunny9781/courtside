@@ -99,6 +99,8 @@ private fun PlaybackSection(model: AppModel) {
     Toggle("Switch to the next stream when one stalls", "USA and Canada streams are tried first.", s.autoSwitch) { s.autoSwitch = it }
     Toggle("Match frame rate", "Switches your TV to each stream's frame rate (50 or 60 fps) in full screen, for smoother motion.",
         s.matchFrameRate) { s.matchFrameRate = it }
+    Toggle("Lite mode", "For less powerful TVs: no zoom when moving around, no team logos on Home, and the fastest video drawing. On by default except on an Nvidia Shield.",
+        s.lite) { s.lite = it }
     Toggle("HDR in full screen", "Lets HDR streams switch the TV into HDR. Off shows everything in standard range, so the TV never changes mode.",
         s.hdr) { s.hdr = it }
     Action("Stream format", "Which version of each stream to open first. If it shows no picture within 8 seconds, the other one is tried.",

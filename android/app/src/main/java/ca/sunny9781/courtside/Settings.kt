@@ -43,6 +43,11 @@ class Settings(context: Context) {
     var matchFrameRate by Flag("matchFrameRate", true)
     /** Let full screen switch the TV into HDR for HDR streams (off: always shown as standard range). */
     var hdr by Flag("hdr", false)
+    /**
+     * Lite mode: cheaper drawing for less powerful TVs (no zoom on focus, no team logos on Home, the fast video
+     * path). On by default everywhere except an Nvidia Shield.
+     */
+    var lite by Flag("lite", !android.os.Build.MANUFACTURER.equals("NVIDIA", ignoreCase = true))
     var bufferMs by Number("bufferMs", 2000)
     /** Opening the app reuses the saved channels and guide until they're this old. */
     var refreshHours by Number("refreshHours", 12)

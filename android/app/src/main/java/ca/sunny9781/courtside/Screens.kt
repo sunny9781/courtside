@@ -322,7 +322,9 @@ fun PlayerVideo(modifier: Modifier = Modifier, small: Boolean = false, hdr: Bool
         factory = { ctx ->
             // The player at the top draws into a texture: a 4K or HDR stream there doesn't switch the TV into HDR
             // or another refresh rate. Full screen uses a real video surface, so HDR works there.
-            (android.view.LayoutInflater.from(ctx).inflate(if (small || !hdr) R.layout.player_texture else R.layout.player_surface, null) as PlayerView).apply {
+            // Lite mode (less powerful TVs) always uses the fast video surface, small player included.
+            val texture = !Perf.lite && (small || !hdr)
+            (android.view.LayoutInflater.from(ctx).inflate(if (texture) R.layout.player_texture else R.layout.player_surface, null) as PlayerView).apply {
                 useController = false
                 resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 setShutterBackgroundColor(android.graphics.Color.BLACK)
@@ -430,7 +432,7 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
                 }
             }
     ) {
-        PlayerVideo(Modifier.fillMaxSize(), hdr = model.settings.hdr || Playback.lowPower)
+        PlayerVideo(Modifier.fillMaxSize(), hdr = model.settings.hdr)
         Box(Modifier.align(Alignment.Center)) {
             when (Playback.status) {
                 Playback.Status.FAILED -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -716,8 +718,11 @@ private fun GameCard(model: AppModel, game: Game, showLeague: Boolean, modifier:
             } else {
                 for (team in listOf(game.away, game.home)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Logo(team.logo, 24.dp, team.abbr)
-                        Spacer(Modifier.width(8.dp))
+                        // Lite mode leaves the logos out (names and scores only).
+                        if (!Perf.lite) {
+                            Logo(team.logo, 24.dp, team.abbr)
+                            Spacer(Modifier.width(8.dp))
+                        }
                         Column(Modifier.weight(1f)) {
                             Label(team.shortName.ifEmpty { team.name }, size = 14.sp, weight = FontWeight.SemiBold, color = text)
                             if (game.state != GameState.UPCOMING && team.hasLongScore) {
