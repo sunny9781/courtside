@@ -177,11 +177,15 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { runCatching { account = XtreamClient(creds).login() } }
     }
 
-    /** A stream started or stopped: check the connection count again in a few seconds. */
+    /**
+     * A stream started, switched or stopped: check the connection count once things settle. Providers take a while
+     * to notice a closed stream, so checking right after flipping channels counts the old one too (2/2 while only
+     * one plays). Each switch restarts the 20-second wait, so flipping through channels only checks at the end.
+     */
     private fun checkAccountSoon() {
         accountJob?.cancel()
         accountJob = viewModelScope.launch {
-            kotlinx.coroutines.delay(5000)
+            kotlinx.coroutines.delay(20_000)
             refreshAccount()
         }
     }
@@ -284,6 +288,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             while (true) {
                 delay(60_000)
                 runCatching { loadScores() }
+                // While something plays, the connection count is checked each minute too.
+                if (pinned != null || nowPlaying != null) refreshAccount()
             }
         }
     }
