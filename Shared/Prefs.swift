@@ -42,8 +42,17 @@ enum Prefs {
             hideAdult: true,
             guideGrouped: true
         ])
-        // The refresh default went from 6 to 12 hours: move anyone still on the old default over, once.
         let d = UserDefaults.standard
+        // "UFC" became "Fighting" (with boxing): carry saved sport choices over, once.
+        if !d.bool(forKey: "fightingRenamed") {
+            for key in [hiddenSports, favoriteSports, sportOrder] {
+                if let v = d.string(forKey: key), v.contains("UFC") {
+                    d.set(v.split(separator: ",").map { $0 == "UFC" ? "Fighting" : String($0) }.joined(separator: ","), forKey: key)
+                }
+            }
+            d.set(true, forKey: "fightingRenamed")
+        }
+        // The refresh default went from 6 to 12 hours: move anyone still on the old default over, once.
         if !d.bool(forKey: "refreshHours12") {
             if d.object(forKey: refreshHours) as? Int == 6 { d.set(12, forKey: refreshHours) }
             d.set(true, forKey: "refreshHours12")

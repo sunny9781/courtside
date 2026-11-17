@@ -135,9 +135,9 @@ struct SettingsView: View {
             }
 
             panel("EPG") {
-                toggle("Hide adult categories (any with \"adult\" in the name)", Binding(
-                    get: { hideAdult },
-                    set: { hideAdult = $0; Task { await model.applyFilters(); await model.rematch() } }
+                toggle("Adult categories (any with \"adult\" in the name; off by default)", Binding(
+                    get: { !hideAdult },
+                    set: { hideAdult = !$0; Task { await model.applyFilters(); await model.rematch() } }
                 ))
                 setting("Hours to show", "How far ahead the guide goes. Takes effect on the next refresh.") {
                     Picker("", selection: $guideHours) {

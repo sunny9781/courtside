@@ -43,7 +43,7 @@ enum Sport: String, CaseIterable, Identifiable {
     case hockey = "Hockey"
     case soccer = "Soccer"
     case baseball = "Baseball"
-    case fighting = "UFC"
+    case fighting = "Fighting"
     case tennis = "Tennis"
     case motorsport = "Motorsport"
     case golf = "Golf"
@@ -141,6 +141,8 @@ struct League: Identifiable, Hashable {
         League(id: "bundesliga", name: "Bundesliga", sport: .soccer, path: "soccer/ger.1", keywords: ["bundesliga"]),
         League(id: "ligue1", name: "Ligue 1", sport: .soccer, path: "soccer/fra.1", keywords: ["ligue"]),
         League(id: "ufc", name: "UFC", sport: .fighting, path: "mma/ufc", keywords: ["ufc"], isEvent: true),
+        // No free boxing schedule: its events and channels come from the TV guide, like pickleball.
+        League(id: "boxing", name: "Boxing", sport: .fighting, path: "", keywords: ["boxing"], isEvent: true),
         League(id: "atp", name: "ATP", sport: .tennis, path: "tennis/atp", keywords: ["atp", "tennis"], isEvent: true),
         League(id: "wta", name: "WTA", sport: .tennis, path: "tennis/wta", keywords: ["wta", "tennis"], isEvent: true),
         League(id: "f1", name: "Formula 1", sport: .motorsport, path: "racing/f1", keywords: ["f1", "formula"], isEvent: true),

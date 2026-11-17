@@ -154,7 +154,7 @@ struct TVLiveView: View {
                     HStack(spacing: 14) {
                         Image(systemName: "square.stack.3d.up")
                             .font(.system(size: 22))
-                        Text("Group similar categories")
+                        Text("Auto-Group")
                             .font(.system(size: 22, weight: .medium))
                         Spacer()
                         Text(grouped ? "On" : "Off")

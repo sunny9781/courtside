@@ -121,9 +121,9 @@ object Updater {
         if (attempt == 0) return
         if (attempt > BuildConfig.VERSION_CODE) {
             if (System.currentTimeMillis() - at < 30 * 60_000L) {
-                message = "The update didn't install. On TVs this is usually storage: free up 100 MB or so in " +
-                    "Settings › System › Storage and try again. If it still fails, reinstall with Downloader " +
-                    "(is.gd/courtsidetv); your login and settings stay."
+                message = "The update didn't finish installing. Try Install update again. If it keeps failing, it's " +
+                    "usually storage: free up some space in Settings › System › Storage, or reinstall with " +
+                    "Downloader (is.gd/courtsidetv); your login and settings stay."
             }
         } else {
             File(context.cacheDir, "updates").deleteRecursively()

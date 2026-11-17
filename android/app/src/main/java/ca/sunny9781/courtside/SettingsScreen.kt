@@ -59,13 +59,9 @@ fun SettingsScreen(model: AppModel) {
                     Toggle("Hide SD streams", "Most providers have HD versions of the same channels.", model.settings.hideSD) {
                     model.settings.hideSD = it
                 }
-                    Toggle("Hide adult categories", "Any category with \"adult\" in its name, and its channels.", model.settings.hideAdult) {
-                        model.settings.hideAdult = it
+                    Toggle("Adult categories", "Any category with \"adult\" in its name, and its channels. Off by default.", !model.settings.hideAdult) {
+                        model.settings.hideAdult = !it
                         model.filtersChanged()
-                    }
-                    Toggle("Group similar categories", "Sports, Country, 24/7 and so on, opened one level at a time.", model.settings.grouped) {
-                        model.settings.grouped = it
-                        model.guidePath = emptyList()
                     }
                     Updates(model)
                 }

@@ -21,7 +21,7 @@ object StreamSections {
         "bundesliga" -> listOf("Germany")
         "ligue1", "top14" -> listOf("France")
         "afl" -> listOf("Australia")
-        "atp", "wta", "cricket", "pickleball" -> emptyList()
+        "atp", "wta", "cricket", "pickleball", "boxing" -> emptyList()
         else -> listOf("USA")
     }
 

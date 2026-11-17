@@ -73,7 +73,7 @@ struct IOSEPGView: View {
             }
             HStack(spacing: 10) {
                 IOSChip(selected: grouped, action: { grouped.toggle(); path = [] }) {
-                    Label("Group", systemImage: "square.stack.3d.up")
+                    Label("Auto-Group", systemImage: "square.stack.3d.up")
                 }
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass").foregroundStyle(Theme.muted)

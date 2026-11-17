@@ -108,9 +108,14 @@ fun EpgScreen(model: AppModel) {
         LazyColumn(Modifier.width(CATEGORY_WIDTH).fillMaxHeight().padding(bottom = topInset(model)).enterAt { cats["cat:$categoryTarget"] },
             verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             // One search for categories and channels; results show on the right.
-            item(key = "filter") { Field("Filter", search, { search = it }, width = CATEGORY_WIDTH) }
+            // Enter (or Search) on the keyboard closes it and goes to the first result.
+            item(key = "filter") {
+                Field("Filter", search, { search = it }, width = CATEGORY_WIDTH) {
+                    hits.firstOrNull()?.let { h -> h.channels.firstOrNull()?.let { rows.focus("h:${h.id}:${it.id}") } }
+                }
+            }
             item(key = "group") {
-                CategoryRow(cats, "cat:toggle", Icons.Filled.Layers, "Group", if (s.grouped) "On" else "Off", false) {
+                CategoryRow(cats, "cat:toggle", Icons.Filled.Layers, "Auto-Group", if (s.grouped) "On" else "Off", false) {
                     s.grouped = !s.grouped
                     model.guidePath = emptyList()
                 }
@@ -242,7 +247,7 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
             Row(Modifier.width(NAME_WIDTH), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ChannelIcon(channel.icon, 24.dp)
                 Label(channel.name, size = 12.sp, weight = FontWeight.SemiBold, color = if (playing && !focused) Theme.accent else color,
-                    modifier = Modifier.weight(1f, fill = false))
+                    maxLines = 2, modifier = Modifier.weight(1f, fill = false))
                 if (playing) Icon(Icons.Filled.GraphicEq, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(11.dp))
             }
             Column(Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {

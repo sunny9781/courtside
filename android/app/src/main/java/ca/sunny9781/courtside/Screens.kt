@@ -162,6 +162,7 @@ fun Field(hint: String, value: String, onChange: (String) -> Unit, type: Keyboar
     var editing by remember { mutableStateOf(false) }
     val input = remember { FocusRequester() }
     var typing by remember { mutableStateOf(false) }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     LaunchedEffect(editing) { if (editing) runCatching { input.requestFocus() } }
     TvButton(onClick = { editing = true }, focusedScale = 1f, background = Theme.card,
         modifier = Modifier.width(width).padding(vertical = 5.dp).onFocusChanged { if (it.hasFocus) focused = true else if (!editing) focused = false }) { _ ->
@@ -174,8 +175,9 @@ fun Field(hint: String, value: String, onChange: (String) -> Unit, type: Keyboar
                 textStyle = TextStyle(color = Theme.text, fontSize = 14.sp),
                 cursorBrush = SolidColor(Theme.accent),
                 visualTransformation = if (secret) PasswordVisualTransformation() else VisualTransformation.None,
-                keyboardOptions = KeyboardOptions(keyboardType = type),
-                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { onDone() }, onSearch = { onDone() }),
+                keyboardOptions = KeyboardOptions(keyboardType = type, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                    onDone = { keyboard?.hide(); onDone() }, onSearch = { keyboard?.hide(); onDone() }),
                 modifier = Modifier.fillMaxWidth().focusProperties { canFocus = editing }.focusRequester(input)
                     .onFocusChanged {
                         if (it.isFocused) typing = true
@@ -285,9 +287,35 @@ fun TopBar(model: AppModel) {
                 }
             }
         }
+        // Left: connections in use ("1/2", orange at the limit), and "EPG 9:10 PM ⟳" (download it again).
+        Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            val a = model.account
+            val max = a?.maxConnections ?: 0
+            if (max > 0) {
+                val active = a?.activeConnections ?: 0
+                val full = active >= max
+                Row(Modifier.clip(RoundedCornerShape(14.dp)).background(if (full) Theme.accent else Theme.raised)
+                    .padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Icon(Icons.Filled.People, null, tint = if (full) Theme.onAccent else Theme.muted, modifier = Modifier.size(13.dp))
+                    Label("$active/$max", size = 12.sp, weight = FontWeight.SemiBold, color = if (full) Theme.onAccent else Theme.muted)
+                }
+            }
+            if (model.loading) Label("Downloading channels…", size = 12.sp, color = Theme.muted)
+            else model.updatedAt?.let { at ->
+                TvButton(onClick = { model.refresh(force = true) }) { focused ->
+                    Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        val color = if (focused) Theme.bg else Theme.muted
+                        Label("EPG ${clockTime(at)}", size = 12.sp, color = color)
+                        Icon(Icons.Filled.Refresh, null, tint = color, modifier = Modifier.size(13.dp))
+                    }
+                }
+            }
+        }
         Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (model.loading) Label("Downloading channels…", size = 12.sp, color = Theme.muted)
             // The version is the update button: click it to check for a new version; once one has downloaded it
             // turns into "Install update". (Channels refresh on their own, or from Settings › General.)
             val ready = Updater.readyVersion
@@ -529,14 +557,20 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
             "${model.games.size} today", compact, selected = model.homeSelection == HomeSelection.LiveNow) {
             if (model.homeSelection != HomeSelection.LiveNow) model.homeSelection = HomeSelection.LiveNow
         }
-        Spacer(Modifier.height(8.dp))
-        for (sport in sports) {
-            val games = model.games(sport)
-            SportRow(targets, sport.name, sport.icon, sport.title, games.count { it.state == GameState.LIVE }, games.size,
-                if (games.isEmpty()) "No games" else "${games.size} today", compact, selected = open == sport,
-                favorite = sport in favs, dimmed = games.isEmpty()) {
-                // Coming back to the sport whose league you picked on the right keeps that league.
-                if (open != sport) model.homeSelection = HomeSelection.OfSport(sport)
+        // Live Now | sports with live scores | sports that are channels (pickleball) | sports with nothing today.
+        val home = model.home
+        for (group in listOf(home.scoreSports, home.channelSports, home.emptySports)) {
+            if (group.isEmpty()) continue
+            Box(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp).height(1.dp).background(Theme.border))
+            for (sport in group) {
+                val games = model.games(sport)
+                val channelOnly = sport in home.channelSports
+                SportRow(targets, sport.name, sport.icon, sport.title, if (channelOnly) 0 else games.count { it.state == GameState.LIVE },
+                    games.size, when { games.isEmpty() -> "No games"; channelOnly -> "Channels"; else -> "${games.size} today" },
+                    compact, selected = open == sport, favorite = sport in favs, dimmed = games.isEmpty()) {
+                    // Coming back to the sport whose league you picked on the right keeps that league.
+                    if (open != sport) model.homeSelection = HomeSelection.OfSport(sport)
+                }
             }
         }
     }
@@ -614,6 +648,11 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             listOf(PaneSection(l.id, l.name, null, l, sortedGames(model.gamesIn(l.id))))
         } ?: emptyList()
     }
+    // A sport with no live scores but channels (pickleball): its channels as an EPG list, not score cards.
+    if (sport != null && sport in model.home.channelSports) {
+        SportChannels(model, sport, targets, modifier)
+        return
+    }
     // Cards just wide enough for the team names and scores here (not stretched), as many to a row as fit.
     val cardWidth = cardWidth(if (sport != null) model.games(sport) else sections.flatMap { it.games })
     LazyVerticalGrid(GridCells.FixedSize(cardWidth), modifier = modifier.fillMaxHeight().wrapRows(), state = model.homeGrid,
@@ -645,6 +684,26 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
                 GameCard(model, game, showLeague = selection is HomeSelection.LiveNow,
                     modifier = Modifier.tracked(targets, "game:${game.id}"),
                     onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
+            }
+        }
+    }
+}
+
+/** Every channel showing the sport (its own channels and today's shows), like the EPG. Click to play, again for full screen. */
+@Composable
+private fun SportChannels(model: AppModel, sport: Sport, targets: FocusTargets, modifier: Modifier) {
+    val games = model.games(sport)
+    val channels = games.flatMap { model.streams(it.id) }.map { it.channel }.distinctBy { it.id }
+        .sortedWith(compareBy({ !it.name.lowercase().contains(sport.title.lowercase()) }, { it.name }))
+    val playing = model.pinned?.channel?.id
+    var last by remember { mutableStateOf<String?>(null) }
+    AfterFullScreen(model, "home") { targets.focus("ch:${model.lastPlayedChannelId}") }
+    LazyColumn(modifier.fillMaxHeight().enterAt { targets[last ?: "ch:$playing"] },
+        verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+        items(channels, key = { "ch:${it.id}" }) { ch ->
+            val k = "ch:${ch.id}"
+            ChannelRow(model, ch, ch.id == playing, Modifier.tracked(targets, k), onFocus = { last = k }) {
+                if (ch.id == playing) model.play(ch, null, channels, from = "home") else model.pin(ch, null, channels)
             }
         }
     }

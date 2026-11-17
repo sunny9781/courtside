@@ -102,11 +102,10 @@ struct IOSSettingsView: View {
 
                 if section == .general {
                 Section("EPG") {
-                    Toggle("Hide adult categories", isOn: Binding(
-                        get: { hideAdult },
-                        set: { hideAdult = $0; Task { await model.applyFilters(); await model.rematch() } }
+                    Toggle("Adult categories", isOn: Binding(
+                        get: { !hideAdult },
+                        set: { hideAdult = !$0; Task { await model.applyFilters(); await model.rematch() } }
                     ))
-                    Toggle("Group similar categories", isOn: $grouped)
                 }
 
                 }
