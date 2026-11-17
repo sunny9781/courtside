@@ -132,44 +132,15 @@ struct DashboardView: View {
                         if live.isEmpty && soon.isEmpty {
                             Banner(text: nextUpText(shown.first { $0.state == .upcoming }), icon: "clock")
                         } else {
-                            // One row per sport: live games, then games starting soon (greyed out), scrolling sideways.
-                            VStack(alignment: .leading, spacing: 18) {
-                                ForEach(tileOrder.filter { sport in (live + soon).contains { $0.league.sport == sport } }) { sport in
-                                    let liveGames = live.filter { $0.league.sport == sport }
-                                    let soonGames = soon.filter { $0.league.sport == sport }
-                                    VStack(alignment: .leading, spacing: 10) {
-                                        Button {
-                                            selectedSport = sport
-                                        } label: {
-                                        HStack(spacing: 8) {
-                                            Image(systemName: sport.symbol)
-                                                .foregroundStyle(Theme.accent)
-                                            Text(sport.rawValue)
-                                                .font(.system(size: 14, weight: .semibold))
-                                                .foregroundStyle(Theme.text)
-                                            Text([liveGames.isEmpty ? nil : "\(liveGames.count) live",
-                                                  soonGames.isEmpty ? nil : "\(soonGames.count) starting soon"]
-                                                .compactMap { $0 }.joined(separator: " · "))
-                                                .font(.system(size: 12))
-                                                .foregroundStyle(Theme.muted)
-                                            Image(systemName: "chevron.right")
-                                                .font(.system(size: 10, weight: .bold))
-                                                .foregroundStyle(Theme.muted)
-                                        }
-                                        }
-                                        .buttonStyle(.plain)
-                                        .help("Open \(sport.rawValue)")
-                                        ScrollView(.horizontal, showsIndicators: false) {
-                                            HStack(spacing: 14) {
-                                                ForEach(liveGames + soonGames) { game in
-                                                    LiveGameCard(game: game, streams: model.streamCount(game.id), showLeague: true) {
-                                                        onOpenGame(game)
-                                                    }
-                                                    .frame(width: cardWidth(for: model.games(for: sport), charWidth: 9.5,
-                                                                            fixed: 112, minimum: 290, maximum: 560))
-                                                }
-                                            }
-                                        }
+                            // All live games in one grid, rows that wrap like the TV apps (no sideways scrolling).
+                            // In your sport order; each card names its league.
+                            let cards = tileOrder.flatMap { sport in (live + soon).filter { $0.league.sport == sport } }
+                            let width = cardWidth(for: cards, charWidth: 9.5, fixed: 112, minimum: 290, maximum: 520)
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: width, maximum: width), spacing: 16, alignment: .top)],
+                                      alignment: .leading, spacing: 16) {
+                                ForEach(cards) { game in
+                                    LiveGameCard(game: game, streams: model.streamCount(game.id), showLeague: true) {
+                                        onOpenGame(game)
                                     }
                                 }
                             }
