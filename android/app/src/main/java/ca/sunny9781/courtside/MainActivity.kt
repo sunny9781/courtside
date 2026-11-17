@@ -15,6 +15,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Logos: a small memory cache and no fade-in animation (cheap on low-power TVs).
+        coil.Coil.setImageLoader(coil.ImageLoader.Builder(this)
+            .memoryCache { coil.memory.MemoryCache.Builder(this).maxSizePercent(0.08).build() }
+            .crossfade(false)
+            .respectCacheHeaders(false)
+            .build())
         setContent {
             CourtsideApp(model)
             // In full screen, switch the TV to a refresh rate that matches the stream (Settings › Player).

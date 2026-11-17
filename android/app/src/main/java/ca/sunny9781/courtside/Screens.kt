@@ -428,7 +428,7 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
                 }
             }
     ) {
-        PlayerVideo(Modifier.fillMaxSize(), hdr = model.settings.hdr)
+        PlayerVideo(Modifier.fillMaxSize(), hdr = model.settings.hdr || Playback.lowPower)
         Box(Modifier.align(Alignment.Center)) {
             when (Playback.status) {
                 Playback.Status.FAILED -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -520,7 +520,7 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
     val open = selectedSport(model.homeSelection)
     Column(modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        val shown = model.games.filter { it.league.sport in sports }
+        val shown = sports.flatMap { model.games(it) }
         SportRow(targets, "live", Icons.Filled.Sensors, "Live Now", shown.count { it.state == GameState.LIVE }, shown.size,
             "${model.games.size} today", compact, selected = model.homeSelection == HomeSelection.LiveNow) {
             if (model.homeSelection != HomeSelection.LiveNow) model.homeSelection = HomeSelection.LiveNow
@@ -603,11 +603,11 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
         is HomeSelection.LiveNow -> model.orderedSports().flatMap { s -> sortedGames(model.games(s).filter { it.state == GameState.LIVE }) }
             .let { if (it.isEmpty()) emptyList() else listOf(PaneSection("live", "", null, null, it)) }
         is HomeSelection.OfSport -> model.leagues(selection.sport).mapNotNull { l ->
-            val g = model.games.filter { it.league.id == l.id }
+            val g = model.gamesIn(l.id)
             if (g.isEmpty()) null else PaneSection(l.id, l.name, null, l, sortedGames(g))
         }
         is HomeSelection.OfLeague -> League.all.firstOrNull { it.id == selection.leagueId }?.let { l ->
-            listOf(PaneSection(l.id, l.name, null, l, sortedGames(model.games.filter { it.league.id == l.id })))
+            listOf(PaneSection(l.id, l.name, null, l, sortedGames(model.gamesIn(l.id))))
         } ?: emptyList()
     }
     // Cards just wide enough for the team names and scores here (not stretched), as many to a row as fit.
@@ -651,7 +651,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
 private fun LeagueChips(model: AppModel, sport: Sport, targets: FocusTargets) {
     val leagues = model.leagues(sport)
     val ordered = leagues.withIndex().sortedWith(compareBy({ (_, l) ->
-        val g = model.games.filter { it.league.id == l.id }
+        val g = model.gamesIn(l.id)
         if (g.any { it.state == GameState.LIVE }) 0 else if (g.isEmpty()) 2 else 1
     }, { it.index })).map { it.value }
     val selection = model.homeSelection
@@ -663,7 +663,7 @@ private fun LeagueChips(model: AppModel, sport: Sport, targets: FocusTargets) {
             if (model.homeSelection != HomeSelection.OfSport(sport)) model.homeSelection = HomeSelection.OfSport(sport)
         }
         for (league in ordered) {
-            val g = model.games.filter { it.league.id == league.id }
+            val g = model.gamesIn(league.id)
             Chip(targets, "chip:${league.id}", league, league.name, g.count { it.state == GameState.LIVE }, g.size,
                 (selection as? HomeSelection.OfLeague)?.leagueId == league.id, model, dimmed = g.isEmpty()) {
                 if ((model.homeSelection as? HomeSelection.OfLeague)?.leagueId != league.id) model.homeSelection = HomeSelection.OfLeague(league.id)

@@ -1,0 +1,3 @@
+# Courtside's own code: compiled ahead of time when installed (with the profile installer library).
+HSPLca/sunny9781/courtside/**->**(**)**
+Lca/sunny9781/courtside/**;
