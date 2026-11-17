@@ -86,6 +86,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     var returnToGame: String? = null
     /** Home's games, kept here so the list is where you left it after a game screen. */
     val homeGrid = androidx.compose.foundation.lazy.grid.LazyGridState()
+    val homeList = androidx.compose.foundation.lazy.LazyListState()
+    /** The left panel of whichever page is showing: pressing up from the player goes there (not to the top bar). */
+    val leftPanel = androidx.compose.ui.focus.FocusRequester()
 
     fun closeGame() {
         returnToGame = openGameId
@@ -121,6 +124,32 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         CategoryGrouping.find(id, categoryTree)
             ?: categories.firstOrNull { it.id == id }?.let { CategoryGrouping.Node(it.id, it.name, emptyList(), listOf(it)) }
     }
+    // Hidden categories, groups and channels (Settings › Hidden turns them back on).
+    val hiddenChannelIds: List<Int> get() = settings.hiddenChannels.split(",").mapNotNull { it.toIntOrNull() }
+    val hiddenCategoryIds: List<String> get() = settings.hiddenCategories.split("\n").filter { it.isNotEmpty() }
+    fun setChannelHidden(id: Int, hidden: Boolean) {
+        val list = hiddenChannelIds - id
+        settings.hiddenChannels = (if (hidden) list + id else list).joinToString(",")
+        filtersChanged()
+    }
+    fun setCategoryHidden(id: String, hidden: Boolean) {
+        val list = hiddenCategoryIds - id
+        settings.hiddenCategories = (if (hidden) list + id else list).joinToString("\n")
+        filtersChanged()
+    }
+    /** Hidden channels with their names, in the order hidden. */
+    fun hiddenChannelNames(): List<Pair<Int, String>> {
+        val byId = rawChannels.associateBy { it.id }
+        return hiddenChannelIds.map { it to (byId[it]?.name ?: "Channel $it") }
+    }
+    /** Hidden categories and groups with their names ("Sports › 4K" for a group). */
+    fun hiddenCategoryNames(): List<Pair<String, String>> {
+        val byId = rawCategories.associateBy { it.id }
+        return hiddenCategoryIds.map { id ->
+            id to (byId[id]?.name ?: id.removePrefix(CategoryGrouping.NODE).replace("/", " › "))
+        }
+    }
+
     /** The same channels with favourites first. */
     fun favoritesFirst(channels: List<Channel>): List<Channel> {
         val fav = favoriteChannelIds.toSet()
@@ -383,10 +412,15 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** Hides adult categories and their channels everywhere when that setting is on (called again when it changes). */
     suspend fun applyFilters() {
         val hide = settings.hideAdult
-        val cats = if (hide) rawCategories.filter { !isAdult(it.name) } else rawCategories
+        val hiddenCats = hiddenCategoryIds.toSet()
+        val hiddenChans = hiddenChannelIds.toSet()
+        val cats = rawCategories.filter { (!hide || !isAdult(it.name)) && it.id !in hiddenCats }
         val kept = cats.map { it.id }.toSet()
-        val list = if (hide) rawChannels.filter { it.categoryId in kept && !isAdult(it.categoryName) } else rawChannels
-        val tree = withContext(Dispatchers.Default) { CategoryGrouping.build(cats) }
+        val list = rawChannels.filter { it.categoryId in kept && (!hide || !isAdult(it.categoryName)) && it.id !in hiddenChans }
+        // Hidden groups ("__node:" ids) leave the tree; their categories stay wherever else they're listed.
+        fun prune(nodes: List<CategoryGrouping.Node>): List<CategoryGrouping.Node> =
+            nodes.filter { it.id !in hiddenCats }.map { if (it.isGroup) it.copy(children = prune(it.children)) else it }
+        val tree = withContext(Dispatchers.Default) { prune(CategoryGrouping.build(cats)) }
         categories = cats
         categoryTree = tree
         channels = list

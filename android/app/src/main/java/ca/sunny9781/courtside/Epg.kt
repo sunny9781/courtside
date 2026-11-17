@@ -88,13 +88,29 @@ fun EpgScreen(model: AppModel) {
         else model.favoritesFirst((selected?.categories ?: emptyList()).flatMap { model.channelsByCategory[it.id] ?: emptyList() }.distinctBy { it.id })
     }
     // Hold the select button on a category or channel: add it to favourites, or take it off.
-    var prompt by remember { mutableStateOf<FavoritePrompt?>(null) }
+    var prompt by remember { mutableStateOf<HoldPrompt?>(null) }
     fun holdCategory(id: String, name: String) {
         val key = id.removePrefix("g:")
-        prompt = FavoritePrompt(name, model.isFavoriteCategory(key)) { model.toggleFavoriteCategory(key) }
+        val fav = model.isFavoriteCategory(key)
+        prompt = HoldPrompt(name, listOf(
+            HoldOption(if (fav) "Remove from Favourites" else "Add to Favourites",
+                if (fav) Icons.Filled.HeartBroken else Icons.Filled.Favorite) { model.toggleFavoriteCategory(key) },
+            HoldOption("Hide", Icons.Filled.VisibilityOff) {
+                if (fav) model.toggleFavoriteCategory(key)
+                model.setCategoryHidden(key, true)
+                model.notice = "$name is hidden. Settings › Hidden brings it back."
+            }))
     }
     fun holdChannel(ch: Channel) {
-        prompt = FavoritePrompt(ch.name, model.isFavoriteChannel(ch.id)) { model.toggleFavoriteChannel(ch.id) }
+        val fav = model.isFavoriteChannel(ch.id)
+        prompt = HoldPrompt(ch.name, listOf(
+            HoldOption(if (fav) "Remove from Favourites" else "Add to Favourites",
+                if (fav) Icons.Filled.HeartBroken else Icons.Filled.Favorite) { model.toggleFavoriteChannel(ch.id) },
+            HoldOption("Hide", Icons.Filled.VisibilityOff) {
+                if (fav) model.toggleFavoriteChannel(ch.id)
+                model.setChannelHidden(ch.id, true)
+                model.notice = "${ch.name} is hidden. Settings › Hidden brings it back."
+            }))
     }
     fun key(n: CategoryGrouping.Node) = if (n.isGroup) "g:${n.id}" else n.id
     // Coming in from the tabs or the channels: the selected category if it's showing, otherwise the first row.
@@ -122,9 +138,8 @@ fun EpgScreen(model: AppModel) {
 
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { cats["cat:$categoryTarget"] },
         horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-        // Categories, then what's playing in its own section just above the player.
-        Column(Modifier.width(CATEGORY_WIDTH).fillMaxHeight().padding(bottom = topInset(model))) {
-        LazyColumn(Modifier.weight(1f).enterAt { cats["cat:$categoryTarget"] },
+        LazyColumn(Modifier.width(CATEGORY_WIDTH).fillMaxHeight().padding(bottom = topInset(model)).focusRequester(model.leftPanel)
+            .enterAt { cats["cat:$categoryTarget"] },
             verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             // One search for categories and channels; results show on the right.
             // Enter (or Search) on the keyboard closes it and goes to the first result.
@@ -190,12 +205,11 @@ fun EpgScreen(model: AppModel) {
             }
         }
 
-        if (playing != null) NowPlayingPanel(model, playing)
-        }
 
-        Column(Modifier.weight(1f).fillMaxHeight()) {
+        // The schedule runs to the bottom of the screen, under the now-playing bar beside the player.
+        Column(Modifier.weight(1f).fillMaxHeight()) { BehindPlayerBar(model) {
             LazyColumn(Modifier.fillMaxSize().enterAt { rows[lastRow] }, verticalArrangement = Arrangement.spacedBy(2.dp),
-                contentPadding = PaddingValues(vertical = 6.dp)) {
+                contentPadding = PaddingValues(top = 6.dp, bottom = 6.dp + topInset(model))) {
                 item(key = "header") {
                     Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
                         Label(if (searching) "Results for “$hitsFor”" else (selected?.name ?: ""), size = 10.sp,
@@ -227,33 +241,36 @@ fun EpgScreen(model: AppModel) {
                     }
                 }
             }
-        }
+        } }
     }
-    prompt?.let { p -> FavoriteDialog(p) { prompt = null } }
+    prompt?.let { p -> HoldMenu(p) { prompt = null } }
 }
 
 private const val FAVORITES = "fav"
 
-/** What holding the select button on a row asks about. */
-private class FavoritePrompt(val name: String, val isFavorite: Boolean, val toggle: () -> Unit)
+/** One choice in the menu that holding the select button on a row opens. */
+internal class HoldOption(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector, val action: () -> Unit)
 
-/** "Add to Favourites" (or "Remove from Favourites") for the row you held the select button on. */
+/** What holding the select button on a row asks about: its name and the choices. */
+internal class HoldPrompt(val name: String, val options: List<HoldOption>)
+
+/** The menu for the row you held the select button on (Add to Favourites, Hide…), then Cancel. */
 @Composable
-private fun FavoriteDialog(p: FavoritePrompt, dismiss: () -> Unit) {
+internal fun HoldMenu(p: HoldPrompt, dismiss: () -> Unit) {
     val first = remember { androidx.compose.ui.focus.FocusRequester() }
     androidx.compose.ui.window.Dialog(onDismissRequest = dismiss) {
         Column(Modifier.width(320.dp).background(Theme.card, androidx.compose.foundation.shape.RoundedCornerShape(14.dp)).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Label(p.name, size = 15.sp, weight = FontWeight.Bold, maxLines = 2)
-            TvButton(onClick = { p.toggle(); dismiss() }, focusedScale = 1f,
-                modifier = Modifier.fillMaxWidth().focusRequester(first)) { focused ->
-                val color = if (focused) Theme.bg else Theme.text
-                Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(if (p.isFavorite) Icons.Filled.HeartBroken else Icons.Filled.Favorite, null,
-                        tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(15.dp))
-                    Label(if (p.isFavorite) "Remove from Favourites" else "Add to Favourites", size = 14.sp,
-                        weight = FontWeight.SemiBold, color = color)
+            p.options.forEachIndexed { i, option ->
+                TvButton(onClick = { option.action(); dismiss() }, focusedScale = 1f,
+                    modifier = Modifier.fillMaxWidth().then(if (i == 0) Modifier.focusRequester(first) else Modifier)) { focused ->
+                    val color = if (focused) Theme.bg else Theme.text
+                    Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(option.icon, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(15.dp))
+                        Label(option.label, size = 14.sp, weight = FontWeight.SemiBold, color = color)
+                    }
                 }
             }
             TvButton(onClick = dismiss, focusedScale = 1f, modifier = Modifier.fillMaxWidth()) { focused ->
@@ -291,32 +308,6 @@ internal fun CategoryRow(
             if (favorite) Icon(Icons.Filled.Favorite, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(12.dp))
             if (value != null) Label(value, size = 11.sp, color = color.copy(alpha = 0.6f))
             if (trailing != null) Icon(trailing, null, tint = color.copy(alpha = 0.6f), modifier = Modifier.size(13.dp))
-        }
-    }
-}
-
-/**
- * What's playing, in its own section between the categories and the player: the channel, what's on now (with its
- * times and progress), then what's next. As tall as it needs to be.
- */
-@Composable
-private fun NowPlayingPanel(model: AppModel, channel: Channel) {
-    val now = model.currentProgramme(channel)
-    val next = now?.let { n -> model.guide[channel.epgId]?.firstOrNull { it.start >= n.end } }
-    Column(Modifier.fillMaxWidth()) {
-        Box(Modifier.fillMaxWidth().padding(vertical = 6.dp).height(1.dp).background(Theme.border))
-        Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Filled.GraphicEq, null, tint = Theme.accent, modifier = Modifier.size(11.dp))
-                Label(channel.name, size = 11.sp, weight = FontWeight.SemiBold, color = Theme.soft)
-            }
-            Label(now?.title?.ifEmpty { null } ?: "No guide information", size = 14.sp, weight = FontWeight.Bold, maxLines = 2)
-            if (now != null) {
-                Label("${clockTime(now.start)} – ${clockTime(now.end)}", size = 11.sp, color = Theme.muted)
-                val total = (now.end - now.start).toFloat()
-                ProgressLine(if (total > 0) (System.currentTimeMillis() - now.start) / total else 0f, false, width = Theme.playerWidth - 20.dp)
-            }
-            if (next != null) Label("Next: ${clockTime(next.start)}  ${next.title}", size = 11.sp, color = Theme.muted)
         }
     }
 }

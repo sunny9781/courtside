@@ -59,8 +59,20 @@ class Settings(context: Context) {
             p.edit().putBoolean("refreshHours6", true).apply()
         }
     }
-    /** Open streams as HLS first (what the iPhone app uses), with TS as the fallback; off is the other way round. */
-    var preferHls by Flag("preferHls", true)
+    /**
+     * Open streams as HLS first, with TS as the fallback; off (the default) is TS first. TS is one connection that
+     * closes the moment you switch away. HLS has no connection to close, so the provider keeps counting each HLS
+     * stream you flipped past for a while, and flipping channels showed (and used) 2 connections.
+     */
+    var preferHls by Flag("preferHls", false)
+
+    init {
+        // TS first is the new default (one connection while flipping): move everyone over, once.
+        if (!p.getBoolean("tsFirst", false)) {
+            preferHls = false
+            p.edit().putBoolean("tsFirst", true).apply()
+        }
+    }
     var hideSD by Flag("hideSD", true)
     var showForeign by Flag("showForeign", false)
     var hideAdult by Flag("hideAdult", true)
@@ -72,6 +84,9 @@ class Settings(context: Context) {
     /** EPG favourites, in the order added: channel ids (comma-separated) and category or group ids (one per line). */
     var favoriteChannels by Words("favoriteChannels")
     var favoriteCategories by Words("favoriteCategories")
+    /** Hidden from the EPG (and game screens): channel ids (comma-separated) and category or group ids (one per line). */
+    var hiddenChannels by Words("hiddenChannels")
+    var hiddenCategories by Words("hiddenCategories")
 
     val hiddenSportSet: Set<Sport> get() = sports(hiddenSports)
     val favoriteSet: Set<Sport> get() = sports(favoriteSports)

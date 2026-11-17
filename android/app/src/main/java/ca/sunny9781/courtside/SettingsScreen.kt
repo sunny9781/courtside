@@ -10,6 +10,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -25,6 +26,8 @@ private enum class Section(val title: String, val icon: ImageVector) {
     SPORTS("Sports", Icons.Filled.Sports),
     /** Playback, games, EPG and updates together. */
     GENERAL("General", Icons.Filled.Tune),
+    /** Categories, groups and channels hidden from the EPG (hold the select button on one to hide it). */
+    HIDDEN("Hidden", Icons.Filled.VisibilityOff),
     CHANGELOG("Changelog", Icons.Filled.AutoAwesome)
 }
 
@@ -35,7 +38,8 @@ fun SettingsScreen(model: AppModel) {
     val side = remember { FocusTargets() }
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { side[section] },
         horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-        Column(Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).padding(vertical = 8.dp).enterAt { side[section] },
+        Column(Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).padding(vertical = 8.dp)
+            .focusRequester(model.leftPanel).enterAt { side[section] },
             verticalArrangement = Arrangement.spacedBy(3.dp)) {
             for (item in Section.entries) {
                 TvButton(onClick = { section = item }, selected = section == item, onFocus = { section = item },
@@ -49,8 +53,11 @@ fun SettingsScreen(model: AppModel) {
                 }
             }
         }
-        Column(Modifier.weight(1f).widthIn(max = 560.dp).fillMaxHeight().verticalScroll(rememberScrollState())
-            .padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        // Runs to the bottom of the screen, under the now-playing bar beside the player.
+        val pane = Modifier.weight(1f).widthIn(max = 560.dp).fillMaxHeight()
+        BehindPlayerBar(model) {
+        Column(pane.verticalScroll(rememberScrollState())
+            .padding(top = 8.dp, bottom = 8.dp + topInset(model)), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when (section) {
                 Section.ACCOUNT -> Account(model)
                 Section.SPORTS -> Sports(model)
@@ -65,8 +72,10 @@ fun SettingsScreen(model: AppModel) {
                     }
                     Updates(model)
                 }
+                Section.HIDDEN -> Hidden(model)
                 Section.CHANGELOG -> Changelog(model)
             }
+        }
         }
     }
 }
@@ -203,6 +212,28 @@ private fun Changelog(model: AppModel) {
                 }
             }
         }
+    }
+}
+
+/** Everything hidden from the EPG: click one to show it again. Hidden sports are under Sports. */
+@Composable
+private fun Hidden(model: AppModel) {
+    val cats = model.hiddenCategoryNames()
+    val chans = model.hiddenChannelNames()
+    if (cats.isEmpty() && chans.isEmpty()) {
+        Label("Nothing is hidden. In the EPG, hold the select button on a category or channel and choose Hide.",
+            size = 13.sp, color = Theme.muted, maxLines = 3, modifier = Modifier.padding(10.dp))
+        return
+    }
+    Label("Click one to show it again. Hidden sports are under Sports.", size = 11.sp, color = Theme.muted,
+        modifier = Modifier.padding(horizontal = 10.dp))
+    if (cats.isNotEmpty()) {
+        Label("CATEGORIES", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.padding(start = 10.dp, top = 8.dp))
+        for ((id, name) in cats) Action(name, null, value = "Show") { model.setCategoryHidden(id, false) }
+    }
+    if (chans.isNotEmpty()) {
+        Label("CHANNELS", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.padding(start = 10.dp, top = 8.dp))
+        for ((id, name) in chans) Action(name, null, value = "Show") { model.setChannelHidden(id, false) }
     }
 }
 

@@ -243,6 +243,8 @@ fun Shell(model: AppModel) {
             }
             // The player: bottom-left corner, the same spot on every tab. Each tab's left panel sits on top of it and
             // the page fills the space to its right.
+            // Beside it, across the rest of the bottom: what's playing. Fixed in place; pages scroll under it.
+            model.pinned?.let { item -> NowPlayingBar(model, item, Modifier.align(Alignment.BottomStart)) }
             model.pinned?.let { item -> PlayerStrip(model, item, strip, Modifier.align(Alignment.BottomStart).padding(bottom = Theme.margin)) }
             }
         }
@@ -374,8 +376,46 @@ fun PlayerVideo(modifier: Modifier = Modifier, small: Boolean = false, hdr: Bool
 fun PlayerStrip(model: AppModel, item: NowPlaying, targets: FocusTargets, modifier: Modifier = Modifier) {
     TvButton(onClick = { model.play(item.channel, item.gameTitle, item.lineup, from = "strip") }, focusedScale = 1.03f,
         modifier = modifier.padding(start = Theme.margin).focusProperties { canFocus = !model.tabsFocused }
+            .focusProperties { up = model.leftPanel }
             .tracked(targets, "video").size(Theme.playerWidth, Theme.playerWidth * 9 / 16)) { _ ->
         if (model.nowPlaying == null) PlayerVideo(Modifier.fillMaxSize().padding(2.dp).clip(RoundedCornerShape(8.dp)), small = true)
+    }
+}
+
+/**
+ * Along the bottom beside the player, to the right edge: the channel, what's on (with its times and progress) and
+ * what's next. It never takes focus, and the page behind it scrolls under it.
+ */
+@Composable
+fun NowPlayingBar(model: AppModel, item: NowPlaying, modifier: Modifier = Modifier) {
+    val channel = item.channel
+    val now = model.currentProgramme(channel)
+    val next = now?.let { n -> model.guide[channel.epgId]?.firstOrNull { it.start >= n.end } }
+    val title = model.playerTitle(item)
+    Column(modifier.fillMaxWidth().height(Theme.stripHeight).background(Theme.bg)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Theme.border))
+        Row(Modifier.fillMaxSize().padding(start = Theme.margin + Theme.playerWidth + 20.dp, end = Theme.margin,
+            top = Theme.margin - 1.dp, bottom = Theme.margin), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Icon(Icons.Filled.GraphicEq, null, tint = Theme.accent, modifier = Modifier.size(12.dp))
+                    ChannelIcon(channel.icon, 18.dp)
+                    Label(channel.name, size = 12.sp, weight = FontWeight.SemiBold, color = Theme.soft)
+                    if (Playback.resolution.isNotEmpty()) Badge(Playback.resolution)
+                }
+                Label(title, size = 17.sp, weight = FontWeight.Bold, maxLines = 1)
+                if (now != null) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        if (now.title.isNotEmpty() && now.title != title) Label(now.title, size = 12.sp, color = Theme.soft,
+                            modifier = Modifier.weight(1f, fill = false))
+                        Label("${clockTime(now.start)} – ${clockTime(now.end)}", size = 11.sp, color = Theme.muted)
+                        val total = (now.end - now.start).toFloat()
+                        ProgressLine(if (total > 0) (System.currentTimeMillis() - now.start) / total else 0f, false, width = 220.dp)
+                    }
+                }
+                if (next != null) Label("Next: ${clockTime(next.start)}  ${next.title}", size = 11.sp, color = Theme.muted)
+            }
+        }
     }
 }
 
@@ -413,7 +453,7 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
     LaunchedEffect(item.channel.id) {
         if (automatic) automatic = false
         else {
-            if (tried.isNotEmpty() && item.channel.id !in tried && item.lineup.size > 1) message("$pos of ${item.lineup.size} · ${item.channel.name}")
+            // Flipping by hand: the channel shows in the bar along the bottom, not at the top as well.
             tried = setOf(item.channel.id)
         }
     }
@@ -471,7 +511,7 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
                 }
                 Playback.Status.ENDED -> Label("The stream stopped. Press up or down for another stream.", size = 15.sp, color = Theme.soft)
                 Playback.Status.PAUSED -> Icon(Icons.Filled.Pause, null, tint = Theme.text.copy(alpha = 0.85f), modifier = Modifier.size(44.dp))
-                else -> if (Playback.resolution.isEmpty()) Label("Opening ${item.channel.name}…", size = 15.sp, color = Theme.soft)
+                else -> {}
             }
         }
         flip?.let {
@@ -526,7 +566,8 @@ fun HomeScreen(model: AppModel) {
     // The sports on top of the player (the same width), the games to the right.
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { side[sidebarKey(model.homeSelection)] }) {
         SportList(model, side, compact = false,
-            modifier = Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).enterAt { side[sidebarKey(model.homeSelection)] })
+            modifier = Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).focusRequester(model.leftPanel)
+                .enterAt { side[sidebarKey(model.homeSelection)] })
         Spacer(Modifier.width(16.dp))
         GamesPane(model, pane, onOpen = { lastGame = it; model.openGameId = it }, onFocusGame = { lastGame = it },
             modifier = Modifier.weight(1f).enterAt { pane["game:$lastGame"] })
@@ -554,6 +595,9 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
     // past several sports doesn't redraw the games beside it for each one (that flickered). Clicking is instant.
     val scope = rememberCoroutineScope()
     var pending by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    // Holding the select button on a sport: favourite or hide it.
+    var prompt by remember { mutableStateOf<HoldPrompt?>(null) }
+    prompt?.let { p -> HoldMenu(p) { prompt = null } }
     fun choose(s: HomeSelection, now: Boolean) {
         pending?.cancel()
         if (now) { if (model.homeSelection != s) model.homeSelection = s; return }
@@ -576,6 +620,17 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
                 SportRow(targets, sport.name, sport.icon, sport.title, if (channelOnly) 0 else games.count { it.state == GameState.LIVE },
                     games.size, when { games.isEmpty() -> "No games"; channelOnly -> "Channels"; else -> "${games.size} today" },
                     compact, selected = open == sport, favorite = sport in favs, dimmed = games.isEmpty(),
+                    onHold = {
+                        val fav = sport in favs
+                        prompt = HoldPrompt(sport.title, listOf(
+                            HoldOption(if (fav) "Remove from Favourites" else "Add to Favourites",
+                                if (fav) Icons.Filled.HeartBroken else Icons.Filled.Favorite) { model.settings.toggleFavorite(sport) },
+                            HoldOption("Hide", Icons.Filled.VisibilityOff) {
+                                model.settings.setHidden(sport, true)
+                                if (open == sport) model.homeSelection = HomeSelection.LiveNow
+                                model.notice = "${sport.title} is hidden. Settings › Sports brings it back."
+                            }))
+                    },
                     // Coming back to the sport whose league you picked on the right keeps that league.
                     onFocus = { if (selectedSport(model.homeSelection) != sport) choose(HomeSelection.OfSport(sport), false) else pending?.cancel() }) {
                     if (selectedSport(model.homeSelection) != sport) choose(HomeSelection.OfSport(sport), true)
@@ -590,9 +645,9 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
 private fun SportRow(
     targets: FocusTargets, key: String, icon: androidx.compose.ui.graphics.vector.ImageVector, name: String, live: Int,
     total: Int, detail: String, compact: Boolean, selected: Boolean, favorite: Boolean = false, dimmed: Boolean = false,
-    onFocus: () -> Unit = {}, select: () -> Unit
+    onFocus: () -> Unit = {}, onHold: (() -> Unit)? = null, select: () -> Unit
 ) {
-    TvButton(onClick = select, selected = selected, onFocus = onFocus,
+    TvButton(onClick = select, selected = selected, onFocus = onFocus, onLongClick = onHold,
         modifier = Modifier.fillMaxWidth().tracked(targets, key).alpha(if (dimmed) 0.5f else 1f)) { focused ->
         val color = if (focused) Theme.bg else Theme.text
         Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -662,37 +717,84 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
         SportChannels(model, sport, targets, modifier)
         return
     }
-    // Cards just wide enough for the team names and scores here (not stretched), as many to a row as fit.
-    val cardWidth = cardWidth(if (sport != null) model.games(sport) else sections.flatMap { it.games })
-    LazyVerticalGrid(GridCells.FixedSize(cardWidth), modifier = modifier.fillMaxHeight().wrapRows(), state = model.homeGrid,
-        horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, start = 6.dp, end = 6.dp)) {
+    // An EPG-like list, like the channel sports: a row per game (status, the teams and scores, its streams), under
+    // a heading per league. It runs to the bottom of the screen, under the now-playing bar.
+    BehindPlayerBar(model) {
+    LazyColumn(modifier.fillMaxHeight(), state = model.homeList, verticalArrangement = Arrangement.spacedBy(2.dp),
+        contentPadding = PaddingValues(top = 6.dp, bottom = 6.dp + topInset(model))) {
         if (sport != null && model.leagues(sport).size > 1) {
-            item(span = { GridItemSpan(maxLineSpan) }, key = "chips") { LeagueChips(model, sport, targets) }
+            item(key = "chips") { SidewaysScroll { LeagueChips(model, sport, targets) } }
+        }
+        item(key = "header") {
+            Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
+                Label("STATUS", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(STATUS_WIDTH))
+                Label("GAME", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.weight(1f))
+                Label("STREAMS", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted)
+            }
         }
         if (sections.isEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }, key = "empty") {
+            item(key = "empty") {
                 Label(when {
                     model.error != null -> model.error!!
                     model.loading && model.games.isEmpty() -> "Loading today's games…"
                     selection is HomeSelection.LiveNow -> "Nothing live right now."
                     else -> "No games today."
-                }, size = 14.sp, color = Theme.muted, maxLines = 3, modifier = Modifier.padding(top = 8.dp))
+                }, size = 14.sp, color = Theme.muted, maxLines = 3, modifier = Modifier.padding(10.dp))
             }
         }
         for (section in sections) {
-            if (section.title.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }, key = "h:${section.id}") {
-                Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (section.league != null) LeagueLogo(model, section.league, 22.dp)
-                    else section.icon?.let { Icon(it, null, tint = Theme.accent, modifier = Modifier.size(16.dp)) }
-                    Label(section.title, size = 15.sp, weight = FontWeight.Bold)
+            if (section.title.isNotEmpty() && sections.size > 1) item(key = "h:${section.id}") {
+                Row(Modifier.padding(start = 10.dp, top = 10.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                    if (section.league != null) LeagueLogo(model, section.league, 15.dp)
+                    Label(section.title.uppercase(), size = 10.sp, weight = FontWeight.Bold, color = Theme.muted)
                 }
             }
             items(section.games, key = { "${section.id}:${it.id}" }) { game ->
-                GameCard(model, game, showLeague = selection is HomeSelection.LiveNow,
+                GameRow(model, game, showLeague = selection is HomeSelection.LiveNow,
                     modifier = Modifier.tracked(targets, "game:${game.id}"),
                     onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
+            }
+        }
+    }
+    }
+}
+
+private val STATUS_WIDTH = 130.dp
+
+/** A game as an EPG row: when (or LIVE and the clock), the teams with their scores, and how many streams it has. */
+@Composable
+private fun GameRow(model: AppModel, game: Game, showLeague: Boolean, modifier: Modifier, onFocus: () -> Unit, onClick: () -> Unit) {
+    val main = model.mainStreams(game.id)
+    TvButton(onClick = onClick, onFocus = onFocus, focusedScale = 1.02f, modifier = modifier.fillMaxWidth()) { focused ->
+        val text = if (focused) Theme.bg else Theme.text
+        val soft = if (focused) Theme.bg else Theme.soft
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp)
+            .alpha(if (game.state == GameState.FINISHED && !focused) 0.7f else 1f), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.width(STATUS_WIDTH), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Label(cardHeader(game), size = 11.sp, weight = FontWeight.Bold,
+                    color = if (focused) Theme.bg else if (game.state == GameState.LIVE) Theme.accent else Theme.soft)
+                if (showLeague) Label(game.league.name, size = 10.sp, color = if (focused) Theme.bg else Theme.muted)
+            }
+            Column(Modifier.weight(1f).padding(end = 10.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                if (game.isEvent && !game.hasSides) {
+                    Label(game.eventTitle, size = 13.sp, weight = FontWeight.SemiBold, color = text)
+                    if (game.eventDetail.isNotEmpty()) Label(game.eventDetail, size = 11.sp, color = soft)
+                } else for (team in listOf(game.away, game.home)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (!Perf.lite) Logo(team.logo, 16.dp, team.abbr)
+                        Label(team.shortName.ifEmpty { team.name }, size = 13.sp, weight = FontWeight.SemiBold, color = text,
+                            modifier = Modifier.weight(1f, fill = false))
+                        if (game.state != GameState.UPCOMING && team.score.isNotEmpty()) Label(team.score, size = 13.sp,
+                            weight = FontWeight.Bold, color = if (focused) Theme.bg else scoreColor(game, team))
+                    }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                if (main.any { it.is4K }) Badge("4K", fill = Theme.accent, color = Theme.onAccent)
+                Label(if (main.isEmpty()) "None" else "${main.size}", size = 12.sp, weight = FontWeight.SemiBold,
+                    color = if (main.isEmpty()) Theme.losing else soft)
+                if (main.isNotEmpty()) Icon(Icons.Filled.LiveTv, null, tint = soft, modifier = Modifier.size(12.dp))
             }
         }
     }
@@ -707,14 +809,16 @@ private fun SportChannels(model: AppModel, sport: Sport, targets: FocusTargets, 
     val playing = model.pinned?.channel?.id
     var last by remember { mutableStateOf<String?>(null) }
     AfterFullScreen(model, "home") { targets.focus("ch:${model.lastPlayedChannelId}") }
+    BehindPlayerBar(model) {
     LazyColumn(modifier.fillMaxHeight().enterAt { targets[last ?: "ch:$playing"] },
-        verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+        verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp + topInset(model))) {
         items(channels, key = { "ch:${it.id}" }) { ch ->
             val k = "ch:${ch.id}"
             ChannelRow(model, ch, ch.id == playing, Modifier.tracked(targets, k), onFocus = { last = k }) {
                 if (ch.id == playing) model.play(ch, null, channels, from = "home") else model.pin(ch, null, channels)
             }
         }
+    }
     }
 }
 
@@ -867,7 +971,8 @@ fun GameScreen(model: AppModel, gameId: String) {
     Row(Modifier.fillMaxSize().background(Theme.bg).padding(horizontal = Theme.margin).enterAt { rows["s:$previewId"] },
         horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         // Categories, on top of the player.
-        LazyColumn(Modifier.width(Theme.playerWidth).fillMaxHeight().padding(bottom = topInset(model)).enterAt { cats["cat:$selected"] },
+        LazyColumn(Modifier.width(Theme.playerWidth).fillMaxHeight().padding(bottom = topInset(model)).focusRequester(model.leftPanel)
+            .enterAt { cats["cat:$selected"] },
             verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             items(categories, key = { it.first }) { (name, streams) ->
                 CategoryRow(cats, "cat:$name", null, name, "${streams.size}", selected == name,
@@ -875,8 +980,9 @@ fun GameScreen(model: AppModel, gameId: String) {
             }
         }
         // The channels in that category, like the EPG: what's on now and next, and the stream's quality.
-        LazyColumn(Modifier.weight(1f).fillMaxHeight().enterAt { rows[lastRow ?: "s:$previewId"] },
-            verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
+        Box(Modifier.weight(1f).fillMaxHeight()) { BehindPlayerBar(model) {
+        LazyColumn(Modifier.fillMaxSize().enterAt { rows[lastRow ?: "s:$previewId"] },
+            verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(top = 6.dp, bottom = 6.dp + topInset(model))) {
             if (current.isEmpty()) item(key = "none") {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(10.dp)) {
                     Label(if (model.channels.isEmpty()) "Channels are still loading…" else "No streams found for this game yet.",
@@ -898,7 +1004,7 @@ fun GameScreen(model: AppModel, gameId: String) {
                         onFocus = { lastRow = k }) { select(m) }
                 }
             }
-        }
+        } } }
     }
 }
 

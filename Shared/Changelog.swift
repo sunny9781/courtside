@@ -74,6 +74,14 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.61", date: "2026-11-17", time: "13:12", title: "Home as a guide, now-playing bar", changes: [
+            Change(text: "Home: every sport is a list like the EPG (status, the teams and scores, and the number of streams), with a heading per league, instead of score cards.", apps: android),
+            Change(text: "What's playing is in a bar along the bottom beside the player, across to the right edge, on every page. Pages scroll under it, and the row you're on always stays above it.", apps: android),
+            Change(text: "Flipping channels uses one connection: streams now open as TS first (closed the moment you switch away) instead of HLS, which the provider kept counting for a while after each flip. Settings › General › Stream format switches back.", apps: android),
+            Change(text: "Full screen: no \"Opening…\" message, and flipping shows the channel only in the bar at the bottom.", apps: android),
+            Change(text: "Hold the select button on a sport on Home, or a category or channel in the EPG, to favourite or hide it. Settings › Hidden lists hidden categories and channels to show them again (hidden sports are under Sports).", apps: android),
+            Change(text: "Pressing up from the player goes to the panel above it, not the top bar.", apps: android)
+        ]),
         Release(version: "1.60", date: "2026-11-17", time: "11:49", title: "What's playing above the player", changes: [
             Change(text: "EPG: what's playing (now, its times and progress, and what's next) sits in its own section under the categories, just above the player, so the schedule starts at the top.", apps: [.tv, .android]),
             Change(text: "The EPG shows straight away after an update or reopening, from the saved guide, instead of a few minutes later once today's scores are in.", apps: android)
