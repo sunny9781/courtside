@@ -3,8 +3,6 @@ import SwiftUI
 enum TVLayout {
     /// Left and right margin on every screen (TVs crop the edges).
     static let margin: CGFloat = 20
-    /// The left column on Home while you're on the games: icons and counts only.
-    static let compactSidebar: CGFloat = 170
     /// Width of the left column on Home, EPG and Settings.
     /// Width of the player's video at the top.
     static let playerWidth: CGFloat = 448
@@ -318,91 +316,4 @@ struct TVVideoSurface: UIViewRepresentable {
         return container
     }
     func updateUIView(_ uiView: UIView, context: Context) {}
-}
-
-/// The mini player on the game and EPG screens, like the Mac's: plays the stream you're on after a short
-/// pause (so moving through a list doesn't open every stream), and hands over to full screen without
-/// reconnecting.
-struct TVPreview: View {
-    @EnvironmentObject var model: AppModel
-    @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
-    @AppStorage(Prefs.guidePreview) private var enabled = true
-    @ObservedObject private var controller = PlaybackController.shared
-    let channel: Channel?
-    var placeholder: String? = nil
-    /// Shown (not played) when nothing is playing, e.g. the channel you're on in the EPG.
-    var showing: Channel? = nil
-
-    private var url: URL? {
-        channel.flatMap { model.streamURL(for: $0, hls: !PlaybackController.usesVLC) }
-    }
-
-    private var showsVideo: Bool { enabled && channel != nil && model.nowPlaying == nil && !DemoData.isOn }
-
-    var body: some View {
-        ZStack {
-            Color.black
-            if showsVideo {
-                TVVideoSurface(view: controller.view)
-                switch controller.status {
-                case .opening, .buffering:
-                    ProgressView()
-                case .failed:
-                    Text("Preview unavailable")
-                        .font(.system(size: 22))
-                        .foregroundStyle(Theme.muted)
-                default:
-                    EmptyView()
-                }
-            } else {
-                VStack(spacing: 14) {
-                    TVChannelIcon(url: (channel ?? showing)?.icon, size: 90)
-                    if let shown = channel ?? showing {
-                        Text(shown.name)
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(Theme.soft)
-                            .lineLimit(1)
-                            .padding(.horizontal, 20)
-                    }
-                    if channel == nil, let placeholder {
-                        Text(placeholder)
-                            .font(.system(size: 20))
-                            .foregroundStyle(Theme.muted)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 30)
-                    }
-                }
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: TVLayout.corner))
-        .task(id: "\(channel?.id ?? 0)|\(model.nowPlaying == nil)|\(enabled)") {
-            guard model.nowPlaying == nil, !DemoData.isOn else { return }
-            guard enabled, channel != nil, let url else {
-                controller.stop()
-                return
-            }
-            if url == controller.currentURL {
-                controller.play(url, bufferMs: bufferMs)
-                model.previewChannel = channel
-                return
-            }
-            try? await Task.sleep(for: .milliseconds(900))
-            guard !Task.isCancelled else { return }
-            controller.play(url, bufferMs: bufferMs)
-            model.previewChannel = channel
-        }
-        .onChange(of: controller.resolution) {
-            if showsVideo, let channel, !controller.resolution.isEmpty {
-                model.recordQuality(channel.id, controller.resolution)
-            }
-        }
-        .onChange(of: controller.frameRate) {
-            if showsVideo, let channel { model.recordFrameRate(channel.id, controller.frameRate) }
-        }
-        .onAppear { model.miniPlayers += 1 }
-        .onDisappear {
-            model.miniPlayers -= 1
-            if model.nowPlaying == nil && model.backgroundChannel == nil { controller.stop() }
-        }
-    }
 }

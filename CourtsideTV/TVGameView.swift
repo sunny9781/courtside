@@ -127,10 +127,16 @@ struct TVGameView: View {
         return ScrollView(.vertical) {
             LazyVStack(spacing: 6) {
                 if list.isEmpty {
-                    Text(model.channels.isEmpty ? "Channels are still loading…" : "No streams found for this game yet.")
-                        .font(.system(size: 26))
-                        .foregroundStyle(Theme.muted)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text(model.channels.isEmpty ? "Channels are still loading…" : "No streams found for this game yet.")
+                            .font(.system(size: 26))
+                            .foregroundStyle(Theme.muted)
+                        Button("Back to the games") { if !nav.homePath.isEmpty { nav.homePath.removeLast() } }
+                            .font(.system(size: 22, weight: .semibold))
+                            .buttonStyle(TVPillButtonStyle())
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.leading, 22)
                 }
                 ForEach(shown, id: \.name) { group in
                     if selected == "All" && !group.streams.isEmpty {
@@ -155,45 +161,5 @@ struct TVGameView: View {
         }
         // Runs to the bottom of the screen, under the now-playing bar (the last row can scroll clear of it).
         .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : 0, for: .scrollContent)
-    }
-}
-
-struct TVStreamCell: View {
-    @EnvironmentObject var model: AppModel
-    let match: StreamMatch
-    let quality: String
-    var frameRate: Double? = nil
-    var previewing = false
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 20) {
-            TVChannelIcon(url: match.channel.icon, size: 60)
-            VStack(alignment: .leading, spacing: 6) {
-                Text(match.channel.name)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(previewing ? Theme.accent : Theme.text)
-                    .lineLimit(2)
-                if !match.channel.categoryName.isEmpty {
-                    Label(match.channel.categoryName, systemImage: "folder")
-                        .font(.system(size: 19, weight: .medium))
-                        .foregroundStyle(Theme.soft)
-                        .lineLimit(1)
-                }
-            }
-            Spacer(minLength: 8)
-            VStack(alignment: .trailing, spacing: 8) {
-                if !quality.isEmpty {
-                    TVBadge(text: quality, fill: quality == "4K" ? Theme.accent : Theme.raised,
-                            color: quality == "4K" ? Theme.onAccent : Theme.soft)
-                }
-                if let frameRate {
-                    TVBadge(text: PlaybackController.fpsLabel(frameRate))
-                }
-            }
-        }
-        .padding(.horizontal, 24)
-        .frame(maxWidth: .infinity, minHeight: 140, maxHeight: 140, alignment: .leading)
-        .background(Theme.card)
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(previewing ? Theme.accent : Color.clear, lineWidth: 3))
     }
 }

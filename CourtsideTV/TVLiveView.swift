@@ -9,7 +9,6 @@ struct TVLiveView: View {
     @AppStorage(Prefs.guideGrouped) private var grouped = true
     /// The groups you've opened in the category list (ids, outermost first).
     @State private var path: [String] = []
-    @State private var focusedChannelID: Int?
     /// The channel playing in the mini player: only one you clicked.
     @FocusState private var focusedCategory: String?
     @State private var search = ""
@@ -96,12 +95,6 @@ struct TVLiveView: View {
         }
     }
 
-    /// The channel in the info panel: the one you're on, or what's playing.
-    private var infoChannel: Channel? {
-        if let id = focusedChannelID, let channel = model.channelByID[id] { return channel }
-        return playingChannel
-    }
-
     /// What the mini player plays: the channel you clicked, or what's still playing from Home.
     private var playingChannel: Channel? { model.pinned?.channel }
 
@@ -116,14 +109,11 @@ struct TVLiveView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             HStack(alignment: .top, spacing: 50) {
-                // Categories, then what's playing in its own section just above the player in the bottom-left
-                // corner; the schedule starts at the top.
-                VStack(alignment: .leading, spacing: 0) {
-                    categoryList
-                        .focusSection()
-                    if let playing = playingChannel { nowPlayingPanel(playing) }
-                }
-                .frame(width: TVLayout.sidebar)
+                // Categories on top of the player in the bottom-left corner (what's playing is in the bar along the
+                // bottom); the schedule starts at the top.
+                categoryList
+                    .focusSection()
+                    .frame(width: TVLayout.sidebar)
                 .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : 0)
                 channelList
                     .focusSection()
@@ -146,9 +136,6 @@ struct TVLiveView: View {
                     focusedChannel = id
                 }
             }
-            .onChange(of: focusedChannel) {
-                if let focusedChannel { focusedChannelID = focusedChannel }
-            }
             // The remote's keyboard hands the text over when you press Done, so search right away.
             .onChange(of: search) { runSearch() }
             .onChange(of: grouped) { runSearch() }
@@ -164,7 +151,16 @@ struct TVLiveView: View {
                 // One search for categories and channels; results show on the right.
                 TextField("Filter", text: $search)
                     .font(.system(size: 24))
-                    .onSubmit { runSearch() }
+                    // Done on the keyboard goes to the first result.
+                    .onSubmit {
+                        runSearch()
+                        if let first = hits.first?.channels.first?.id {
+                            Task { @MainActor in
+                                try? await Task.sleep(for: .milliseconds(150))
+                                focusedChannel = first
+                            }
+                        }
+                    }
                     .padding(.bottom, 6)
                 Button {
                     grouped.toggle()
@@ -324,78 +320,6 @@ struct TVLiveView: View {
         }
     }
 
-    // MARK: Mini player and programme
-
-    /// What's playing, between the categories and the player: the channel, what's on now (times and progress), and
-    /// what's next. As tall as it needs to be.
-    private func nowPlayingPanel(_ channel: Channel) -> some View {
-        let now = model.currentProgramme(channel)
-        let next = now.flatMap { nextProgramme(channel, after: $0) }
-        return VStack(alignment: .leading, spacing: 6) {
-            Rectangle().fill(Theme.raised).frame(height: 2).padding(.bottom, 10)
-            Label(channel.name, systemImage: "speaker.wave.2.fill")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(Theme.soft)
-                .lineLimit(1)
-            Text(now?.title.isEmpty == false ? now!.title : "No guide information")
-                .font(.system(size: 26, weight: .bold))
-                .foregroundStyle(Theme.text)
-                .lineLimit(2)
-            if let now {
-                Text("\(now.start.formatted(date: .omitted, time: .shortened)) – \(now.end.formatted(date: .omitted, time: .shortened))")
-                    .font(.system(size: 19))
-                    .foregroundStyle(Theme.muted)
-                ProgressView(value: progress(now)).tint(Theme.accent)
-            }
-            if let next {
-                Text("Next: \(next.start.formatted(date: .omitted, time: .shortened))  \(next.title)")
-                    .font(.system(size: 19))
-                    .foregroundStyle(Theme.muted)
-                    .lineLimit(1)
-            }
-        }
-        .padding(.horizontal, 16)
-    }
-
-    /// Two lines about the channel you're on: what's on now (and until when), then what's next. What's playing
-    /// is in the player strip at the top.
-    private var infoPanel: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let channel = infoChannel {
-                let now = model.currentProgramme(channel)
-                HStack(alignment: .firstTextBaseline, spacing: 16) {
-                    Text(now?.title.isEmpty == false ? now!.title : channel.name)
-                        .font(.system(size: 30, weight: .bold))
-                        .foregroundStyle(Theme.text)
-                        .lineLimit(1)
-                    if let now {
-                        Text("\(now.start.formatted(date: .omitted, time: .shortened)) – \(now.end.formatted(date: .omitted, time: .shortened))")
-                            .font(.system(size: 21))
-                            .foregroundStyle(Theme.muted)
-                    }
-                    Spacer(minLength: 0)
-                }
-                HStack(spacing: 16) {
-                    Text(channel.name).foregroundStyle(Theme.soft)
-                    if let now, let next = nextProgramme(channel, after: now) {
-                        Text("Next: \(next.title) at \(next.start.formatted(date: .omitted, time: .shortened))")
-                            .foregroundStyle(Theme.muted)
-                    }
-                    Spacer(minLength: 0)
-                    Text(channel.id == playingChannel?.id ? "Click again for full screen" : "Click to play")
-                        .foregroundStyle(Theme.muted.opacity(0.8))
-                }
-                .font(.system(size: 20))
-                .lineLimit(1)
-            } else {
-                Text("Click a channel to play it in the player at the top. Click it again for full screen.")
-                    .font(.system(size: 22))
-                    .foregroundStyle(Theme.muted)
-            }
-        }
-        .frame(height: 80, alignment: .top)
-    }
-
     // MARK: Channels
 
     private var channelList: some View {
@@ -497,21 +421,12 @@ struct TVLiveView: View {
             }
         }
     }
-
-    private func progress(_ p: Programme) -> Double {
-        let total = p.end.timeIntervalSince(p.start)
-        guard total > 0 else { return 0 }
-        return min(max(Date().timeIntervalSince(p.start) / total, 0), 1)
-    }
-
-    private func nextProgramme(_ channel: Channel, after now: Programme) -> Programme? {
-        model.guide[channel.epgID]?.first { $0.start >= now.end }
-    }
 }
 
 /// A channel row in the EPG: logo and name, what's on now (with progress), and what's next.
 struct TVChannelRow: View {
     @EnvironmentObject var model: AppModel
+    @Environment(\.isFocused) private var focused
     let channel: Channel
     var playing = false
     /// The stream's quality (4K, 1080p…), on the game screen.
@@ -527,10 +442,12 @@ struct TVChannelRow: View {
                 TVChannelIcon(url: channel.icon, size: 48)
                 Text(channel.name)
                     .font(.system(size: 23, weight: .semibold))
+                    .foregroundStyle(playing && !focused ? Theme.accent : (focused ? Theme.bg : Theme.text))
                     .lineLimit(nameWidth == nil ? 2 : 1)
                 if playing {
                     Image(systemName: "speaker.wave.2.fill")
                         .font(.system(size: 18))
+                        .foregroundStyle(focused ? Theme.bg : Theme.accent)
                 }
                 if model.isFavorite(channel: channel.id) {
                     Image(systemName: "heart.fill")

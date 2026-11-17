@@ -633,7 +633,7 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
                             HoldOption("Hide", Icons.Filled.VisibilityOff) {
                                 model.setSportHidden(sport, true)
                                 if (open == sport) model.homeSelection = HomeSelection.LiveNow
-                                model.notice = "${sport.title} is hidden. Settings › Sports brings it back."
+                                model.notice = "${sport.title} is hidden. Settings › Hidden brings it back."
                             }))
                     },
                     // Coming back to the sport whose league you picked on the right keeps that league.
