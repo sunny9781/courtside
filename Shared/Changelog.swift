@@ -29,6 +29,8 @@ enum Changelog {
         let time: String          // HH:mm, Eastern time
         let title: String
         let changes: [Change]
+        /// The apps the title is about, when it's about more than the ones every change is for.
+        var titleApps: Set<App>? = nil
         var id: String { version }
 
         /// The title, or "2 changes" when the release's title was about other apps.
@@ -66,7 +68,7 @@ enum Changelog {
         return releases.compactMap { r in
             let mine = r.changes.filter { $0.apps.contains(app) }
             // A release that also changed other apps: its title may be about them, so it isn't shown here.
-            let title = mine.count == r.changes.count ? r.title : ""
+            let title = (r.titleApps?.contains(app) ?? (mine.count == r.changes.count)) ? r.title : ""
             return mine.isEmpty ? nil : Release(version: r.version, date: r.date, time: r.time, title: title, changes: mine)
         }
     }
@@ -84,7 +86,7 @@ enum Changelog {
             Change(text: "The bar of icons along the bottom of Home and Settings is centred.", apps: ios),
             Change(text: "Game screen: \"Local stations and likely channels\" no longer repeats its name inside when opened.", apps: ios),
             Change(text: "Updating: if the first install doesn't take (common on Chromecast), the app tries again by itself, and frees memory before the installer opens.", apps: android)
-        ]),
+        ], titleApps: everywhere),
         Release(version: "1.57", date: "2026-11-17", time: "10:35", title: "Apple TV matches Android TV", changes: [
             Change(text: "The player is in the bottom-left corner on every tab, just the video, with each tab's left panel on top of it and the page to its right from the top.", apps: tv),
             Change(text: "Home: sports are grouped with lines between them (live scores, channel sports like pickleball, nothing today); a channel sport shows its channels as an EPG list.", apps: tv),
