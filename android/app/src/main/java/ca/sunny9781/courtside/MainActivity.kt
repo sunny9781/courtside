@@ -15,6 +15,24 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // If the app closed because of an error, keep what happened (it's shown once on the next start and kept in
+        // crash.txt), so slow-TV crashes can be tracked down. Nothing is sent anywhere.
+        val crashFile = java.io.File(filesDir, "crash.txt")
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            runCatching {
+                val free = Runtime.getRuntime().let { (it.maxMemory() - (it.totalMemory() - it.freeMemory())) / 1_000_000 }
+                crashFile.writeText("${java.util.Date()} · v${BuildConfig.VERSION_NAME} · ${android.os.Build.MODEL} · " +
+                    "${free} MB free\n${error.stackTraceToString().take(4000)}")
+            }
+            previous?.uncaughtException(thread, error)
+        }
+        if (crashFile.exists()) runCatching {
+            val text = crashFile.readText()
+            val first = text.lines().getOrNull(1)?.take(110) ?: ""
+            model.notice = "Courtside closed unexpectedly last time: $first"
+            crashFile.renameTo(java.io.File(filesDir, "crash-last.txt"))
+        }
         Perf.lite = model.settings.lite
         // Logos: a small memory cache and no fade-in animation (cheap on low-power TVs).
         coil.Coil.setImageLoader(coil.ImageLoader.Builder(this)

@@ -69,6 +69,7 @@ fun SettingsScreen(model: AppModel) {
                         model.filtersChanged()
                     }
                     Updates(model)
+                    LastCrash()
                 }
                 Section.HIDDEN -> Hidden(model)
                 Section.CHANGELOG -> Changelog(model)
@@ -161,6 +162,16 @@ private fun Changelog(model: AppModel) {
             }
         }
     }
+}
+
+/** What happened the last time the app closed unexpectedly, to read out when reporting it. */
+@Composable
+private fun LastCrash() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val text = remember { runCatching { java.io.File(context.filesDir, "crash-last.txt").readText() }.getOrNull() } ?: return
+    Label("LAST CRASH", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.padding(start = 10.dp, top = 10.dp))
+    Label(text.lines().take(6).joinToString("\n"), size = 10.sp, color = Theme.muted, maxLines = 6,
+        modifier = Modifier.padding(horizontal = 10.dp))
 }
 
 /** Everything hidden (switched off): click one to show it again. */

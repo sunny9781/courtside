@@ -154,7 +154,7 @@ struct TVGameView: View {
             .padding(.vertical, 20)
         }
         // Runs to the bottom of the screen, under the now-playing bar (the last row can scroll clear of it).
-        .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight : 0, for: .scrollContent)
+        .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : 0, for: .scrollContent)
     }
 }
 

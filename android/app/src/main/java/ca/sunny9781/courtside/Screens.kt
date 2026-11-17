@@ -398,7 +398,9 @@ fun NowPlayingBar(model: AppModel, item: NowPlaying, modifier: Modifier = Modifi
     val now = model.currentProgramme(channel)
     val next = now?.let { n -> model.guide[channel.epgId]?.firstOrNull { it.start >= n.end } }
     val title = model.playerTitle(item)
-    Column(modifier.fillMaxWidth().height(Theme.barHeight).background(Theme.bg)) {
+    // The same gap above the line as between the player and the line, so pages scrolling under it have room.
+    Column(modifier.fillMaxWidth().height(Theme.barHeight + Theme.margin).background(Theme.bg)) {
+        Spacer(Modifier.height(Theme.margin - 1.dp))
         Box(Modifier.fillMaxWidth().height(1.dp).background(Theme.border))
         Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(9.dp)) {
@@ -423,7 +425,7 @@ fun NowPlayingBar(model: AppModel, item: NowPlaying, modifier: Modifier = Modifi
 fun topInset(model: AppModel) = if (model.pinned != null) Theme.stripHeight else 0.dp
 
 /** Room the pages on the right leave at the bottom for the now-playing bar (they scroll under it). */
-fun barInset(model: AppModel) = if (model.pinned != null) Theme.barHeight else 0.dp
+fun barInset(model: AppModel) = if (model.pinned != null) Theme.barHeight + Theme.margin else 0.dp
 
 /**
  * Full screen. Up/down: previous/next stream for this game (or channel in this category). Any other button shows
