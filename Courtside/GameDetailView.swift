@@ -408,6 +408,7 @@ struct GameScorePanel: View {
     }
 
     private var statusLine: String {
+        if game.isChannel { return "\(game.league.name.uppercased()) · CHANNEL" }
         switch game.state {
         case .live: return "\(game.league.name.uppercased()) · LIVE · \(game.statusText)"
         case .upcoming: return "\(game.league.name.uppercased()) · STARTS \(game.statusText)"

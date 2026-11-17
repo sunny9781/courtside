@@ -130,7 +130,9 @@ data class Game(
     val isEvent: Boolean = false,
     val eventTitle: String = "",
     val eventDetail: String = "",
-    val venue: String = ""
+    val venue: String = "",
+    /** A channel for a sport with no schedule (pickleball), listed after its events. */
+    val isChannel: Boolean = false
 ) {
     val title: String get() = if (isEvent) eventTitle else "${away.nickname} at ${home.nickname}"
     val hasSides: Boolean get() = away.name.isNotEmpty() && home.name.isNotEmpty()

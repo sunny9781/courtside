@@ -64,6 +64,13 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.40", date: "2026-11-16", time: "20:38", title: "Pickleball channels, version button", changes: [
+            Change(text: "Pickleball: everything on a pickleball channel in the next six hours shows as an event (not only shows with \"pickleball\" in the title), and the pickleball channels themselves follow after the events.", apps: everywhere),
+            Change(text: "Top right: the version is now the button. Click it to check for a new version; when there is one it becomes the update button. Channels refresh on their own, or from Settings › General › Refresh now.", apps: [.mac, .tv, .android]),
+            Change(text: "Anyone still on the old 6-hour refresh is moved to the new 12-hour default.", apps: everywhere),
+            Change(text: "Home: the left column is just icons and live counts, always the same width, and cards are sized for each sport, so more fit on every row (Live Now included).", apps: android),
+            Change(text: "Going back from full screen no longer makes the picture flicker green.", apps: android)
+        ]),
         Release(version: "1.39", date: "2026-11-16", time: "00:56", title: "Simpler settings", changes: [
             Change(text: "Settings has four sections: Account, Sports, General (playback, games, EPG and updates together) and Changelog (what used to be What's new).", apps: everywhere),
             Change(text: "Channels and the guide are downloaded fresh every 12 hours by default (was 6).", apps: everywhere),

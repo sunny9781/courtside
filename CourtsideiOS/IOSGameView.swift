@@ -196,7 +196,7 @@ struct IOSGameView: View {
                 teamLine(game.away, game: game)
                 teamLine(game.home, game: game)
             }
-            let info = [game.state == .upcoming ? "Starts \(game.startText)" : "", game.venue,
+            let info = [game.state == .upcoming && !game.isChannel ? "Starts \(game.startText)" : "", game.venue,
                         game.broadcasters.isEmpty ? "" : "On " + game.broadcasters.joined(separator: ", ")]
                 .filter { !$0.isEmpty }
             if !info.isEmpty {

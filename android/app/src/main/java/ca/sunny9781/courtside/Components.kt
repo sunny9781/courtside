@@ -205,7 +205,7 @@ fun LeagueLogo(model: AppModel, league: League, size: Dp) {
 }
 
 /** "LIVE · Q3 4:12", "STARTS 7:30 PM" or "FINAL", like the Apple TV cards. */
-fun cardHeader(game: Game): String = when (game.state) {
+fun cardHeader(game: Game): String = if (game.isChannel) "CHANNEL" else when (game.state) {
     GameState.LIVE -> "LIVE · ${game.statusText}"
     GameState.UPCOMING -> "STARTS ${startText(game)}"
     GameState.FINISHED -> game.statusText.ifEmpty { "Final" }.uppercase()

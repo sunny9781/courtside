@@ -173,14 +173,16 @@ struct TopBar: View {
                     Field(placeholder: "Filter", text: filter)
                         .frame(width: 220)
                 }
+                status
+                // The version is the update button: click it to check for a new version; once one has
+                // downloaded it turns into "Restart to update".
                 if case .ready(let version) = updater.state {
                     UpdateReadyButton(version: version) { updater.restartToUpdate() }
+                        .padding(.trailing, 20)
+                } else {
+                    VersionButton(updater: updater)
+                        .padding(.trailing, 20)
                 }
-                status
-                Text("v\(updater.currentVersion)")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Theme.muted)
-                    .padding(.trailing, 20)
             }
         }
         .frame(height: 64)
@@ -214,11 +216,45 @@ struct TopBar: View {
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.muted)
                 .lineLimit(1)
-        } else if let saved = model.savedAt {
-            UpdatedButton(date: saved) {
-                Task { await model.refresh(force: true) }
-            }
         }
+    }
+}
+
+/// "v1.39 ⟳": checks for a newer Courtside.
+struct VersionButton: View {
+    @ObservedObject var updater: AppUpdater
+    @State private var hovering = false
+
+    private var symbol: String {
+        switch updater.state {
+        case .checking, .downloading: return "hourglass"
+        default: return "arrow.clockwise"
+        }
+    }
+
+    var body: some View {
+        Button {
+            Task { await updater.check(userInitiated: true) }
+        } label: {
+            HStack(spacing: 6) {
+                Text("v\(updater.currentVersion)")
+                    .font(.system(size: 12, weight: .semibold))
+                Image(systemName: symbol)
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundStyle(hovering ? Theme.text : Theme.muted)
+            .padding(.horizontal, 12)
+            .frame(height: 32)
+            .background(Capsule().fill(hovering ? Theme.raised : Color.clear))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .help({
+            if case .downloading(let v) = updater.state { return "Downloading version \(v)…" }
+            if case .failed(let m) = updater.state { return m }
+            return "Check for a new version"
+        }())
     }
 }
 

@@ -147,6 +147,7 @@ struct LiveGameCard: View {
     private var header: String {
         let state: String
         switch game.state {
+        case _ where game.isChannel: state = "CHANNEL"
         case .live: state = "LIVE · \(game.statusText)"
         case .upcoming: state = "STARTS \(game.statusText)"
         case .finished: state = game.statusText.uppercased()

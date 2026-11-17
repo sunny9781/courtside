@@ -211,9 +211,24 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val gd = guide
         val rec = recent.toSet()
         val measured = measuredQuality
-        matches = withContext(Dispatchers.Default) {
-            Matcher.matchAll(g, ch, gd, measured, rec, System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        val hidden = settings.hiddenLeagueSet
+        val (found, guideGames) = withContext(Dispatchers.Default) {
+            val m = Matcher.matchAll(g.filter { !it.id.startsWith("guide-") }, ch, gd, measured, rec, now).toMutableMap()
+            // Sports with no schedule feed (pickleball): events and channels from the guide.
+            val extra = mutableListOf<Game>()
+            for (league in League.all) {
+                if (league.path.isNotEmpty() || league.id in hidden) continue
+                val (gs, ms) = Matcher.guideEvents(league, ch, gd, measured, now)
+                extra += gs
+                m.putAll(ms)
+            }
+            m to extra
         }
+        if (guideGames.isNotEmpty() || games.any { it.id.startsWith("guide-") }) {
+            games = visible(allGames) + guideGames
+        }
+        matches = found
     }
 
     private fun isAdult(name: String) = name.contains("adult", ignoreCase = true)

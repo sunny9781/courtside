@@ -44,6 +44,14 @@ class Settings(context: Context) {
     var bufferMs by Number("bufferMs", 2000)
     /** Opening the app reuses the saved channels and guide until they're this old. */
     var refreshHours by Number("refreshHours", 12)
+
+    init {
+        // The refresh default went from 6 to 12 hours: move anyone still on the old default over, once.
+        if (!p.getBoolean("refreshHours12", false)) {
+            if (p.getInt("refreshHours", 12) == 6) refreshHours = 12
+            p.edit().putBoolean("refreshHours12", true).apply()
+        }
+    }
     /** Open streams as HLS first (what the iPhone app uses), with TS as the fallback; off is the other way round. */
     var preferHls by Flag("preferHls", true)
     var hideSD by Flag("hideSD", true)

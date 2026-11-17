@@ -196,6 +196,8 @@ struct Game: Identifiable, Hashable {
     var eventDetail = ""
     /// "Hard Rock Stadium · Miami Gardens, FL"
     var venue = ""
+    /// A channel for a sport with no schedule (pickleball), listed after its events.
+    var isChannel = false
 
     var title: String { isEvent ? eventTitle : "\(away.nickname) at \(home.nickname)" }
 
