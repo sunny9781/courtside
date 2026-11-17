@@ -162,6 +162,21 @@ object Playback {
             if (full && matchFrameRate) C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_ONLY_IF_SEAMLESS else C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF
     }
 
+    /**
+     * The picture moved between full screen and the player at the top (two different kinds of video view). Some
+     * TVs' decoders flicker green when a running stream is handed to a new view, so the stream is reopened there.
+     */
+    fun viewChanged() {
+        if (!::player.isInitialized || currentUrl == null || !firstFrame) return
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            firstFrame = false
+            openedAt = System.currentTimeMillis()
+            player.stop()
+            player.prepare()
+            player.playWhenReady = true
+        }
+    }
+
     fun togglePause() {
         if (player.playWhenReady) player.pause() else player.play()
     }

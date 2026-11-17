@@ -157,7 +157,7 @@ struct TVGameView: View {
 
     private func details(_ game: Game) -> some View {
         var lines: [String] = []
-        if game.state == .upcoming { lines.append("Starts \(game.startText)") }
+        if game.state == .upcoming && !game.isChannel { lines.append("Starts \(game.startText)") }
         if !game.venue.isEmpty { lines.append(game.venue) }
         if !game.broadcasters.isEmpty { lines.append("On " + game.broadcasters.joined(separator: ", ")) }
         return Text(lines.joined(separator: "  ·  "))

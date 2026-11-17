@@ -42,5 +42,11 @@ enum Prefs {
             hideAdult: true,
             guideGrouped: true
         ])
+        // The refresh default went from 6 to 12 hours: move anyone still on the old default over, once.
+        let d = UserDefaults.standard
+        if !d.bool(forKey: "refreshHours12") {
+            if d.object(forKey: refreshHours) as? Int == 6 { d.set(12, forKey: refreshHours) }
+            d.set(true, forKey: "refreshHours12")
+        }
     }
 }

@@ -236,7 +236,7 @@ fun Shell(model: AppModel) {
     }
 }
 
-/** Home, EPG and Settings in the middle (moving across them switches straight away); "Updated 9:10 PM" on the right. */
+/** Home, EPG and Settings in the middle (moving across them switches straight away); the version on the right. */
 @Composable
 fun TopBar(model: AppModel) {
     val context = LocalContext.current
@@ -263,23 +263,25 @@ fun TopBar(model: AppModel) {
         }
         Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Updater.readyVersion?.let { v ->
-                TvButton(onClick = { Updater.install(context) }, background = Theme.accent) { focused ->
-                    Label("Install update $v", size = 12.sp, weight = FontWeight.SemiBold,
-                        color = if (focused) Theme.bg else Theme.onAccent, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
+            if (model.loading) Label("Downloading channels…", size = 12.sp, color = Theme.muted)
+            // The version is the update button: click it to check for a new version; once one has downloaded it
+            // turns into "Install update". (Channels refresh on their own, or from Settings › General.)
+            val ready = Updater.readyVersion
+            val scope = rememberCoroutineScope()
+            TvButton(onClick = {
+                if (ready != null) Updater.install(context)
+                else scope.launch {
+                    Updater.check(context, userInitiated = true)
+                    if (Updater.readyVersion == null) model.notice = Updater.message ?: "You have the latest version."
                 }
-            }
-            if (model.loading) {
-                Label("Downloading channels…", size = 12.sp, color = Theme.muted)
-            } else model.updatedAt?.let { at ->
-                // Like the Apple TV app: "Updated 9:10 PM" is itself the refresh button.
-                TvButton(onClick = { model.refresh(force = true) }) { focused ->
-                    Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        Icon(Icons.Filled.Refresh, null, tint = if (focused) Theme.bg else Theme.muted, modifier = Modifier.size(13.dp))
-                        Label("Updated ${clockTime(at)} · v${BuildConfig.VERSION_NAME}", size = 12.sp,
-                            color = if (focused) Theme.bg else Theme.muted)
-                    }
+            }, background = if (ready != null) Theme.accent else Color.Transparent) { focused ->
+                Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    val color = if (focused) Theme.bg else if (ready != null) Theme.onAccent else Theme.muted
+                    Label(if (ready != null) "Install update $ready" else "v${BuildConfig.VERSION_NAME}", size = 12.sp,
+                        weight = FontWeight.SemiBold, color = color)
+                    Icon(if (ready != null) Icons.Filled.Download else if (Updater.checking) Icons.Filled.HourglassTop else Icons.Filled.Refresh,
+                        null, tint = color, modifier = Modifier.size(13.dp))
                 }
             }
         }
@@ -301,6 +303,7 @@ fun PlayerVideo(modifier: Modifier = Modifier, small: Boolean = false) {
                 setShutterBackgroundColor(android.graphics.Color.BLACK)
                 isFocusable = false
                 player = Playback.player
+                Playback.viewChanged()
             }
         },
         onRelease = { view -> if (view.player === Playback.player) view.player = null },
@@ -476,10 +479,11 @@ fun HomeScreen(model: AppModel) {
         }
     }
 
-    // The left column stays lined up with the player above it (it doesn't shrink), so moving across is smooth.
+    // The left column is just the sports' icons and live counts, always the same width, so the score cards get
+    // the rest of the screen and nothing moves when you go across.
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { side[sidebarKey(model.homeSelection)] }) {
-        SportList(model, side, compact = false,
-            modifier = Modifier.width(Theme.playerWidth).enterAt { side[sidebarKey(model.homeSelection)] })
+        SportList(model, side, compact = true,
+            modifier = Modifier.width(64.dp).enterAt { side[sidebarKey(model.homeSelection)] })
         Spacer(Modifier.width(14.dp))
         GamesPane(model, pane, onOpen = { lastGame = it; model.openGameId = it }, onFocusGame = { lastGame = it },
             modifier = Modifier.weight(1f).enterAt { pane["game:$lastGame"] })
@@ -554,17 +558,21 @@ private fun SportRow(
     }
 }
 
-/** Wide enough for the longest team name and score among these games (like the Apple TV cards), within limits. */
+/**
+ * Sized for the sport's typical team name and score (most cards fit without cutting off a name; the odd very long
+ * one is shortened), so each sport gets as many cards to a row as it can.
+ */
 private fun cardWidth(games: List<Game>): androidx.compose.ui.unit.Dp {
-    var longest = 0
-    for (g in games) {
-        if (g.isEvent && !g.hasSides) { longest = maxOf(longest, minOf(g.eventTitle.length, 30)); continue }
-        for (t in listOf(g.away, g.home)) {
+    val needs = games.map { g ->
+        if (g.isEvent && !g.hasSides) minOf(g.eventTitle.length, 26)
+        else listOf(g.away, g.home).maxOf { t ->
             val name = t.shortName.ifEmpty { t.name }.length
-            longest = maxOf(longest, if (t.hasLongScore) maxOf(name, t.score.length) else name + t.score.length + 2)
+            if (t.hasLongScore) maxOf(name, t.score.length) else name + t.score.length + 2
         }
-    }
-    return (64 + longest * 8).coerceIn(190, 290).dp
+    }.sorted()
+    if (needs.isEmpty()) return 200.dp
+    val typical = needs[(needs.size * 3 / 4).coerceAtMost(needs.size - 1)]   // 3 in 4 cards fit fully
+    return (64 + typical * 8).coerceIn(180, 280).dp
 }
 
 private data class PaneSection(val id: String, val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector?,
@@ -835,7 +843,7 @@ private fun Hero(model: AppModel, game: Game) {
                 }
             }
             val lines = buildList {
-                if (game.state == GameState.UPCOMING) add("Starts ${startText(game)}")
+                if (game.state == GameState.UPCOMING && !game.isChannel) add("Starts ${startText(game)}")
                 if (game.venue.isNotEmpty()) add(game.venue)
                 if (game.broadcasters.isNotEmpty()) add("On " + game.broadcasters.joinToString(", "))
             }

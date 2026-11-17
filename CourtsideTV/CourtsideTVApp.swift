@@ -192,6 +192,7 @@ private var appVersion: String {
 
 struct TVTopBar: View {
     @EnvironmentObject var model: AppModel
+    @ObservedObject private var versions = VersionCheck.shared
     @EnvironmentObject var nav: TVNav
     @FocusState private var focusedTab: TVTab?
 
@@ -240,15 +241,20 @@ struct TVTopBar: View {
             }
             .font(.system(size: 22))
             .foregroundStyle(Theme.muted)
-        } else if let saved = model.savedAt {
-            // Like the Mac: "Updated 8:15 PM" is itself the refresh button.
+        } else {
+            // The version, which checks for a newer Courtside; when there is one, it says so (Apple TV is updated
+            // from the Mac). Channels refresh on their own, or from Settings › General › Refresh now.
             Button {
-                Task { await model.refresh(force: true) }
+                Task { await versions.check() }
             } label: {
-                Label("Updated \(saved.formatted(date: .omitted, time: .shortened)) · v\(appVersion)", systemImage: "arrow.clockwise")
+                Label(versions.newer.map { "Version \($0) is out: update from your Mac" } ?? "v\(versions.current)",
+                      systemImage: versions.checking ? "hourglass"
+                          : (versions.newer != nil ? "arrow.down.circle.fill" : "arrow.clockwise"))
                     .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(versions.newer != nil ? Theme.accent : Theme.muted)
             }
             .buttonStyle(TVQuietButtonStyle())
+            .task { await versions.check() }
         }
     }
 }

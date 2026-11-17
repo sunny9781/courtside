@@ -4,6 +4,7 @@ import Foundation
 extension Game {
     /// "LIVE · Q3 4:12", "STARTS 7:30 PM" or "FINAL", like the Mac cards.
     var headerText: String {
+        if isChannel { return "CHANNEL" }
         switch state {
         case .live: return "LIVE · \(statusText)"
         case .upcoming: return "STARTS \(startText)"

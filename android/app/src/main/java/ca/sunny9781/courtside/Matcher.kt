@@ -474,4 +474,57 @@ object Matcher {
         }
         return result
     }
+
+    private fun rank(label: String) = when (label) { "4K" -> 4; "1080p" -> 3; "720p", "HD" -> 2; else -> 1 }
+
+    /**
+     * Sports with no schedule feed (pickleball): events built from what the guide says is on now or in the next six
+     * hours (anything on a channel named for the sport, or titled with its words anywhere), with the channels showing
+     * them as the streams. The sport's own channels follow as entries of their own, after the events.
+     */
+    fun guideEvents(league: League, channels: List<Indexed>, guide: Map<String, List<Programme>>,
+                    measured: Map<Int, String>, now: Long): Pair<List<Game>, Map<String, List<StreamMatch>>> {
+        data class Found(val title: String, val start: Long, val end: Long, val channels: MutableList<Indexed>)
+        val words = league.keywords + league.name.lowercase()
+        val sportName = league.name.lowercase()
+        val own = channels.filter { it.channel.name.lowercase().contains(sportName) }
+        val ownIds = own.map { it.channel.id }.toSet()
+        val found = LinkedHashMap<String, Found>()
+        for (c in channels) {
+            if (c.channel.epgId.isEmpty()) continue
+            val dedicated = c.channel.id in ownIds
+            for (p in guide[c.channel.epgId] ?: continue) {
+                if (p.end <= now || p.start >= now + 6 * 3600_000L) continue
+                val lower = p.title.lowercase()
+                if (!dedicated && tokens(p.title).none { it in words } && !lower.contains(sportName)) continue
+                val key = lower.filter { it.isLetterOrDigit() } + "-" + (p.start / 900_000L)
+                found.getOrPut(key) { Found(p.title, p.start, p.end, mutableListOf()) }.channels.add(c)
+            }
+        }
+        fun streamFor(c: Indexed, reason: String): StreamMatch {
+            val q = measured[c.channel.id]?.let { it to rank(it) } ?: quality(c.tokenSet)
+            return StreamMatch(c.channel, reason, 3, q.first, q.second, false, false, false, country(c.channel))
+        }
+        val games = mutableListOf<Game>()
+        val matches = HashMap<String, List<StreamMatch>>()
+        for ((key, f) in found) {
+            val live = f.start <= now
+            val id = "guide-${league.id}-$key"
+            games.add(Game(id, league, f.start, if (live) GameState.LIVE else GameState.UPCOMING,
+                if (live) "Live" else clockTime(f.start), Team.none, Team.none, emptyList(), isEvent = true,
+                eventTitle = f.title,
+                eventDetail = if (f.channels.size == 1) "On ${f.channels[0].channel.name}" else "On ${f.channels.size} channels"))
+            matches[id] = f.channels.map { streamFor(it, "In the guide") }.sortedByDescending { it.qualityRank }
+        }
+        games.sortBy { it.start ?: Long.MAX_VALUE }
+        for (c in own.sortedBy { it.channel.name }) {
+            val id = "guide-${league.id}-ch-${c.channel.id}"
+            val current = guide[c.channel.epgId]?.firstOrNull { it.start <= now && it.end > now }
+            games.add(Game(id, league, null, GameState.UPCOMING, "Channel", Team.none, Team.none, emptyList(),
+                isEvent = true, eventTitle = c.channel.name, eventDetail = current?.let { "Now: ${it.title}" } ?: "",
+                isChannel = true))
+            matches[id] = listOf(streamFor(c, "${league.name} channel"))
+        }
+        return games to matches
+    }
 }

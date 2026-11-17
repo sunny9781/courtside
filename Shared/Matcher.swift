@@ -421,15 +421,21 @@ enum Matcher {
     }
 
     /// Sports with no schedule feed (pickleball): events built from what the guide says is on now or in the next
-    /// six hours, with the channels showing them as the streams.
+    /// six hours (anything on a channel named for the sport, or titled with its words anywhere), with the channels
+    /// showing them as the streams. The sport's own channels follow as entries of their own, after the events.
     static func guideEvents(league: League, words: [String], channels: [IndexedChannel], guide: [String: [Programme]],
                             measured: [Int: String], now: Date) -> (games: [Game], matches: [String: [StreamMatch]]) {
         struct Found { var title: String; var start: Date; var end: Date; var channels: [IndexedChannel] }
         var found: [String: Found] = [:]
+        let wordSet = Set(words)
+        let sportName = league.name.lowercased()
+        let own = channels.filter { $0.channel.name.lowercased().contains(sportName) }
+        let ownIDs = Set(own.map(\.channel.id))
         for c in channels where !c.channel.epgID.isEmpty {
+            let dedicated = ownIDs.contains(c.channel.id)
             for p in guide[c.channel.epgID] ?? [] where p.end > now && p.start < now.addingTimeInterval(6 * 3600) {
                 let lower = p.title.lowercased()
-                guard words.contains(where: { lower.contains($0) }) else { continue }
+                guard dedicated || !wordSet.isDisjoint(with: tokens(p.title)) || lower.contains(sportName) else { continue }
                 let slot = Int(p.start.timeIntervalSince1970 / 900)
                 let key = lower.filter { $0.isLetter || $0.isNumber } + "-\(slot)"
                 found[key, default: Found(title: p.title, start: p.start, end: p.end, channels: [])].channels.append(c)
@@ -456,7 +462,27 @@ enum Matcher {
                                    recent: false, local: false, likelyOnly: false, country: country(of: c.channel))
             }.sorted { $0.qualityRank > $1.qualityRank }
         }
-        return (games.sorted { ($0.start ?? .distantFuture) < ($1.start ?? .distantFuture) }, matches)
+        // The sport's channels themselves, after the events.
+        var channelGames: [Game] = []
+        for c in own.sorted(by: { $0.channel.name < $1.channel.name }) {
+            let id = "guide-\(league.id)-ch-\(c.channel.id)"
+            var game = Game(id: id, league: league, start: nil, state: .upcoming, statusText: "Channel",
+                            away: .none, home: .none, broadcasters: [])
+            game.isEvent = true
+            game.isChannel = true
+            game.eventTitle = c.channel.name
+            if let now = (guide[c.channel.epgID] ?? []).first(where: { $0.start <= now && $0.end > now }) {
+                game.eventDetail = "Now: \(now.title)"
+            }
+            channelGames.append(game)
+            let q: (label: String, rank: Int) = measured[c.channel.id].map {
+                (label: $0, rank: $0 == "4K" ? 4 : ($0 == "1080p" ? 3 : ($0 == "720p" ? 2 : 1)))
+            } ?? quality(c.tokenSet)
+            matches[id] = [StreamMatch(channel: c.channel, reason: "\(league.name) channel", score: 3, quality: q.label,
+                                       qualityRank: q.rank, recent: false, local: false, likelyOnly: false,
+                                       country: country(of: c.channel))]
+        }
+        return (games.sorted { ($0.start ?? .distantFuture) < ($1.start ?? .distantFuture) } + channelGames, matches)
     }
 
     static func matchAll(games: [Game], channels: [IndexedChannel], guide: [String: [Programme]],

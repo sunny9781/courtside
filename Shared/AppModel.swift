@@ -355,7 +355,7 @@ final class AppModel: ObservableObject {
         var guideGames: [Game] = []
         for league in League.all where league.path.isEmpty && !hiddenLeagues.contains(league.id) {
             let found = await Task.detached(priority: .utility) {
-                Matcher.guideEvents(league: league, words: [league.name.lowercased()], channels: idx, guide: gd,
+                Matcher.guideEvents(league: league, words: [league.name.lowercased()] + Array(league.keywords), channels: idx, guide: gd,
                                     measured: measured, now: now)
             }.value
             guideGames += found.games
