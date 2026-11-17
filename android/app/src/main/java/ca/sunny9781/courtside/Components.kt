@@ -63,6 +63,8 @@ object Theme {
     val margin = 12.dp
     /** Width of the player's video at the top (the left column on Home matches it). */
     val playerWidth = 240.dp
+    /** Height the player in the top-right corner takes; pages leave this much room above their right-hand part. */
+    val stripHeight = playerWidth * 9 / 16 + 10.dp
 }
 
 /**
@@ -107,10 +109,11 @@ fun Label(
     color: Color = Theme.text,
     weight: FontWeight = FontWeight.Normal,
     maxLines: Int = 1,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    align: androidx.compose.ui.text.style.TextAlign? = null
 ) {
     Text(text, modifier = modifier, color = color, fontSize = size, fontWeight = weight, maxLines = maxLines,
-        overflow = TextOverflow.Ellipsis)
+        overflow = TextOverflow.Ellipsis, textAlign = align)
 }
 
 @Composable

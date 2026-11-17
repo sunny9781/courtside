@@ -64,6 +64,13 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.43", date: "2026-11-16", time: "21:44", title: "Player in the corner", changes: [
+            Change(text: "The player sits in the top-right corner on every tab, with what's playing to its left. Pages use the space beside and below it.", apps: android),
+            Change(text: "Home: the left column is sport icons and live counts, top to bottom.", apps: android),
+            Change(text: "EPG: the Filter and categories start at the top; \"Group similar categories\" is now just Group; the category column is narrower.", apps: android),
+            Change(text: "Settings: a narrower section list.", apps: android),
+            Change(text: "Updates install through Android's package installer, which works on Google TV sets (like Sony) too. If Courtside isn't allowed to install apps yet, the switch for it opens first. A cut-off download is caught before installing.", apps: android)
+        ]),
         Release(version: "1.42", date: "2026-11-16", time: "21:16", title: "Back to the smoother player", changes: [
             Change(text: "Going between full screen and the player at the top is seamless again (the stream isn't reopened).", apps: android),
             Change(text: "Home: the sport names are back in the left column, lined up with the player.", apps: android)

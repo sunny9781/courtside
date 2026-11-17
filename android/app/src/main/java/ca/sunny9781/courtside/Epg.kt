@@ -96,12 +96,12 @@ fun EpgScreen(model: AppModel) {
 
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { cats["cat:$categoryTarget"] },
         horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-        LazyColumn(Modifier.width(Theme.playerWidth).fillMaxHeight().enterAt { cats["cat:$categoryTarget"] },
+        LazyColumn(Modifier.width(CATEGORY_WIDTH).fillMaxHeight().enterAt { cats["cat:$categoryTarget"] },
             verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             // One search for categories and channels; results show on the right.
-            item(key = "filter") { Field("Filter", search, { search = it }, width = Theme.playerWidth) }
+            item(key = "filter") { Field("Filter", search, { search = it }, width = CATEGORY_WIDTH) }
             item(key = "group") {
-                CategoryRow(cats, "cat:toggle", Icons.Filled.Layers, "Group similar categories", if (s.grouped) "On" else "Off", false) {
+                CategoryRow(cats, "cat:toggle", Icons.Filled.Layers, "Group", if (s.grouped) "On" else "Off", false) {
                     s.grouped = !s.grouped
                     model.guidePath = emptyList()
                 }
@@ -132,7 +132,7 @@ fun EpgScreen(model: AppModel) {
             }
         }
 
-        Column(Modifier.weight(1f).fillMaxHeight()) {
+        Column(Modifier.weight(1f).fillMaxHeight().padding(top = topInset(model))) {
             InfoPanel(model, focusedChannel?.let { model.channelById[it] } ?: playing, playing)
             LazyColumn(Modifier.fillMaxSize().enterAt { rows[lastRow] }, verticalArrangement = Arrangement.spacedBy(2.dp),
                 contentPadding = PaddingValues(vertical = 6.dp)) {
@@ -174,6 +174,8 @@ fun EpgScreen(model: AppModel) {
 private data class Entry(val id: String, val name: String, val categories: List<ChannelCategory>)
 
 private val NAME_WIDTH = 230.dp
+/** The category column: narrow, so the names sit close to their counts. */
+private val CATEGORY_WIDTH = 190.dp
 private val NEXT_WIDTH = 180.dp
 
 private fun count(model: AppModel, cats: List<ChannelCategory>) = cats.sumOf { model.channelsByCategory[it.id]?.size ?: 0 }
