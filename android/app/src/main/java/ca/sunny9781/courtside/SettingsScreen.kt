@@ -56,7 +56,7 @@ fun SettingsScreen(model: AppModel) {
         val pane = Modifier.weight(1f).widthIn(max = 560.dp).fillMaxHeight()
         BehindPlayerBar(model) {
         Column(pane.verticalScroll(rememberScrollState())
-            .padding(top = 8.dp, bottom = 8.dp + topInset(model)), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            .padding(top = 8.dp, bottom = 8.dp + barInset(model)), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when (section) {
                 Section.ACCOUNT -> Account(model)
                 Section.GENERAL -> {
