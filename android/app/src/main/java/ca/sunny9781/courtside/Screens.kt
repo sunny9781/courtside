@@ -11,6 +11,8 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -745,88 +747,70 @@ fun GameScreen(model: AppModel, gameId: String) {
         Label("This game is no longer on today's schedule.", size = 14.sp, color = Theme.muted, modifier = Modifier.padding(Theme.margin))
         return
     }
-    val targets = remember { FocusTargets() }
+    val cats = remember { FocusTargets() }
+    val rows = remember { FocusTargets() }
     val s = model.settings
     val all = model.streams(gameId).let { list -> if (s.hideSD) list.filter { it.quality != "SD" } else list }
-    val listing = StreamSections.build(all, game.league)
-    var folded by remember { mutableStateOf(setOf<String>()) }
-    var showLocal by remember { mutableStateOf(false) }
-    val shown = listing.sections.flatMap { it.streams } +
-        (if (s.showForeign) listing.foreign.flatMap { it.streams } else emptyList()) +
-        (if (showLocal) listing.extras else emptyList())
-    val lineup = shown.map { it.channel }
+    val listing = remember(all, game.league) { StreamSections.build(all, game.league) }
+    // A mini EPG for this game: its stream categories on the left ("All" first), the channels on the right.
+    val main = listing.sections.flatMap { it.streams }
+    val categories = buildList {
+        add("All" to main)
+        for (sec in listing.sections) add(sec.name to sec.streams)
+        if (listing.foreign.isNotEmpty()) add("Foreign" to listing.foreign.flatMap { it.streams })
+        if (listing.extras.isNotEmpty()) add("Local and likely" to listing.extras)
+    }
+    var selected by remember(gameId) { mutableStateOf("All") }
+    val current = categories.firstOrNull { it.first == selected }?.second ?: main
+    val lineup = current.map { it.channel }
     val pinnedHere = model.pinnedIsFrom(gameId)
     val previewId = if (pinnedHere) model.pinned?.channel?.id else null
+    var lastRow by remember { mutableStateOf<String?>(null) }
 
-    // Opening a game plays its first stream in the player at the top (unless one of its streams already is), and
-    // focus starts on the stream that's playing.
+    // Opening a game plays its first stream that isn't 4K (or the first, if they all are) in the player, unless one
+    // of its streams already is; focus starts on the stream that's playing.
     LaunchedEffect(gameId, all.isNotEmpty()) {
         var id = previewId
-        // The first stream that isn't 4K (or the first, if they all are).
-        if (!pinnedHere) (shown.firstOrNull { !it.is4K && it.quality != "4K" } ?: shown.firstOrNull())
-            ?.let { model.pin(it.channel, game.title, lineup); id = it.channel.id }
+        if (!pinnedHere) (main.firstOrNull { !it.is4K && it.quality != "4K" } ?: main.firstOrNull())
+            ?.let { model.pin(it.channel, game.title, main.map { m -> m.channel }); id = it.channel.id }
         delay(80)
-        // Focus always lands somewhere on this screen (not on the Home list hidden behind it).
-        targets.focus("s:$id") || targets.focus("foreign") || targets.focus("local") || targets.focus("back")
+        rows.focus("s:$id") || cats.focus("cat:All")
     }
     // Back from full screen: focus goes back to the stream you were watching.
-    AfterFullScreen(model, "game") { targets.focus("s:${model.lastPlayedChannelId}") }
+    AfterFullScreen(model, "game") { rows.focus("s:${model.lastPlayedChannelId}") }
 
     fun select(m: StreamMatch) {
         if (previewId == m.channel.id) model.play(m.channel, game.title, lineup, from = "game")
         else model.pin(m.channel, game.title, lineup)
     }
 
-    // Streams use the whole page, flowing around the player in the bottom-left corner: rows that would reach down
-    // beside it start to its right instead.
-    val obstacle = model.pinned != null
-    BoxWithConstraints(Modifier.fillMaxSize().background(Theme.bg).padding(horizontal = Theme.margin)) {
-    val blockedFrom = maxHeight - Theme.stripHeight
-    Column(Modifier.fillMaxSize()
-        .verticalScroll(rememberScrollState()).wrapRows().enterAt { targets["s:$previewId"] }) {
-        if (!pinnedHere && !obstacle) Hero(model, game)
-        WrapGrid(obstacleWidth = if (obstacle) Theme.playerWidth else 0.dp, blockedFrom = if (obstacle) blockedFrom - 8.dp else 0.dp,
-            cellWidth = 260.dp, spacing = 12.dp, modifier = Modifier.padding(top = 8.dp, bottom = 12.dp)) {
-            if (listing.sections.isEmpty()) {
-                Column(Modifier.fullRow(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Label(if (model.channels.isEmpty()) "Channels are still loading…" else "No streams found for this game yet.",
-                        size = 14.sp, color = Theme.muted)
-                    if (listing.foreign.isEmpty() && listing.extras.isEmpty()) {
-                        Pill("Back to the games", Modifier.tracked(targets, "back")) { model.closeGame() }
-                    }
-                }
-            }
-            @Composable
-            fun section(name: String, streams: List<StreamMatch>, prefix: String) {
-                // Click a section's name to fold it shut or open it.
-                Box(Modifier.fullRow()) {
-                    SectionHeader(name, streams.size, open = name !in folded) {
-                        folded = if (name in folded) folded - name else folded + name
-                    }
-                }
-                if (name !in folded) for (m in streams) key("$prefix:$name:${m.channel.id}") {
-                    StreamCell(model, m, previewing = m.channel.id == previewId, modifier = Modifier.tracked(targets, "s:${m.channel.id}")) { select(m) }
-                }
-            }
-            for (sec in listing.sections) section(sec.name, sec.streams, "m")
-            // Foreign-language countries, folded into one group.
-            if (listing.foreign.isNotEmpty()) {
-                Box(Modifier.fullRow()) {
-                    Pill(if (s.showForeign) "Hide foreign streams (${listing.foreignCount})" else "Show foreign streams (${listing.foreignCount})",
-                        Modifier.tracked(targets, "foreign")) { s.showForeign = !s.showForeign }
-                }
-                if (s.showForeign) for (sec in listing.foreign) section(sec.name, sec.streams, "f")
-            }
-            // Local stations and "usually on" guesses, at the very bottom.
-            if (listing.extras.isNotEmpty()) {
-                Box(Modifier.fullRow()) {
-                    Pill(if (showLocal) "Hide local stations and likely channels" else "Show ${listing.extras.size} local stations and likely channels",
-                        Modifier.tracked(targets, "local")) { showLocal = !showLocal }
-                }
-                if (showLocal) section("Local and likely", listing.extras, "x")
+    Row(Modifier.fillMaxSize().background(Theme.bg).padding(horizontal = Theme.margin).enterAt { rows["s:$previewId"] },
+        horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        // Categories, on top of the player.
+        LazyColumn(Modifier.width(Theme.playerWidth).fillMaxHeight().padding(bottom = topInset(model)).enterAt { cats["cat:$selected"] },
+            verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+            items(categories, key = { it.first }) { (name, streams) ->
+                CategoryRow(cats, "cat:$name", null, name, "${streams.size}", selected == name,
+                    onFocus = { if (selected != name) selected = name }) { selected = name }
             }
         }
-    }
+        // The channels in that category, like the EPG: what's on now and next, and the stream's quality.
+        LazyColumn(Modifier.weight(1f).fillMaxHeight().enterAt { rows[lastRow ?: "s:$previewId"] },
+            verticalArrangement = Arrangement.spacedBy(2.dp), contentPadding = PaddingValues(vertical = 6.dp)) {
+            if (current.isEmpty()) item(key = "none") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(10.dp)) {
+                    Label(if (model.channels.isEmpty()) "Channels are still loading…" else "No streams found for this game yet.",
+                        size = 14.sp, color = Theme.muted)
+                    Pill("Back to the games", Modifier.tracked(rows, "back")) { model.closeGame() }
+                }
+            }
+            items(current, key = { "s:${it.channel.id}" }) { m ->
+                val k = "s:${m.channel.id}"
+                ChannelRow(model, m.channel, m.channel.id == previewId, Modifier.tracked(rows, k),
+                    badge = model.measuredQuality[m.channel.id] ?: m.quality,
+                    onFocus = { lastRow = k }) { select(m) }
+            }
+        }
     }
 }
 

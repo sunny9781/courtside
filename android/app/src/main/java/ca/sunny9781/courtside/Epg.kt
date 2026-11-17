@@ -190,7 +190,7 @@ private val NEXT_WIDTH = 180.dp
 private fun count(model: AppModel, cats: List<ChannelCategory>) = cats.sumOf { model.channelsByCategory[it.id]?.size ?: 0 }
 
 @Composable
-private fun CategoryRow(
+internal fun CategoryRow(
     targets: FocusTargets, key: String, icon: androidx.compose.ui.graphics.vector.ImageVector?, name: String, value: String?,
     selected: Boolean, bold: Boolean = false, trailing: androidx.compose.ui.graphics.vector.ImageVector? = null,
     onFocus: (() -> Unit)? = null, onClick: () -> Unit
@@ -232,7 +232,8 @@ private fun InfoPanel(model: AppModel, channel: Channel?, playing: Channel?) {
 
 /** A channel: logo and name, what's on now (with progress), and what's next. */
 @Composable
-private fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, modifier: Modifier, onFocus: () -> Unit, onClick: () -> Unit) {
+internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, modifier: Modifier, badge: String? = null,
+                        onFocus: () -> Unit, onClick: () -> Unit) {
     val now = model.currentProgramme(channel)
     val next = now?.let { n -> model.guide[channel.epgId]?.firstOrNull { it.start >= n.end } }
     TvButton(onClick = onClick, onFocus = onFocus, focusedScale = 1.02f, modifier = modifier.fillMaxWidth()) { focused ->
@@ -253,6 +254,8 @@ private fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, modi
             }
             Label(next?.let { "${clockTime(it.start)}  ${it.title}" } ?: "", size = 11.sp, color = color.copy(alpha = 0.65f),
                 modifier = Modifier.width(NEXT_WIDTH))
+            if (!badge.isNullOrEmpty()) Badge(badge, fill = if (badge == "4K") Theme.accent else Theme.raised,
+                color = if (badge == "4K") Theme.onAccent else Theme.soft)
         }
     }
 }
