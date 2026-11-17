@@ -421,8 +421,8 @@ enum Matcher {
     }
 
     /// Sports with no schedule feed (pickleball): events built from what the guide says is on now or in the next
-    /// six hours (anything on a channel named for the sport, or titled with its words anywhere), with the channels
-    /// showing them as the streams. The sport's own channels follow as entries of their own, after the events.
+    /// six hours (shows titled with its words on other channels), with the channels showing them as the streams. The
+    /// sport's own channels (named for it) get one card each, after the events, instead of a card per show.
     static func guideEvents(league: League, words: [String], channels: [IndexedChannel], guide: [String: [Programme]],
                             measured: [Int: String], now: Date) -> (games: [Game], matches: [String: [StreamMatch]]) {
         struct Found { var title: String; var start: Date; var end: Date; var channels: [IndexedChannel] }
@@ -431,11 +431,11 @@ enum Matcher {
         let sportName = league.name.lowercased()
         let own = channels.filter { $0.channel.name.lowercased().contains(sportName) }
         let ownIDs = Set(own.map(\.channel.id))
-        for c in channels where !c.channel.epgID.isEmpty {
-            let dedicated = ownIDs.contains(c.channel.id)
+        // The sport's own channels get one card each (below); their schedules aren't split into cards.
+        for c in channels where !c.channel.epgID.isEmpty && !ownIDs.contains(c.channel.id) {
             for p in guide[c.channel.epgID] ?? [] where p.end > now && p.start < now.addingTimeInterval(6 * 3600) {
                 let lower = p.title.lowercased()
-                guard dedicated || !wordSet.isDisjoint(with: tokens(p.title)) || lower.contains(sportName) else { continue }
+                guard !wordSet.isDisjoint(with: tokens(p.title)) || lower.contains(sportName) else { continue }
                 let slot = Int(p.start.timeIntervalSince1970 / 900)
                 let key = lower.filter { $0.isLetter || $0.isNumber } + "-\(slot)"
                 found[key, default: Found(title: p.title, start: p.start, end: p.end, channels: [])].channels.append(c)
