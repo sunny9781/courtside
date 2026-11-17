@@ -64,6 +64,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.42", date: "2026-11-16", time: "21:16", title: "Back to the smoother player", changes: [
+            Change(text: "Going between full screen and the player at the top is seamless again (the stream isn't reopened).", apps: android),
+            Change(text: "Home: the sport names are back in the left column, lined up with the player.", apps: android)
+        ]),
         Release(version: "1.41", date: "2026-11-16", time: "20:56", title: "Edit your account", changes: [
             Change(text: "Settings › Account › Edit account: change the server, username or password. The new details are checked before they're saved; a different account starts fresh with its own channels.", apps: everywhere),
             Change(text: "The connection count is checked again a few seconds after a stream starts or stops, and each time you open Settings › Account.", apps: android),

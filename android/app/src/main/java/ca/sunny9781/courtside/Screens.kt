@@ -319,7 +319,6 @@ fun PlayerVideo(modifier: Modifier = Modifier, small: Boolean = false) {
                 setShutterBackgroundColor(android.graphics.Color.BLACK)
                 isFocusable = false
                 player = Playback.player
-                Playback.viewChanged()
             }
         },
         onRelease = { view -> if (view.player === Playback.player) view.player = null },
@@ -495,11 +494,11 @@ fun HomeScreen(model: AppModel) {
         }
     }
 
-    // The left column is just the sports' icons and live counts, always the same width, so the score cards get
-    // the rest of the screen and nothing moves when you go across.
+    // The left column (sport names) is lined up with the player above it and always the same width, so nothing
+    // moves when you go across to the games.
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { side[sidebarKey(model.homeSelection)] }) {
-        SportList(model, side, compact = true,
-            modifier = Modifier.width(64.dp).enterAt { side[sidebarKey(model.homeSelection)] })
+        SportList(model, side, compact = false,
+            modifier = Modifier.width(Theme.playerWidth).enterAt { side[sidebarKey(model.homeSelection)] })
         Spacer(Modifier.width(14.dp))
         GamesPane(model, pane, onOpen = { lastGame = it; model.openGameId = it }, onFocusGame = { lastGame = it },
             modifier = Modifier.weight(1f).enterAt { pane["game:$lastGame"] })
@@ -620,16 +619,8 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     LazyVerticalGrid(GridCells.FixedSize(cardWidth), modifier = modifier.fillMaxHeight().wrapRows(), state = model.homeGrid,
         horizontalArrangement = Arrangement.spacedBy(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp, start = 6.dp, end = 6.dp)) {
-        // The sport's name (the left column is only icons), with its leagues beside it when it has more than one.
-        item(span = { GridItemSpan(maxLineSpan) }, key = "chips") {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp),
-                    modifier = Modifier.padding(vertical = 6.dp)) {
-                    Icon(sport?.icon ?: Icons.Filled.Sensors, null, tint = Theme.accent, modifier = Modifier.size(17.dp))
-                    Label(sport?.title ?: "Live Now", size = 17.sp, weight = FontWeight.Bold)
-                }
-                if (sport != null && model.leagues(sport).size > 1) LeagueChips(model, sport, targets)
-            }
+        if (sport != null && model.leagues(sport).size > 1) {
+            item(span = { GridItemSpan(maxLineSpan) }, key = "chips") { LeagueChips(model, sport, targets) }
         }
         if (sections.isEmpty()) {
             item(span = { GridItemSpan(maxLineSpan) }, key = "empty") {
