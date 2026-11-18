@@ -58,7 +58,6 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val old = games.associateBy { it.id }
         games = list.map { n -> old[n.id]?.takeIf { it == n } ?: n }
     }
-        private set
     private var allGames: List<Game> = emptyList()
     /** Canadian, UK and European broadcasters from the official schedules and the rights table (BroadcastSources). */
     private var extraBroadcasts: Map<String, List<Broadcast>> = emptyMap()
