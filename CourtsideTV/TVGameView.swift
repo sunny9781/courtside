@@ -150,7 +150,8 @@ struct TVGameView: View {
                     ForEach(group.streams) { match in
                         Button { select(match, game: game) } label: {
                             TVChannelRow(channel: match.channel, playing: match.channel.id == previewChannel?.id,
-                                         badge: model.measuredQuality[match.channel.id] ?? match.quality, nameWidth: nameWidth)
+                                         badge: model.measuredQuality[match.channel.id] ?? match.quality, nameWidth: nameWidth,
+                                         showNext: false)
                         }
                         .buttonStyle(TVRowButtonStyle())
                         .focused($focusedStream, equals: match.channel.id)

@@ -210,6 +210,9 @@ struct TVTopBar: View {
     @ObservedObject private var versions = VersionCheck.shared
     @EnvironmentObject var nav: TVNav
     @FocusState private var focusedTab: TVTab?
+    /// A tab switch waiting for you to stop on that tab (see onChange below).
+    @State private var pendingTab: Task<Void, Never>?
+    @State private var waitingTab: TVTab?
 
     var body: some View {
         ZStack {
@@ -230,10 +233,22 @@ struct TVTopBar: View {
             }
             // Coming back up to the tabs lands on the one you're on (so it doesn't switch by accident).
             .defaultFocus($focusedTab, nav.tab, priority: .userInitiated)
-            // Moving across Home / EPG / Settings switches straight away, no click needed.
+            // Moving across Home / EPG / Settings switches once you stop on a tab (a quarter second), so going from
+            // Home to Settings doesn't draw the EPG on the way. Leaving the tabs (down into the page) switches now.
             .onChange(of: focusedTab) {
                 nav.tabsFocused = focusedTab != nil
-                if let focusedTab, focusedTab != nav.tab {
+                pendingTab?.cancel()
+                guard let focusedTab else {
+                    if let waitingTab { NotificationCenter.default.post(name: .tvSwitchTab, object: waitingTab) }
+                    waitingTab = nil
+                    return
+                }
+                guard focusedTab != nav.tab else { waitingTab = nil; return }
+                waitingTab = focusedTab
+                pendingTab = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    guard !Task.isCancelled else { return }
+                    waitingTab = nil
                     NotificationCenter.default.post(name: .tvSwitchTab, object: focusedTab)
                 }
             }

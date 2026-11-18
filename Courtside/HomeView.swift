@@ -4,7 +4,6 @@ import SwiftUI
 /// or a single league when one is picked in the left column.
 struct SportView: View {
     @EnvironmentObject var model: AppModel
-    @AppStorage(Prefs.showFinished) private var showFinished = true
     let sport: Sport
     var leagueID: String? = nil
     let onOpen: (Game) -> Void
@@ -34,7 +33,7 @@ struct SportView: View {
 
                 ForEach(sections) { item in
                     LeagueSection(league: item, games: allGames.filter { $0.league == item },
-                                  showHeading: league == nil, showFinished: showFinished, onOpen: onOpen)
+                                  showHeading: league == nil, onOpen: onOpen)
                 }
             }
             .padding(.horizontal, 40)
@@ -65,8 +64,9 @@ struct LeagueSection: View {
     let league: League
     let games: [Game]
     let showHeading: Bool
-    let showFinished: Bool
     let onOpen: (Game) -> Void
+    /// Finished games fold into one "Finished · 6" line under the cards; click it to show them.
+    @State private var showFinished = false
 
     var body: some View {
         let live = games.filter { $0.state == .live }
@@ -98,6 +98,21 @@ struct LeagueSection: View {
                     LiveGameCard(game: game, streams: model.streamCount(game.id)) { onOpen(game) }
                 }
             }
+            if !finished.isEmpty {
+                Button {
+                    showFinished.toggle()
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: showFinished ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("Finished · \(finished.count)")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(Theme.muted)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 }
@@ -111,9 +126,7 @@ struct LeagueLogo: View {
     var body: some View {
         Group {
             if let url = model.leagueLogos[league.id] {
-                AsyncImage(url: url) { image in
-                    image.resizable().scaledToFit()
-                } placeholder: {
+                SmallLogoImage(url: url, size: size) {
                     Image(systemName: league.sport.symbol).foregroundStyle(Theme.accent)
                 }
             } else {
@@ -173,9 +186,6 @@ struct LiveGameCard: View {
                             .background(Capsule().fill(Theme.accent))
                             .help("A 4K stream is available")
                     }
-                    Text(streamCountText(streams))
-                        .font(.system(size: 12))
-                        .foregroundStyle(streams == 0 ? Theme.danger : Theme.muted)
                 }
                 if game.isEvent {
                     EventLines(game: game)

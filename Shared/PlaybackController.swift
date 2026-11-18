@@ -24,6 +24,8 @@ final class PlaybackController: ObservableObject {
     @Published var resolution = ""
     /// Frames per second of the current stream (0 until known), e.g. 59.94.
     @Published var frameRate: Double = 0
+    /// The sound: "Stereo", "5.1 Dolby", "5.1 Dolby+" (VLC engine only).
+    @Published var audio = ""
     /// Half-second ticks the current stream has been playing (to time the frame-rate check).
     private var playingPolls = 0
     /// Called when a stream starts or stops (the app uses it to re-check connections in use).
@@ -107,6 +109,7 @@ final class PlaybackController: ObservableObject {
             onChange?()
             resolution = ""
             frameRate = 0
+            audio = ""
             playingPolls = 0
         }
         // One connection at a time: close the old stream first and give the provider a moment to see it gone
@@ -220,6 +223,7 @@ final class PlaybackController: ObservableObject {
         if status == .playing {
             playingPolls += 1
             if playingPolls == 4 && frameRate == 0, let fps = Self.videoFrameRate(player.media) { frameRate = fps }
+            if playingPolls == 4 && audio.isEmpty, let sound = Self.soundLabel(player.media) { audio = sound }
         }
         #else
         guard let item = player.currentItem else { return }
@@ -240,6 +244,39 @@ final class PlaybackController: ObservableObject {
     }
 
     #if canImport(VLCKitSPM)
+    /// The audio track as "Stereo", "5.1 Dolby" and so on, from VLC's track details.
+    private static func soundLabel(_ media: VLCMedia?) -> String? {
+        guard let tracks = media?.tracksInformation as? [[AnyHashable: Any]] else { return nil }
+        for track in tracks where (track["type"] as? String) == "audio" {
+            let channels = (track["channels_number"] as? NSNumber)?.intValue ?? 0
+            let layout: String
+            switch channels {
+            case 0: layout = ""
+            case 1: layout = "Mono"
+            case 2: layout = "Stereo"
+            case 6: layout = "5.1"
+            case 8: layout = "7.1"
+            default: layout = "\(channels) ch"
+            }
+            // VLC's codec code is four letters packed into a number, first letter lowest.
+            var codec = ""
+            if let raw = (track["codec"] as? NSNumber)?.uint32Value {
+                let bytes = [raw & 0xff, (raw >> 8) & 0xff, (raw >> 16) & 0xff, (raw >> 24) & 0xff]
+                let fourcc = String(bytes: bytes.map { UInt8($0) }, encoding: .ascii)?.trimmingCharacters(in: .whitespaces) ?? ""
+                switch fourcc {
+                case "a52": codec = "Dolby"
+                case "eac3": codec = "Dolby+"
+                case "dts": codec = "DTS"
+                case "mlp", "trhd": codec = "TrueHD"
+                default: codec = ""
+                }
+            }
+            let label = [layout, codec].filter { !$0.isEmpty }.joined(separator: " ")
+            return label.isEmpty ? nil : label
+        }
+        return nil
+    }
+
     /// Reads the video track's frame rate. Interlaced TV streams often report double (100 for 50i), so
     /// anything over 60 is halved.
     private static func videoFrameRate(_ media: VLCMedia?) -> Double? {

@@ -4,7 +4,6 @@ struct IOSSettingsView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
     @AppStorage(Prefs.hideSD) private var hideSD = true
-    @AppStorage(Prefs.showFinished) private var showFinished = true
     @AppStorage(Prefs.guidePreview) private var guidePreview = true
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
     @AppStorage(Prefs.hiddenSports) private var hiddenSports = ""
@@ -12,7 +11,6 @@ struct IOSSettingsView: View {
     @AppStorage(Prefs.favoriteSports) private var favoriteSports = ""
     @AppStorage(Prefs.sportOrder) private var sportOrderPref = ""
     @AppStorage(Prefs.refreshHours) private var refreshHours = 6
-    @AppStorage(Prefs.hideAdult) private var hideAdult = true
     @AppStorage(Prefs.guideGrouped) private var grouped = true
     /// Updates open in What's new: only the newest to start with.
     @State private var openReleases: Set<String> = Set(Changelog.forThisApp.prefix(1).map(\.id))
@@ -94,18 +92,33 @@ struct IOSSettingsView: View {
 
                 if section == .general {
                 Section("Games") {
-                    Toggle("Show finished games", isOn: $showFinished)
                     Toggle("Hide SD streams", isOn: $hideSD)
                 }
 
                 }
 
                 if section == .general {
-                Section("EPG") {
-                    Toggle("Adult categories", isOn: Binding(
-                        get: { !hideAdult },
-                        set: { hideAdult = !$0; Task { await model.applyFilters(); await model.rematch() } }
-                    ))
+                // Categories and channels hidden in the EPG (categories with "adult" in the name start out here).
+                Section {
+                    let cats = model.hiddenCategoryNames
+                    let chans = model.hiddenChannelNames
+                    if cats.isEmpty && chans.isEmpty {
+                        Text("Nothing hidden.").foregroundStyle(.secondary)
+                    }
+                    ForEach(cats, id: \.id) { item in
+                        Button { model.setCategoryHidden(item.id, false) } label: {
+                            LabeledContent(item.name) { Text("Show").foregroundStyle(.tint) }
+                        }
+                    }
+                    ForEach(chans, id: \.id) { item in
+                        Button { model.setChannelHidden(item.id, false) } label: {
+                            LabeledContent(item.name) { Text("Show").foregroundStyle(.tint) }
+                        }
+                    }
+                } header: {
+                    Text("Hidden")
+                } footer: {
+                    Text("Categories with \"adult\" in the name start out here. Tap one to show it again.")
                 }
 
                 }

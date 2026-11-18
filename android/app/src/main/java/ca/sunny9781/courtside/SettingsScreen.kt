@@ -23,7 +23,9 @@ import java.util.Date
 
 private enum class Section(val title: String, val icon: ImageVector) {
     ACCOUNT("Account", Icons.Filled.AccountCircle),
-    /** Playback, games, EPG and updates together. */
+    /** How streams play: switching, frame rate, Lite mode, format, buffer. */
+    PLAYBACK("Playback", Icons.Filled.PlayCircle),
+    /** Channels and guide, updates. */
     GENERAL("General", Icons.Filled.Tune),
     /** Hidden sports, categories, groups and channels (hold the select button on one to hide it). */
     HIDDEN("Hidden", Icons.Filled.VisibilityOff),
@@ -59,8 +61,8 @@ fun SettingsScreen(model: AppModel) {
             .padding(top = 8.dp, bottom = 8.dp + barInset(model)), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when (section) {
                 Section.ACCOUNT -> Account(model)
+                Section.PLAYBACK -> PlaybackSection(model)
                 Section.GENERAL -> {
-                    PlaybackSection(model)
                     Toggle("Hide SD streams", "Most providers have HD versions of the same channels.", model.settings.hideSD) {
                     model.settings.hideSD = it
                 }
@@ -203,7 +205,7 @@ private fun sport(league: League) = league.sport.title
 private fun Info(label: String, value: String) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp).heightIn(min = 30.dp), verticalAlignment = Alignment.CenterVertically) {
         Label(label, size = 13.sp, color = Theme.muted, modifier = Modifier.weight(1f))
-        Label(value, size = 13.sp)
+        Label(value, size = 13.sp, weight = FontWeight.SemiBold, color = Theme.text)
     }
 }
 
@@ -219,11 +221,13 @@ private fun Action(title: String, detail: String?, value: String? = null, destru
         Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Label(title, size = 13.sp, weight = FontWeight.Medium,
+                // Bright title, dim grey detail, and the value in orange ("Off" grey), so each setting reads at a glance.
+                Label(title, size = 14.sp, weight = FontWeight.SemiBold,
                     color = if (focused) Theme.bg else if (destructive) Theme.losing else Theme.text)
-                if (detail != null) Label(detail, size = 10.sp, color = (if (focused) Theme.bg else Theme.text).copy(alpha = 0.6f), maxLines = 3)
+                if (detail != null) Label(detail, size = 10.sp, color = if (focused) Theme.bg.copy(alpha = 0.75f) else Theme.muted, maxLines = 3)
             }
-            if (value != null) Label(value, size = 12.sp, weight = FontWeight.SemiBold, color = (if (focused) Theme.bg else Theme.text).copy(alpha = 0.8f))
+            if (value != null) Label(value, size = 13.sp, weight = FontWeight.Bold,
+                color = if (focused) Theme.bg else if (value == "Off") Theme.muted else Theme.accent)
         }
     }
 }

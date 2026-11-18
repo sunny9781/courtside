@@ -42,6 +42,9 @@ struct TVPinnedStrip: View {
         .onChange(of: controller.frameRate) {
             if model.nowPlaying == nil { model.recordFrameRate(item.channel.id, controller.frameRate) }
         }
+        .onChange(of: controller.audio) {
+            if model.nowPlaying == nil { model.recordAudio(item.channel.id, controller.audio) }
+        }
     }
 }
 
@@ -55,7 +58,6 @@ struct TVNowPlayingBar: View {
     var body: some View {
         let channel = item.channel
         let now = model.currentProgramme(channel)
-        let next = now.flatMap { n in model.guide[channel.epgID]?.first { $0.start >= n.end } }
         let title = item.gameTitle ?? (now?.title.isEmpty == false ? now!.title : channel.name)
         VStack(spacing: 0) {
             // The same gap above the line as between the player and the line, so pages scrolling under it have room.
@@ -65,6 +67,8 @@ struct TVNowPlayingBar: View {
                 Image(systemName: "speaker.wave.2.fill").font(.system(size: 17)).foregroundStyle(Theme.accent)
                 Text(channel.name).font(.system(size: 20, weight: .semibold)).foregroundStyle(Theme.soft).lineLimit(1)
                 if !controller.resolution.isEmpty { TVBadge(text: controller.resolution) }
+                if controller.frameRate > 0 { TVBadge(text: PlaybackController.fpsLabel(controller.frameRate)) }
+                if !controller.audio.isEmpty { TVBadge(text: controller.audio) }
                 Text(title).font(.system(size: 22, weight: .bold)).foregroundStyle(Theme.text).lineLimit(1)
                 if let now {
                     if !now.title.isEmpty && now.title != title {
@@ -74,10 +78,6 @@ struct TVNowPlayingBar: View {
                         .font(.system(size: 19)).foregroundStyle(Theme.muted).fixedSize()
                     ProgressView(value: min(max(Date().timeIntervalSince(now.start) / max(now.end.timeIntervalSince(now.start), 1), 0), 1))
                         .tint(Theme.accent).frame(width: 160)
-                }
-                if let next {
-                    Text("Next: \(next.start.formatted(date: .omitted, time: .shortened))  \(next.title)")
-                        .font(.system(size: 19)).foregroundStyle(Theme.muted).lineLimit(1)
                 }
                 Spacer(minLength: 0)
             }

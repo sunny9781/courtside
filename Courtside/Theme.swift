@@ -101,9 +101,7 @@ struct TeamBadge: View {
     var body: some View {
         ZStack {
             Circle().fill(Theme.raised)
-            AsyncImage(url: logo) { image in
-                image.resizable().scaledToFit().padding(size * 0.14)
-            } placeholder: {
+            SmallLogoImage(url: logo, size: size, inset: size * 0.14) {
                 Text(abbr)
                     .font(.system(size: size * 0.3, weight: .semibold))
                     .foregroundStyle(Theme.text)

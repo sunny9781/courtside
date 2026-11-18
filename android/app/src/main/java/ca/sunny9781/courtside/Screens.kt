@@ -404,7 +404,6 @@ fun PlayerStrip(model: AppModel, item: NowPlaying, targets: FocusTargets, modifi
 fun NowPlayingBar(model: AppModel, item: NowPlaying, modifier: Modifier = Modifier) {
     val channel = item.channel
     val now = model.currentProgramme(channel)
-    val next = now?.let { n -> model.guide[channel.epgId]?.firstOrNull { it.start >= n.end } }
     val title = model.playerTitle(item)
     // The same gap above the line as between the player and the line, so pages scrolling under it have room.
     Column(modifier.fillMaxWidth().height(Theme.barHeight + Theme.margin).background(Theme.bg)) {
@@ -425,8 +424,6 @@ fun NowPlayingBar(model: AppModel, item: NowPlaying, modifier: Modifier = Modifi
                 val total = (now.end - now.start).toFloat()
                 ProgressLine(if (total > 0) (System.currentTimeMillis() - now.start) / total else 0f, false, width = 90.dp)
             }
-            if (next != null) Label("Next: ${clockTime(next.start)}  ${next.title}", size = 11.sp, color = Theme.muted,
-                modifier = Modifier.weight(1f, fill = false))
         }
     }
 }
@@ -802,6 +799,8 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
 }
 
 private val STATUS_WIDTH = 150.dp
+private val TEAM_WIDTH = 220.dp
+private val SCORE_WIDTH = 30.dp
 
 /**
  * A game as an EPG row, all on one line: when (or LIVE and the clock), the teams with their scores, and how many
@@ -831,14 +830,31 @@ private fun GameRow(game: Game, has4K: Boolean, showLeague: Boolean, modifier: M
                     if (game.eventDetail.isNotEmpty()) Label(game.eventDetail, size = 11.sp, color = text.copy(alpha = 0.75f),
                         modifier = Modifier.weight(1f, fill = false))
                 } else {
-                    // Lite mode: no scores (they aren't updated live there).
+                    // Lined up around the "@" on every row: the first team's score, name and logo end at the "@",
+                    // the second team's logo, name and score start after it. Lite mode: no scores or logos.
                     val showScore = game.state != GameState.UPCOMING && !Perf.lite
-                    listOf(game.away, game.home).forEachIndexed { i, team ->
-                        if (i == 1) Label("@", size = 12.sp, color = text.copy(alpha = 0.6f))
-                        if (!Perf.lite) Logo(team.logo, 16.dp, team.abbr)
-                        Label(team.shortName.ifEmpty { team.name }, size = 13.sp, weight = FontWeight.SemiBold, color = text)
+                    @Composable
+                    fun score(team: Team, end: Boolean) = Box(Modifier.width(SCORE_WIDTH),
+                        contentAlignment = if (end) Alignment.CenterEnd else Alignment.CenterStart) {
                         if (showScore && team.score.isNotEmpty()) Label(team.score, size = 13.sp, weight = FontWeight.Bold,
                             color = if (focused) Theme.bg else scoreColor(game, team))
+                    }
+                    Row(Modifier.width(TEAM_WIDTH), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        score(game.away, end = false)
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+                            Label(game.away.shortName.ifEmpty { game.away.name }, size = 13.sp, weight = FontWeight.SemiBold, color = text)
+                        }
+                        if (!Perf.lite) Logo(game.away.logo, 16.dp, game.away.abbr)
+                    }
+                    Label("@", size = 12.sp, color = text.copy(alpha = 0.6f))
+                    Row(Modifier.width(TEAM_WIDTH), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        if (!Perf.lite) Logo(game.home.logo, 16.dp, game.home.abbr)
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                            Label(game.home.shortName.ifEmpty { game.home.name }, size = 13.sp, weight = FontWeight.SemiBold, color = text)
+                        }
+                        score(game.home, end = true)
                     }
                 }
             }
@@ -871,7 +887,8 @@ private fun SportChannels(model: AppModel, sport: Sport, targets: FocusTargets, 
             }
             items(list, key = { "ch:${it.id}" }, contentType = { "channel" }) { ch ->
                 val k = "ch:${ch.id}"
-                ChannelRow(model, ch, ch.id == playing, Modifier.tracked(targets, k), nameWidth = nameWidth, onFocus = { last = k }) {
+                ChannelRow(model, ch, ch.id == playing, Modifier.tracked(targets, k), nameWidth = nameWidth, showNext = false,
+                    onFocus = { last = k }) {
                     if (ch.id == playing) model.play(ch, null, lineup, from = "home") else model.pin(ch, null, lineup)
                 }
             }

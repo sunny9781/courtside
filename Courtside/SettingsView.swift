@@ -3,10 +3,8 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
-    @AppStorage(Prefs.showFinished) private var showFinished = true
     @AppStorage(Prefs.hideSD) private var hideSD = true
     @AppStorage(Prefs.guideHours) private var guideHours = 6
-    @AppStorage(Prefs.hideAdult) private var hideAdult = true
     @AppStorage(Prefs.refreshHours) private var refreshHours = 6
     @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
     @AppStorage(Prefs.guidePreview) private var guidePreview = true
@@ -130,15 +128,10 @@ struct SettingsView: View {
             }
 
             panel("Games") {
-                toggle("Show finished games", $showFinished)
                 toggle("Hide SD streams", $hideSD)
             }
 
             panel("EPG") {
-                toggle("Adult categories (any with \"adult\" in the name; off by default)", Binding(
-                    get: { !hideAdult },
-                    set: { hideAdult = !$0; Task { await model.applyFilters(); await model.rematch() } }
-                ))
                 setting("Hours to show", "How far ahead the guide goes. Takes effect on the next refresh.") {
                     Picker("", selection: $guideHours) {
                         Text("4").tag(4)
@@ -148,6 +141,27 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 260)
+                }
+            }
+
+            // Categories and channels hidden in the EPG (categories with "adult" in the name start out here).
+            panel("Hidden") {
+                let cats = model.hiddenCategoryNames
+                let chans = model.hiddenChannelNames
+                if cats.isEmpty && chans.isEmpty {
+                    Text("Nothing hidden. Right-click a category or channel in the EPG to hide it.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.muted)
+                } else {
+                    Text("Categories with \"adult\" in the name start out here. Show one to bring it back.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.muted)
+                }
+                ForEach(cats, id: \.id) { item in
+                    hiddenRow(item.name, icon: "folder") { model.setCategoryHidden(item.id, false) }
+                }
+                ForEach(chans, id: \.id) { item in
+                    hiddenRow(item.name, icon: "tv") { model.setChannelHidden(item.id, false) }
                 }
             }
 
@@ -299,6 +313,15 @@ struct SettingsView: View {
     }
 
     // MARK: Pieces
+
+    private func hiddenRow(_ name: String, icon: String, show: @escaping () -> Void) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).foregroundStyle(Theme.muted).frame(width: 18)
+            Text(name).font(.system(size: 13)).foregroundStyle(Theme.text).lineLimit(1)
+            Spacer()
+            Button("Show", action: show).buttonStyle(GhostButtonStyle())
+        }
+    }
 
     private func panel<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 16) {

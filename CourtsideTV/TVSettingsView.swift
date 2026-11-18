@@ -5,7 +5,6 @@ struct TVSettingsView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
     @AppStorage(Prefs.matchFrameRate) private var matchFrameRate = true
-    @AppStorage(Prefs.hideAdult) private var hideAdult = true
     @AppStorage(Prefs.guideGrouped) private var grouped = true
     @AppStorage(Prefs.hideSD) private var hideSD = true
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
@@ -21,7 +20,9 @@ struct TVSettingsView: View {
 
     enum Section: String, CaseIterable, Identifiable {
         case account = "Account"
-        /// Playback, games, EPG and updates together.
+        /// How streams play: switching, frame rate, buffer.
+        case playback = "Playback"
+        /// Channels and guide, updates.
         case general = "General"
         /// Hidden (switched off) sports, categories and channels, to show them again.
         case hidden = "Hidden"
@@ -33,6 +34,7 @@ struct TVSettingsView: View {
             switch self {
             case .account: return "person.crop.circle"
             case .hidden: return "eye.slash"
+            case .playback: return "play.circle"
             case .general: return "slider.horizontal.3"
             case .changelog: return "sparkles"
             }
@@ -158,7 +160,7 @@ struct TVSettingsView: View {
                 }
             }
 
-        case .general:
+        case .playback:
             toggle("Switch to the next stream when one stalls", detail: "USA and Canada streams are tried first.", $autoSwitch)
             toggle("Match frame rate",
                    detail: !DisplayMatcher.available
@@ -171,12 +173,9 @@ struct TVSettingsView: View {
                    value: "\(bufferMs / 1000) s") {
                 bufferMs = next(after: bufferMs, in: [1000, 2000, 3000, 5000])
             }
-            toggle("Hide SD streams", detail: "Most providers have HD versions of the same channels.", $hideSD)
 
-            toggle("Adult categories", detail: "Any category with \"adult\" in its name, and its channels. Off by default.", Binding(
-                get: { !hideAdult },
-                set: { hideAdult = !$0; Task { await model.applyFilters(); await model.rematch() } }
-            ))
+        case .general:
+            toggle("Hide SD streams", detail: "Most providers have HD versions of the same channels.", $hideSD)
 
             action("Download fresh channels and guide after",
                    detail: "Opening the app reuses the saved channels and guide until they're this old. Scores always update every minute.",
@@ -235,7 +234,7 @@ struct TVSettingsView: View {
         HStack {
             Text(label).foregroundStyle(Theme.muted)
             Spacer()
-            Text(value).foregroundStyle(Theme.text)
+            Text(value).fontWeight(.semibold).foregroundStyle(Theme.text)
         }
         .font(.system(size: 26))
         .padding(.horizontal, 22)
@@ -246,19 +245,7 @@ struct TVSettingsView: View {
         Button {
             value.wrappedValue.toggle()
         } label: {
-            HStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title).font(.system(size: 26, weight: .medium))
-                    if let detail {
-                        Text(detail).font(.system(size: 19)).opacity(0.6)
-                    }
-                }
-                Spacer()
-                Text(value.wrappedValue ? "On" : "Off")
-                    .font(.system(size: 24, weight: .semibold))
-                    .opacity(0.8)
-            }
-            .padding(.vertical, 10)
+            TVSettingRow(title: title, detail: detail, value: value.wrappedValue ? "On" : "Off")
         }
         .buttonStyle(TVRowButtonStyle())
     }
@@ -274,23 +261,7 @@ struct TVSettingsView: View {
     private func action(_ title: String, detail: String?, value: String? = nil, destructive: Bool = false,
                         perform: @escaping () -> Void) -> some View {
         Button(action: perform) {
-            HStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.system(size: 26, weight: .medium))
-                        .foregroundStyle(destructive ? Theme.danger : Color.primary)
-                    if let detail {
-                        Text(detail).font(.system(size: 19)).opacity(0.6)
-                    }
-                }
-                Spacer()
-                if let value {
-                    Text(value)
-                        .font(.system(size: 24, weight: .semibold))
-                        .opacity(0.8)
-                }
-            }
-            .padding(.vertical, 10)
+            TVSettingRow(title: title, detail: detail, value: value, destructive: destructive)
         }
         .buttonStyle(TVRowButtonStyle())
     }
@@ -311,5 +282,35 @@ struct TVSettingsView: View {
     private func next(after value: Int, in list: [Int]) -> Int {
         guard let i = list.firstIndex(of: value) else { return list[0] }
         return list[(i + 1) % list.count]
+    }
+}
+
+/// A setting: bright title, dim grey detail, and the value in orange ("Off" grey), so each one reads at a glance.
+struct TVSettingRow: View {
+    @Environment(\.isFocused) private var focused
+    let title: String
+    let detail: String?
+    var value: String?
+    var destructive = false
+
+    var body: some View {
+        HStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 27, weight: .semibold))
+                    .foregroundStyle(focused ? Theme.bg : (destructive ? Theme.danger : Theme.text))
+                if let detail {
+                    Text(detail).font(.system(size: 19))
+                        .foregroundStyle(focused ? Theme.bg.opacity(0.75) : Theme.muted)
+                }
+            }
+            Spacer()
+            if let value {
+                Text(value)
+                    .font(.system(size: 25, weight: .bold))
+                    .foregroundStyle(focused ? Theme.bg : (value == "Off" ? Theme.muted : Theme.accent))
+            }
+        }
+        .padding(.vertical, 10)
     }
 }

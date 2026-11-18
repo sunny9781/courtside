@@ -17,7 +17,8 @@ enum Prefs {
     static let measuredQuality = "measuredQuality"
     static let measuredFrameRate = "measuredFrameRate"
     static let matchFrameRate = "matchFrameRate"
-    static let hideAdult = "hideAdult"             // hide categories (and their channels) with "adult" in the name   // Apple TV: switch the TV's refresh rate to match the stream
+    static let hideAdult = "hideAdult"             // old "Adult categories" switch: read once, to keep them for someone who turned it on
+    static let adultHandled = "adultHandled"       // adult category ids already put in Hidden once, newline-separated
     static let pinnedVideoHeight = "pinnedVideoHeight" // Mac: height of the pinned player's video (dragged)
     static let pinnedVideoScale = "pinnedVideoScale"   // iPhone/iPad: pinned player's width, as a share of the screen
     static let showForeignStreams = "showForeignStreams" // game screens: list foreign-language streams too
