@@ -33,6 +33,10 @@ Nvidia Shield, Chromecast with Google TV, Google TV Streamer, and TVs with Googl
   - Settings › Apps › Security & restrictions › Unknown sources › turn on **Downloader**.
 - **Nvidia Shield and other Android TV:**
   - Settings › Device Preferences › Security & restrictions › Unknown sources › turn on **Downloader**.
+- **Amazon Fire TV Stick** (Fire OS 6 or newer; the 2025 Fire TV Stick 4K Select can't install apps):
+  - Settings › My Fire TV › About › highlight the device name › press OK 7 times until it says you're a developer.
+  - Settings › My Fire TV › Developer options › Install unknown apps › turn on **Downloader**.
+  - After installing, Courtside is under Your Apps (the apps button on the home screen).
 - **Unknown sources is greyed out:** turn on developer mode first (the Google TV step above).
 - **Can't find Unknown sources:** Settings › Apps › Special app access › Install unknown apps › **Downloader**.
 
