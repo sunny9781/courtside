@@ -145,6 +145,14 @@ final class AppModel: ObservableObject {
         return nodes.filter { isFavorite(category: $0.id) } + nodes.filter { !isFavorite(category: $0.id) }
     }
 
+    /// The sound each channel played with ("Stereo", "5.1 Dolby"), shown with its quality and frame rate.
+    @Published var measuredAudio: [Int: String] = [:]
+
+    func recordAudio(_ channelID: Int, _ label: String) {
+        guard !label.isEmpty, measuredAudio[channelID] != label else { return }
+        measuredAudio[channelID] = label
+    }
+
     func recordFrameRate(_ channelID: Int, _ fps: Double) {
         guard fps > 0, measuredFrameRate[channelID] != fps else { return }
         measuredFrameRate[channelID] = fps
@@ -262,17 +270,28 @@ final class AppModel: ObservableObject {
         name.range(of: "adult", options: .caseInsensitive) != nil
     }
 
-    /// Hides adult categories and their channels everywhere (EPG, game streams) when the setting is on.
-    /// Called again when the setting changes.
+    /// A category with "adult" in its name goes into Settings › Hidden the first time it's seen, like one you hid
+    /// yourself: showing it again there sticks. (Someone who had the old "Adult categories" switch on keeps them.)
+    private func hideNewAdultCategories() {
+        let d = UserDefaults.standard
+        let handled = Set((d.string(forKey: Prefs.adultHandled) ?? "").split(separator: "\n").map(String.init))
+        let fresh = rawCategories.filter { Self.isAdult($0.name) && !handled.contains($0.id) }.map(\.id)
+        guard !fresh.isEmpty else { return }
+        if d.bool(forKey: Prefs.hideAdult) {
+            for id in fresh where !hiddenCategoryIDs.contains(id) { hiddenCategoryIDs.append(id) }
+            d.set(hiddenCategoryIDs.joined(separator: "\n"), forKey: Prefs.hiddenCategories)
+        }
+        d.set((Array(handled) + fresh).joined(separator: "\n"), forKey: Prefs.adultHandled)
+    }
+
+    /// Hides what's in Settings › Hidden everywhere (EPG, game streams). Called again when that changes.
     func applyFilters() async {
-        let hide = UserDefaults.standard.bool(forKey: Prefs.hideAdult)
+        hideNewAdultCategories()
         let hiddenCats = Set(hiddenCategoryIDs)
         let hiddenChans = Set(hiddenChannelIDs)
-        let cats = rawCategories.filter { (!hide || !Self.isAdult($0.name)) && !hiddenCats.contains($0.id) }
+        let cats = rawCategories.filter { !hiddenCats.contains($0.id) }
         let kept = Set(cats.map(\.id))
-        let list = rawChannels.filter {
-            kept.contains($0.categoryID) && (!hide || !Self.isAdult($0.categoryName)) && !hiddenChans.contains($0.id)
-        }
+        let list = rawChannels.filter { kept.contains($0.categoryID) && !hiddenChans.contains($0.id) }
         // Hidden groups ("__node:" ids) leave the tree; their categories stay wherever else they're listed.
         func prune(_ nodes: [CategoryGrouping.Node]) -> [CategoryGrouping.Node] {
             nodes.filter { !hiddenCats.contains($0.id) }.map {

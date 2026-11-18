@@ -52,3 +52,38 @@ extension Game {
         }
     }
 }
+
+extension URL {
+    /// ESPN's logos are 500-pixel images; rows show them at about 30 points. ESPN's image server sends them at the
+    /// size they're shown (sharp on a 4K TV and Retina screens too), so there's much less to download and shrink.
+    /// Other addresses are left as they are.
+    func smallLogo(_ size: CGFloat) -> URL {
+        let s = absoluteString
+        let prefix = "https://a.espncdn.com/i/"
+        guard s.hasPrefix(prefix), query == nil else { return self }
+        let px = Int(min(max(size * 3, 48), 160))
+        return URL(string: "https://a.espncdn.com/combiner/i?img=/i/\(s.dropFirst(prefix.count))&w=\(px)&h=\(px)") ?? self
+    }
+}
+
+/// A logo at the size it's shown; if the small version won't load, the full-size one.
+struct SmallLogoImage<Placeholder: View>: View {
+    let url: URL?
+    let size: CGFloat
+    var inset: CGFloat = 0
+    @ViewBuilder let placeholder: () -> Placeholder
+    @State private var failed = false
+
+    var body: some View {
+        AsyncImage(url: failed ? url : url?.smallLogo(size)) { phase in
+            switch phase {
+            case .success(let image):
+                image.resizable().scaledToFit().padding(inset)
+            case .failure:
+                placeholder().onAppear { if !failed { failed = true } }
+            default:
+                placeholder()
+            }
+        }
+    }
+}

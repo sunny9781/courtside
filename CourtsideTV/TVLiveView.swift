@@ -433,10 +433,15 @@ struct TVChannelRow: View {
     var badge: String? = nil
     /// A set width for the name keeps it on one line (the game screen); otherwise it can wrap onto two.
     var nameWidth: CGFloat? = nil
+    /// The EPG shows what's next; the game screen and channel sports show the stream's tags there instead.
+    var showNext = true
 
     var body: some View {
         let now = model.currentProgramme(channel)
-        let next = now.flatMap { n in model.guide[channel.epgID]?.first { $0.start >= n.end } }
+        let next = showNext ? now.flatMap { n in model.guide[channel.epgID]?.first { $0.start >= n.end } } : nil
+        let quality = (badge?.isEmpty == false ? badge : nil) ?? model.measuredQuality[channel.id]
+        let fps = model.measuredFrameRate[channel.id] ?? 0
+        let sound = model.measuredAudio[channel.id]
         HStack(spacing: 0) {
             HStack(spacing: 16) {
                 TVChannelIcon(url: channel.icon, size: 48)
@@ -468,15 +473,23 @@ struct TVChannelRow: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(next.map { "\($0.start.formatted(date: .omitted, time: .shortened))  \($0.title)" } ?? "")
-                .font(.system(size: 21))
-                .opacity(0.65)
-                .lineLimit(1)
-                .frame(width: 360, alignment: .leading)
-            if let badge, !badge.isEmpty {
-                TVBadge(text: badge, fill: badge == "4K" ? Theme.accent : Theme.raised,
-                        color: badge == "4K" ? Theme.onAccent : Theme.soft)
+            if showNext {
+                Text(next.map { "\($0.start.formatted(date: .omitted, time: .shortened))  \($0.title)" } ?? "")
+                    .font(.system(size: 21))
+                    .opacity(0.65)
+                    .lineLimit(1)
+                    .frame(width: 360, alignment: .leading)
             }
+            // What it really played at, once it has (resolution, frame rate, sound).
+            HStack(spacing: 8) {
+                if let quality, !quality.isEmpty {
+                    TVBadge(text: quality, fill: quality == "4K" ? Theme.accent : Theme.raised,
+                            color: quality == "4K" ? Theme.onAccent : Theme.soft)
+                }
+                if fps > 0 { TVBadge(text: PlaybackController.fpsLabel(fps)) }
+                if let sound { TVBadge(text: sound) }
+            }
+            .frame(width: showNext ? nil : 400, alignment: .leading)
         }
     }
 

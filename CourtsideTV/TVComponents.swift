@@ -189,9 +189,7 @@ struct TVTeamLogo: View {
     var body: some View {
         Group {
             if let url = team.logo {
-                AsyncImage(url: url) { image in
-                    image.resizable().scaledToFit()
-                } placeholder: {
+                SmallLogoImage(url: url, size: size) {
                     fallback
                 }
             } else {
@@ -218,9 +216,7 @@ struct TVLeagueLogo: View {
 
     var body: some View {
         if let url = model.leagueLogos[league.id] {
-            AsyncImage(url: url) { image in
-                image.resizable().scaledToFit()
-            } placeholder: {
+            SmallLogoImage(url: url, size: size) {
                 Color.clear
             }
             .frame(width: size, height: size)
@@ -258,9 +254,7 @@ struct TVChannelIcon: View {
     var body: some View {
         Group {
             if let url {
-                AsyncImage(url: url) { image in
-                    image.resizable().scaledToFit()
-                } placeholder: {
+                SmallLogoImage(url: url, size: size) {
                     symbol
                 }
             } else {

@@ -92,6 +92,7 @@ struct TVPlayerView: View {
                 model.recordQuality(item.channel.id, controller.resolution)
             }
         }
+        .onChange(of: controller.audio) { model.recordAudio(item.channel.id, controller.audio) }
         .onChange(of: controller.frameRate) {
             model.recordFrameRate(item.channel.id, controller.frameRate)
             if matchFrameRate { DisplayMatcher.match(frameRate: controller.frameRate, height: controller.resolution) }
@@ -224,6 +225,9 @@ struct TVPlayerView: View {
             }
             if controller.frameRate > 0 {
                 TVBadge(text: PlaybackController.fpsLabel(controller.frameRate))
+            }
+            if !controller.audio.isEmpty {
+                TVBadge(text: controller.audio)
             }
         }
         .padding(.horizontal, 80)

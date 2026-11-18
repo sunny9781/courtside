@@ -74,6 +74,21 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.76", date: "2026-11-18", time: "01:05", title: "Every app lined up", changes: [
+            Change(text: "Home: the teams line up around the @ on every row, with the first team's score before its name.", apps: tvAndroid),
+            Change(text: "Settings: Playback has its own section, and every setting reads more clearly (white title, grey detail, the value in orange).", apps: tvAndroid),
+            Change(text: "The now-playing bar no longer shows what's next; channel sports (like pickleball) show each stream's resolution, frame rate and sound instead of what's next.", apps: tvAndroid),
+            Change(text: "Home: finished games fold into one line (Finished · 6); click it to show them.", apps: [.mac, .tv, .ios]),
+            Change(text: "Home: the number of streams per game is gone; 4K games still show a 4K tag.", apps: [.mac, .tv, .ios]),
+            Change(text: "Categories with \"adult\" in the name start out in Settings › Hidden, where you can show them again. The Adult categories switch is gone.", apps: [.mac, .tv, .ios]),
+            Change(text: "Settings › Hidden: categories and channels you've hidden, to show them again.", apps: [.mac, .ios]),
+            Change(text: "Show finished games is gone from Settings (finished games fold on Home instead).", apps: [.mac, .ios]),
+            Change(text: "The sound (Stereo, 5.1 Dolby...) shows next to the resolution and frame rate while a stream plays.", apps: [.mac, .tv]),
+            Change(text: "Game screen and EPG: streams you've played show their resolution, frame rate and sound; the game screen shows them where what's next used to be.", apps: tv),
+            Change(text: "The now-playing bar shows the frame rate and sound too.", apps: tv),
+            Change(text: "Home and the tabs: moving through them only shows a page once you stop on it, so passing several is quicker.", apps: tv),
+            Change(text: "Team and league logos are downloaded at the size they're shown.", apps: [.mac, .tv, .ios])
+        ], titleApps: [.mac, .tv, .ios, .android]),
         Release(version: "1.75", date: "2026-11-18", time: "00:35", title: "Adult categories in Hidden", changes: [
             Change(text: "The Adult categories switch is gone: any category with \"adult\" in its name now starts out in Settings › Hidden, where you can show it again like anything else you've hidden.", apps: android)
         ]),

@@ -78,6 +78,9 @@ struct PinnedPlayerBar<Details: View>: View {
         .onChange(of: controller.frameRate) {
             if !hidden { model.recordFrameRate(item.channel.id, controller.frameRate) }
         }
+        .onChange(of: controller.audio) {
+            if !hidden { model.recordAudio(item.channel.id, controller.audio) }
+        }
     }
 
     private var videoWidth: CGFloat { height * 16 / 9 }
@@ -113,6 +116,7 @@ struct PinnedPlayerBar<Details: View>: View {
         HStack(spacing: 6) {
             if !controller.resolution.isEmpty { Badge(text: controller.resolution).fixedSize() }
             if controller.frameRate > 0 { Badge(text: PlaybackController.fpsLabel(controller.frameRate)).fixedSize() }
+            if !controller.audio.isEmpty { Badge(text: controller.audio).fixedSize() }
         }
     }
 
@@ -289,6 +293,7 @@ struct PinnedInfo: View {
                 HStack(spacing: 6) {
                     if !controller.resolution.isEmpty { Badge(text: controller.resolution).fixedSize() }
                     if controller.frameRate > 0 { Badge(text: PlaybackController.fpsLabel(controller.frameRate)).fixedSize() }
+            if !controller.audio.isEmpty { Badge(text: controller.audio).fixedSize() }
                 }
             }
             if item.gameTitle == nil, let now = model.currentProgramme(item.channel) {
@@ -297,12 +302,6 @@ struct PinnedInfo: View {
                         .font(.system(size: 12))
                         .foregroundStyle(Theme.soft)
                         .lineLimit(2)
-                }
-                if let next = model.guide[item.channel.epgID]?.first(where: { $0.start >= now.end }) {
-                    Text("Next: \(next.title) at \(next.start.formatted(date: .omitted, time: .shortened))")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.muted)
-                        .lineLimit(1)
                 }
                 // A game on now: jump to all of its streams.
                 if let gameID = model.guideLinks[Matcher.linkKey(item.channel.epgID, now.start)] {
@@ -352,6 +351,7 @@ struct PopOutPlayer: View {
                     Text(item.channel.name).font(.system(size: 12)).foregroundStyle(.white.opacity(0.7))
                     if !controller.resolution.isEmpty { Badge(text: controller.resolution) }
                     if controller.frameRate > 0 { Badge(text: PlaybackController.fpsLabel(controller.frameRate)) }
+                    if !controller.audio.isEmpty { Badge(text: controller.audio) }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)

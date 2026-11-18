@@ -106,6 +106,7 @@ struct PlayerView: View {
         .onChange(of: controller.frameRate) {
             model.recordFrameRate(item.channel.id, controller.frameRate)
         }
+        .onChange(of: controller.audio) { model.recordAudio(item.channel.id, controller.audio) }
         .onDisappear {
             hideTask?.cancel()
             flipTask?.cancel()
@@ -280,6 +281,9 @@ struct PlayerView: View {
             }
             if controller.frameRate > 0 {
                 Badge(text: PlaybackController.fpsLabel(controller.frameRate))
+            }
+            if !controller.audio.isEmpty {
+                Badge(text: controller.audio)
             }
 
             Button {

@@ -99,6 +99,8 @@ struct IOSGamesList: View {
     @AppStorage(Prefs.sportOrder) private var sportOrderPref = ""
     @AppStorage(Prefs.favoriteSports) private var favoriteSports = ""
     let showsSportChips: Bool
+    /// Sections whose finished games are open (they fold into one "Finished · 6" line under the cards).
+    @State private var openFinished: Set<String> = []
 
     struct GameSection: Identifiable {
         let id: String
@@ -187,7 +189,10 @@ struct IOSGamesList: View {
                                       ? [GridItem(.flexible(), spacing: 12)]
                                       : [GridItem(.adaptive(minimum: width, maximum: width), spacing: 12, alignment: .top)],
                                   alignment: .leading, spacing: 12) {
-                            ForEach(section.games) { game in
+                            let finished = section.id == "finals" ? [] : section.games.filter { $0.state == .finished }
+                            let shown = finished.isEmpty || openFinished.contains(section.id)
+                                ? section.games : section.games.filter { $0.state != .finished }
+                            ForEach(shown) { game in
                                 NavigationLink(value: game.id) {
                                     IOSGameCard(game: game, showLeague: nav.homeSelection == .liveNow)
                                 }
@@ -195,6 +200,21 @@ struct IOSGamesList: View {
                             }
                         }
                         .padding(.horizontal)
+                        let finishedCount = section.id == "finals" ? 0 : section.games.filter { $0.state == .finished }.count
+                        if finishedCount > 0 {
+                            Button {
+                                if openFinished.contains(section.id) { openFinished.remove(section.id) } else { openFinished.insert(section.id) }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: openFinished.contains(section.id) ? "chevron.down" : "chevron.right")
+                                        .font(.caption.bold())
+                                    Text("Finished · \(finishedCount)").font(.subheadline.weight(.semibold))
+                                }
+                                .foregroundStyle(Theme.muted)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal)
+                        }
                     }
                 }
             }
@@ -395,7 +415,6 @@ struct IOSGameCard: View {
     let game: Game
     var showLeague = false
 
-    private var streams: Int { model.streamCount(game.id) }
     private var has4K: Bool { model.mainStreams(game.id).contains { $0.is4K } }
 
     var body: some View {
@@ -407,12 +426,6 @@ struct IOSGameCard: View {
                     .lineLimit(1)
                 Spacer(minLength: 4)
                 if has4K { IOSBadge(text: "4K", fill: Theme.accent, color: Theme.onAccent) }
-                Text(streams == 0 ? "No streams" : "\(streams)")
-                    .font(.caption)
-                    .foregroundStyle(streams == 0 ? Theme.danger : Theme.muted)
-                if streams > 0 {
-                    Image(systemName: "play.tv").font(.caption2).foregroundStyle(Theme.muted)
-                }
             }
             if game.isEvent && !game.hasSides {
                 VStack(alignment: .leading, spacing: 4) {
