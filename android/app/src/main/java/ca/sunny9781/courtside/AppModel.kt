@@ -54,7 +54,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
      * New games keep the old ones where nothing about them changed, so when one score ticks over only that game's
      * row is drawn again (not every row on Home).
      */
-    private fun setGames(list: List<Game>) {
+    private fun updateGames(list: List<Game>) {
         val old = games.associateBy { it.id }
         games = list.map { n -> old[n.id]?.takeIf { it == n } ?: n }
     }
@@ -396,7 +396,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val unchanged = signature == scheduleSignature && matches.isNotEmpty()
         scheduleSignature = signature
         // Guide-built events (pickleball) stay put until rematch rebuilds them, so their cards don't blink.
-        setGames(visible(list) + games.filter { it.id.startsWith("guide-") })
+        updateGames(visible(list) + games.filter { it.id.startsWith("guide-") })
         if (!unchanged) rematch()
     }
 
@@ -422,7 +422,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             extra to m
         }
         if (gs.isEmpty()) return
-        setGames(games.filter { !it.id.startsWith("guide-") } + gs)
+        updateGames(games.filter { !it.id.startsWith("guide-") } + gs)
         matches = matches + ms
     }
 
@@ -461,7 +461,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             m to extra
         }
         if (guideGames.isNotEmpty() || games.any { it.id.startsWith("guide-") }) {
-            setGames(visible(allGames) + guideGames)
+            updateGames(visible(allGames) + guideGames)
         }
         matches = found
         withContext(Dispatchers.IO) { Cache.saveMatches(context, found) }
@@ -499,7 +499,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun leagueFilterChanged() {
-        setGames(visible(allGames))
+        updateGames(visible(allGames))
         viewModelScope.launch { rematch() }
     }
 
