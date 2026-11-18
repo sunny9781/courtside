@@ -50,6 +50,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     var games by mutableStateOf<List<Game>>(emptyList())
         private set
     private var allGames: List<Game> = emptyList()
+    /** Canadian, UK and European broadcasters from the official schedules and the rights table (BroadcastSources). */
+    private var extraBroadcasts: Map<String, List<Broadcast>> = emptyMap()
+    private var broadcastsJob: Job? = null
     private var rawCategories: List<ChannelCategory> = emptyList()
     private var rawChannels: List<Channel> = emptyList()
     /** Resolution and frame rate each channel really played at, which beat what its name says. */
@@ -288,6 +291,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         credentials = null
         Prefs.saveCredentials(context, null)
         channels = emptyList(); categories = emptyList(); matches = emptyMap(); guide = emptyMap(); account = null
+        extraBroadcasts = emptyMap()
     }
 
     // MARK: Loading
@@ -322,8 +326,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                     loading = false
                     launch { runCatching { account = client.login() } }
                     val g = savedGuide.await()
-                    if (g.isNotEmpty()) guide = g
+                    if (g.isNotEmpty()) { guide = g; matchGuideSports() }
                     loadScores()    // matches today's games with the guide already in place
+                    loadBroadcasts()
                     if (g.isEmpty()) loadGuide(client)
                     return@launch
                 }
@@ -333,6 +338,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 rawChannels = chans
                 applyFilters()
                 loadScores()
+                loadBroadcasts()
                 updatedAt = System.currentTimeMillis()
                 withContext(Dispatchers.IO) { Cache.saveLive(context, owner, cats, chans) }
                 loadGuide(client)
@@ -355,6 +361,22 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * The second source of broadcasters (official NHL, NBA and MLB schedules and the rights table), so a game also
+     * lists its Sportsnet, TSN, Sky… channels and their 4K feeds, like the Apple apps. Fetched once per refresh,
+     * in the background; the games are matched again when it's in.
+     */
+    private fun loadBroadcasts() {
+        val todays = games.filter { !it.id.startsWith("guide-") }
+        if (todays.isEmpty()) return
+        broadcastsJob?.cancel()
+        broadcastsJob = viewModelScope.launch {
+            val found = runCatching { BroadcastSources.fetch(context, todays) }.getOrNull() ?: return@launch
+            extraBroadcasts = found
+            rematch()
+        }
+    }
+
     private suspend fun loadScores() {
         // Hidden sports and leagues are switched off: no scores fetched, nothing matched.
         val (list, logos) = Espn.schedule(activeLeagues())
@@ -367,6 +389,32 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         // Guide-built events (pickleball) stay put until rematch rebuilds them, so their cards don't blink.
         games = visible(list) + games.filter { it.id.startsWith("guide-") }
         if (!unchanged) rematch()
+    }
+
+    /**
+     * Channel sports (Fighting, pickleball…) come from the guide only, so they don't need today's scores: on reopen
+     * they're matched from the saved guide straight away instead of waiting for the scores to download.
+     */
+    private suspend fun matchGuideSports() {
+        val ch = indexed
+        val gd = guide
+        val measured = measuredQuality
+        val now = System.currentTimeMillis()
+        val active = activeLeagues().map { it.id }.toSet()
+        val (gs, ms) = withContext(background) {
+            val extra = mutableListOf<Game>()
+            val m = HashMap<String, List<StreamMatch>>()
+            for (league in League.all) {
+                if (league.path.isNotEmpty() || league.id !in active) continue
+                val (g, found) = Matcher.guideEvents(league, ch, gd, measured, now)
+                extra += g
+                m.putAll(found)
+            }
+            extra to m
+        }
+        if (gs.isEmpty()) return
+        games = games.filter { !it.id.startsWith("guide-") } + gs
+        matches = matches + ms
     }
 
     private suspend fun loadGuide(client: XtreamClient) {
@@ -387,11 +435,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val ch = indexed
         val gd = guide
         val rec = recent.toSet()
+        val extras = extraBroadcasts
         val measured = measuredQuality
         val now = System.currentTimeMillis()
         val active = activeLeagues().map { it.id }.toSet()
         val (found, guideGames) = withContext(background) {
-            val m = Matcher.matchAll(g.filter { !it.id.startsWith("guide-") }, ch, gd, measured, rec, now).toMutableMap()
+            val m = Matcher.matchAll(g.filter { !it.id.startsWith("guide-") }, ch, gd, measured, rec, now, extras).toMutableMap()
             // Sports with no schedule feed (pickleball): events and channels from the guide.
             val extra = mutableListOf<Game>()
             for (league in League.all) {
