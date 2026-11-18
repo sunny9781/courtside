@@ -282,14 +282,14 @@ fun EpgScreen(model: AppModel) {
                         item(key = "hit:${hit.id}") {
                             HitHeader(hit, open) { flipped = if (hit.id in flipped) flipped - hit.id else flipped + hit.id }
                         }
-                        if (open) items(hit.channels, key = { "h:${hit.id}:${it.id}" }) { ch ->
+                        if (open) items(hit.channels, key = { "h:${hit.id}:${it.id}" }, contentType = { "channel" }) { ch ->
                             val k = "h:${hit.id}:${ch.id}"
                             ChannelRow(model, ch, ch.id == playing?.id, Modifier.tracked(rows, k), onLongClick = { holdChannel(ch) },
                                 nameWidth = nameWidth, onFocus = { focusedChannel = ch.id; lastRow = k }) { click(ch, hit.channels) }
                         }
                     }
                 } else {
-                    items(channels, key = { "c:${it.id}" }) { ch ->
+                    items(channels, key = { "c:${it.id}" }, contentType = { "channel" }) { ch ->
                         val k = "c:${ch.id}"
                         ChannelRow(model, ch, ch.id == playing?.id, Modifier.tracked(rows, k), onLongClick = { holdChannel(ch) },
                             nameWidth = nameWidth, onFocus = { focusedChannel = ch.id; lastRow = k }) { click(ch, channels) }
@@ -391,7 +391,7 @@ internal fun CategoryRow(
 /** A channel: logo and name, what's on now (with progress), and what's next. */
 @Composable
 internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, modifier: Modifier, badge: String? = null,
-                        nameWidth: androidx.compose.ui.unit.Dp? = null,
+                        nameWidth: androidx.compose.ui.unit.Dp? = null, showNext: Boolean = true,
                         onLongClick: (() -> Unit)? = null, onFocus: () -> Unit, onClick: () -> Unit) {
     val nowNext = model.nowNext(channel)
     val now = nowNext.now
@@ -416,13 +416,15 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
                     ProgressLine(if (total > 0) (System.currentTimeMillis() - now.start) / total else 0f, focused)
                 }
             }
-            Label(next?.let { "${clockTime(it.start)}  ${it.title}" } ?: "", size = 11.sp, color = color.copy(alpha = 0.65f),
-                modifier = Modifier.width(NEXT_WIDTH))
+            // The game screen shows the stream's tags where the EPG shows what's next.
+            if (showNext) Label(next?.let { "${clockTime(it.start)}  ${it.title}" } ?: "", size = 11.sp,
+                color = color.copy(alpha = 0.65f), modifier = Modifier.width(NEXT_WIDTH))
             // What it really played at, once it has (resolution, frame rate, sound), on the EPG and the game screen.
             val quality = badge?.takeIf { it.isNotEmpty() } ?: model.measuredQuality[channel.id]
             val fps = model.measuredFrameRate[channel.id]
             val sound = model.measuredAudio[channel.id]
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.then(if (showNext) Modifier else Modifier.width(NEXT_WIDTH + 40.dp)),
+                horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (!quality.isNullOrEmpty()) Badge(quality, fill = if (quality == "4K") Theme.accent else Theme.raised,
                     color = if (quality == "4K") Theme.onAccent else Theme.soft)
                 if (fps != null && fps > 0) Badge(Playback.fpsLabel(fps), fill = Theme.raised, color = Theme.soft)

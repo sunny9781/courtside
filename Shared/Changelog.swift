@@ -74,6 +74,12 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.74", date: "2026-11-18", time: "00:25", title: "Quicker Home, tags on the game screen", changes: [
+            Change(text: "Home: finished games fold into one row at the bottom (Finished · 6); click it to show them. Pages draw only what's live or coming up, so moving between sports is quicker.", apps: android),
+            Change(text: "Home: the number of streams per game is gone (less to draw); 4K games still show a 4K tag.", apps: android),
+            Change(text: "Switching sports, categories or channel lists reuses the rows already on screen instead of building new ones.", apps: android),
+            Change(text: "Game screen: each stream shows its resolution, frame rate and sound where the next programme used to be (once you've played it).", apps: android)
+        ]),
         Release(version: "1.73", date: "2026-11-17", time: "23:59", title: "Sound on Bluetooth headphones, and the sound shown", changes: [
             Change(text: "Channels with Dolby sound (most 4K ones) play through Bluetooth headphones and speakers: the app decodes it when the TV box can't. Over HDMI it still goes to the TV as before.", apps: android),
             Change(text: "Connecting or disconnecting headphones while a Dolby channel plays reopens it for the new output, so the sound doesn't drop.", apps: android),
