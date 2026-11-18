@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.68", date: "2026-11-17", time: "21:53", title: "More channels for each game", changes: [
+            Change(text: "Games also list their Canadian, UK and European channels (Sportsnet, TSN, Sky…) and those channels' 4K feeds, from the official NHL, NBA and MLB schedules and a table of who holds the rights, like on Apple TV. Networks that only usually carry a league are under Local and likely.", apps: android),
+            Change(text: "Channel sports (Fighting, pickleball…) show their streams straight away when the app opens, instead of after today's scores load.", apps: android)
+        ]),
         Release(version: "1.67", date: "2026-11-17", time: "20:00", title: "Tidier Settings, slimmer now-playing bar, hold Play/Pause for full screen", changes: [
             Change(text: "Settings: the section list and the settings beside it line up the same way as Home and the EPG.", apps: tv),
             Change(text: "The now-playing bar sits at the very bottom of the screen and is slimmer (no big empty strip under it).", apps: tv),

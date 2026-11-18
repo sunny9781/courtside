@@ -387,7 +387,8 @@ object Matcher {
     /** Every game's streams at once, best match first. */
     fun matchAll(
         games: List<Game>, channels: List<Indexed>, guide: Map<String, List<Programme>>,
-        measured: Map<Int, String>, recent: Set<Int>, now: Long
+        measured: Map<Int, String>, recent: Set<Int>, now: Long,
+        extras: Map<String, List<Broadcast>> = emptyMap()
     ): Map<String, List<StreamMatch>> {
         val keys = games.map { key(it, now) }
         val triggers = keys.flatMap { it.triggers }.toSet()
@@ -411,9 +412,9 @@ object Matcher {
             if (c.tokenSet.none { it in triggers }) continue
             for (k in keys) if (matches(c.tokens, c.tokenSet, k)) nameHits.getOrPut(k.game.id) { HashSet() }.add(c.channel.id)
         }
-        // 3. Broadcasters
+        // 3. Broadcasters (ESPN's list plus the official schedules and rights table), worked out once per network name
         val broadcasterHits = HashMap<String, Set<Int>>()
-        for (name in games.flatMap { it.broadcasters }.toSet()) {
+        for (name in (games.flatMap { it.broadcasters } + extras.values.flatMap { l -> l.map { it.name } }).toSet()) {
             broadcasterHits[name] = if (isCallSign(name)) {
                 live.filter { c -> c.channel.name.split(Regex("[^\\p{L}\\p{N}]+")).contains(name) }.map { it.channel.id }.toSet()
             } else {
@@ -433,29 +434,42 @@ object Matcher {
             val named = nameHits[id] ?: emptySet<Int>()
             val inGuide = (guideHits[id] ?: emptySet<String>()).flatMap { byEpg[it] ?: emptyList() }.toSet()
             val broadcast = HashMap<Int, String>()
-            for (b in k.game.broadcasters) {
-                for (cid in broadcasterHits[b] ?: emptySet()) {
+            val likely = HashMap<Int, String>()
+            val sources = k.game.broadcasters.map { Broadcast(it, null, true) } + (extras[id] ?: emptyList())
+            for (b in sources) {
+                val label = b.country?.let { "${b.name} ($it)" } ?: b.name
+                for (cid in broadcasterHits[b.name] ?: emptySet()) {
                     if (cid in broadcast) continue
                     val ic = byId[cid] ?: continue
                     if (cid !in named && cid !in inGuide && (aboutOtherSport(ic, k) || isOtherEvent(ic))) continue
-                    broadcast[cid] = b
+                    // A network named for a country only matches channels for that country (or with no country).
+                    val actual = countryOf(ic.channel)
+                    if (b.country != null && actual != null && actual != b.country) continue
+                    if (b.confirmed) {
+                        broadcast[cid] = label
+                        likely.remove(cid)
+                    } else if (cid !in likely && guideAllows(ic.channel, k, guide)) {
+                        likely[cid] = label
+                    }
                 }
             }
             val list = mutableListOf<StreamMatch>()
-            for (cid in named + inGuide + broadcast.keys) {
+            for (cid in named + inGuide + broadcast.keys + likely.keys) {
                 val c = byId[cid] ?: continue
                 val reasons = mutableListOf<String>()
                 var score = 0
                 if (cid in named) { reasons += "Channel name has the teams"; score += 3 }
                 if (cid in inGuide) { reasons += "In the guide"; score += 3 }
-                broadcast[cid]?.let { reasons += "Broadcaster: $it"; score += 2 }
+                val b = broadcast[cid]
+                if (b != null) { reasons += "Broadcaster: $b"; score += 2 }
+                else likely[cid]?.let { reasons += "Usually on: $it"; score += 1 }
                 var q = quality(c.tokenSet)
                 if (q.second < 4 && Categories.isUHD(c.channel.categoryName)) q = "4K" to 4
                 measured[cid]?.let { q = it to rankOf(it) }
                 // 4K channels mostly carry only chosen events, so the network alone isn't enough.
                 if (q.second == 4 && cid !in named && cid !in inGuide) {
                     if (!guideAllows(c.channel, k, guide)) continue
-                    reasons.clear(); reasons += "4K version of ${broadcast[cid] ?: ""}, not confirmed for this game"
+                    reasons.clear(); reasons += "4K version of ${broadcast[cid] ?: likely[cid] ?: ""}, not confirmed for this game"
                     score = 1
                 }
                 list += StreamMatch(c.channel, reasons.joinToString(" · "), score, q.first, q.second, cid in recent,
