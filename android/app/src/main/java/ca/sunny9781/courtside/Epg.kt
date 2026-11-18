@@ -129,7 +129,14 @@ fun EpgScreen(model: AppModel) {
     val holder = remember { androidx.compose.ui.focus.FocusRequester() }
     val holding = remember { BooleanArray(1) }
     var focusAfterMove by remember { mutableStateOf<String?>(null) }
+    // Moving through the categories shows a category's channels once you stop on it, so passing several doesn't
+    // draw (and save) each one. Clicking, or pressing right into the channels, is instant.
+    val settle = rememberSettle()
+    fun pick(id: String) {
+        if (s.guideCategory != id) settle.later { s.guideCategory = id } else settle.cancel()
+    }
     fun go(path: List<String>, then: String? = null) {
+        settle.cancel()
         holding[0] = true
         runCatching { holder.requestFocus() }
         focusAfterMove = then
@@ -186,7 +193,7 @@ fun EpgScreen(model: AppModel) {
         Box(Modifier.size(1.dp).focusRequester(holder).focusProperties { canFocus = holding[0] }
             .focusable())
         LazyColumn(Modifier.width(CATEGORY_WIDTH).fillMaxHeight().padding(bottom = topInset(model)).focusRequester(model.leftPanel)
-            .enterAt { if (justBack()) rows[returnRow()] else cats["cat:$categoryTarget"] },
+            .flushOn(settle, androidx.compose.ui.focus.FocusDirection.Right).enterAt { if (justBack()) rows[returnRow()] else cats["cat:$categoryTarget"] },
             verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             // One search for categories and channels; results show on the right.
             // Enter (or Search) on the keyboard closes it and goes to the first result.
@@ -205,14 +212,14 @@ fun EpgScreen(model: AppModel) {
             if (model.guidePath.isEmpty()) {
                 if (favChannels.isNotEmpty()) item(key = "fav") {
                     CategoryRow(cats, "cat:$FAVORITES", Icons.Filled.Favorite, "Favourites", "${model.favoriteChannelList().size}",
-                        selected?.id == FAVORITES, onFocus = { if (s.guideCategory != FAVORITES) s.guideCategory = FAVORITES }) {
-                        s.guideCategory = FAVORITES
+                        selected?.id == FAVORITES, onFocus = { pick(FAVORITES) }) {
+                        settle.now { s.guideCategory = FAVORITES }
                     }
                 }
                 items(favEntries, key = { "fav:${it.id}" }) { e ->
                     CategoryRow(cats, "cat:${e.id}", null, e.name, "${count(model, e.categories)}", selected?.id == e.id,
                         favorite = true, onLongClick = { holdCategory(e.id, e.name) },
-                        onFocus = { if (s.guideCategory != e.id) s.guideCategory = e.id }) { s.guideCategory = e.id }
+                        onFocus = { pick(e.id) }) { settle.now { s.guideCategory = e.id } }
                 }
                 if (favChannels.isNotEmpty() || favEntries.isNotEmpty()) item(key = "favline") {
                     Box(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp).height(1.dp)
@@ -234,20 +241,20 @@ fun EpgScreen(model: AppModel) {
                     if (node.isGroup) {
                         CategoryRow(cats, "cat:$k", Icons.Filled.Folder, node.name, "${node.categories.size}", selected?.id == k,
                             trailing = Icons.Filled.ChevronRight, favorite = fav, onLongClick = { holdCategory(k, node.name) },
-                            onFocus = { if (s.guideCategory != k) s.guideCategory = k }) {
+                            onFocus = { pick(k) }) {
                             go(model.guidePath + node.id)
                         }
                     } else {
                         CategoryRow(cats, "cat:$k", null, node.name, "${count(model, node.categories)}", selected?.id == k,
                             favorite = fav, onLongClick = { holdCategory(k, node.name) },
-                            onFocus = { if (s.guideCategory != k) s.guideCategory = k }) { s.guideCategory = k }
+                            onFocus = { pick(k) }) { settle.now { s.guideCategory = k } }
                     }
                 }
             } else {
                 items(entries.filter { !model.isFavoriteCategory(it.id) }, key = { it.id }) { e ->
                     CategoryRow(cats, "cat:${e.id}", null, e.name, "${count(model, e.categories)}", selected?.id == e.id,
                         onLongClick = { holdCategory(e.id, e.name) },
-                        onFocus = { if (s.guideCategory != e.id) s.guideCategory = e.id }) { s.guideCategory = e.id }
+                        onFocus = { pick(e.id) }) { settle.now { s.guideCategory = e.id } }
                 }
             }
         }

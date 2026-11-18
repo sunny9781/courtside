@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.71", date: "2026-11-17", time: "22:55", title: "Faster moving through lists", changes: [
+            Change(text: "Home: moving through the sports only draws a sport's games once you stop on it, so flipping past several is quicker. Clicking, or pressing right into the games, is instant.", apps: android),
+            Change(text: "The tabs: going from Home to Settings no longer draws the EPG on the way past. Pressing down into a page is instant.", apps: android),
+            Change(text: "EPG and game screen: moving through the categories only draws a category's channels once you stop on it.", apps: android)
+        ]),
         Release(version: "1.70", date: "2026-11-17", time: "22:40", title: "Smooth, clear 4K in full screen", changes: [
             Change(text: "Full screen always uses the fast video path, like other IPTV apps: 4K is smooth and HDR shows at the right brightness. Whether the TV switches into HDR is up to its own Match content setting, so the HDR in full screen switch is gone.", apps: android),
             Change(text: "Going from the corner player to full screen starts the video decoder fresh, so the picture no longer turns fuzzy and unwatchable (Chromecast with Google TV).", apps: android),

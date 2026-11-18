@@ -264,18 +264,22 @@ fun Shell(model: AppModel) {
     }
 }
 
-/** Home, EPG and Settings in the middle (moving across them switches straight away); the version on the right. */
+/** Home, EPG and Settings in the middle (moving across them switches once you stop on one); the version on the right. */
 @Composable
 fun TopBar(model: AppModel) {
     val context = LocalContext.current
     val tabs = remember { FocusTargets() }
+    // Moving across the tabs shows a page once you stop on its tab (going from Home to Settings doesn't draw the
+    // EPG on the way). Clicking, or pressing down into the page, is instant.
+    val settle = rememberSettle()
     Box(Modifier.fillMaxWidth().padding(horizontal = Theme.margin).height(40.dp)) {
         // Coming back up to the tabs lands on the one you're on, so it doesn't switch by accident.
-        Row(Modifier.align(Alignment.Center).onFocusChanged { model.tabsFocused = it.hasFocus }.enterAt { tabs[model.tab] },
+        Row(Modifier.align(Alignment.Center).onFocusChanged { model.tabsFocused = it.hasFocus; if (!it.hasFocus) settle.flush() }
+            .flushOn(settle, androidx.compose.ui.focus.FocusDirection.Down).enterAt { tabs[model.tab] },
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             for (tab in Tab.entries) {
-                TvButton(onClick = { model.tab = tab }, selected = model.tab == tab, shape = RoundedCornerShape(20.dp),
-                    onFocus = { if (model.tab != tab) model.tab = tab }, modifier = Modifier.tracked(tabs, tab)) { focused ->
+                TvButton(onClick = { settle.now { model.tab = tab } }, selected = model.tab == tab, shape = RoundedCornerShape(20.dp),
+                    onFocus = { if (model.tab != tab) settle.later { model.tab = tab } else settle.cancel() }, modifier = Modifier.tracked(tabs, tab)) { focused ->
                     Row(Modifier.padding(horizontal = 18.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         val color = if (focused) Theme.bg else if (model.tab == tab) Theme.text else Theme.muted
@@ -597,19 +601,18 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
     val sports = model.orderedSports()
     val favs = model.settings.favoriteSet
     val open = selectedSport(model.homeSelection)
-    // Moving through the list shows a sport's games once you pause on it (about a fifth of a second), so scrolling
-    // past several sports doesn't redraw the games beside it for each one (that flickered). Clicking is instant.
-    val scope = rememberCoroutineScope()
-    var pending by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    // Moving through the list shows a sport's games once you stop on it, so passing several sports doesn't draw
+    // the games for each one. Clicking, or pressing right into the games, is instant.
+    val settle = rememberSettle()
     // Holding the select button on a sport: favourite or hide it.
     var prompt by remember { mutableStateOf<HoldPrompt?>(null) }
     prompt?.let { p -> HoldMenu(p) { prompt = null } }
     fun choose(s: HomeSelection, now: Boolean) {
-        pending?.cancel()
-        if (now) { if (model.homeSelection != s) model.homeSelection = s; return }
-        pending = scope.launch { delay(180); if (model.homeSelection != s) model.homeSelection = s }
+        val apply = { if (model.homeSelection != s) model.homeSelection = s }
+        if (now) settle.now(apply) else settle.later(apply)
     }
-    Column(modifier.fillMaxHeight().verticalScroll(rememberScrollState()).padding(vertical = 8.dp),
+    Column(modifier.fillMaxHeight().flushOn(settle, androidx.compose.ui.focus.FocusDirection.Right)
+        .verticalScroll(rememberScrollState()).padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp)) {
         val shown = sports.flatMap { model.games(it) }
         SportRow(targets, "live", Icons.Filled.Sensors, "Live Now", shown.count { it.state == GameState.LIVE }, shown.size,
@@ -638,7 +641,7 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
                             }))
                     },
                     // Coming back to the sport whose league you picked on the right keeps that league.
-                    onFocus = { if (selectedSport(model.homeSelection) != sport) choose(HomeSelection.OfSport(sport), false) else pending?.cancel() }) {
+                    onFocus = { if (selectedSport(model.homeSelection) != sport) choose(HomeSelection.OfSport(sport), false) else settle.cancel() }) {
                     if (selectedSport(model.homeSelection) != sport) choose(HomeSelection.OfSport(sport), true)
                 }
             }
@@ -967,6 +970,7 @@ fun GameScreen(model: AppModel, gameId: String) {
     val everything = groups.flatMap { it.second }
     val categories = listOf("All" to everything) + groups
     var selected by remember(gameId) { mutableStateOf("All") }
+    val catSettle = rememberSettle()
     val current = categories.firstOrNull { it.first == selected }?.second ?: everything
     // Names on one line: as wide as the longest one needs (within reason), the same for every row so columns line up.
     val nameWidth = nameWidthFor(current.map { it.channel })
@@ -1000,11 +1004,13 @@ fun GameScreen(model: AppModel, gameId: String) {
         horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         // Categories, on top of the player.
         LazyColumn(Modifier.width(Theme.playerWidth).fillMaxHeight().padding(bottom = topInset(model)).focusRequester(model.leftPanel)
-            .enterAt { cats["cat:$selected"] },
+            .flushOn(catSettle, androidx.compose.ui.focus.FocusDirection.Right).enterAt { cats["cat:$selected"] },
             verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             items(categories, key = { it.first }) { (name, streams) ->
                 CategoryRow(cats, "cat:$name", null, name, "${streams.size}", selected == name,
-                    onFocus = { if (selected != name) selected = name }) { selected = name }
+                    onFocus = { if (selected != name) catSettle.later { selected = name } else catSettle.cancel() }) {
+                    catSettle.now { selected = name }
+                }
             }
         }
         // The channels in that category, like the EPG: what's on now and next, and the stream's quality.

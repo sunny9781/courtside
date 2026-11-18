@@ -30,6 +30,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.composed
+import kotlinx.coroutines.launch
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.onFocusChanged
@@ -298,4 +302,70 @@ fun ProgressLine(fraction: Float, focused: Boolean, width: Dp = 160.dp) {
 /** Lite mode (Settings › General), read by every button and card; kept in step with the setting. */
 object Perf {
     var lite by androidx.compose.runtime.mutableStateOf(false)
+}
+
+/**
+ * Moving through a list (sports on Home, the tabs, EPG and game-screen categories) only draws what's beside it once
+ * you stop on an item, so passing several doesn't draw a whole page for each one (slow on a Chromecast, Sony or Fire
+ * TV). Clicking is instant, and so is moving on (right from a list, down from the tabs): what's waiting is shown
+ * first, then the move happens.
+ */
+class Settle(private val scope: kotlinx.coroutines.CoroutineScope) {
+    private var job: kotlinx.coroutines.Job? = null
+    private var waiting: (() -> Unit)? = null
+
+    /** Do it once you've stayed on the item for a moment. */
+    fun later(action: () -> Unit) {
+        job?.cancel()
+        waiting = action
+        job = scope.launch {
+            kotlinx.coroutines.delay(if (Perf.lite) 350L else 250L)
+            waiting = null
+            action()
+        }
+    }
+
+    /** Do it straight away (a click), dropping anything waiting. */
+    fun now(action: () -> Unit) { cancel(); action() }
+
+    fun cancel() { job?.cancel(); job = null; waiting = null }
+
+    /** Does what's waiting straight away; false when nothing was. */
+    fun flush(): Boolean {
+        val action = waiting ?: return false
+        cancel()
+        action()
+        return true
+    }
+}
+
+@Composable
+fun rememberSettle(): Settle {
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    return remember { Settle(scope) }
+}
+
+/**
+ * Pressing [direction] while something is waiting in [settle]: show it first, then move once it's drawn (otherwise
+ * focus would land on the old page, which then disappears).
+ */
+fun Modifier.flushOn(settle: Settle, direction: androidx.compose.ui.focus.FocusDirection): Modifier = composed {
+    val focus = androidx.compose.ui.platform.LocalFocusManager.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val key = when (direction) {
+        androidx.compose.ui.focus.FocusDirection.Right -> androidx.compose.ui.input.key.Key.DirectionRight
+        androidx.compose.ui.focus.FocusDirection.Down -> androidx.compose.ui.input.key.Key.DirectionDown
+        androidx.compose.ui.focus.FocusDirection.Left -> androidx.compose.ui.input.key.Key.DirectionLeft
+        else -> androidx.compose.ui.input.key.Key.DirectionUp
+    }
+    onPreviewKeyEvent { e ->
+        if (e.type == androidx.compose.ui.input.key.KeyEventType.KeyDown && e.key == key && settle.flush()) {
+            scope.launch {
+                androidx.compose.runtime.withFrameNanos { }
+                androidx.compose.runtime.withFrameNanos { }
+                focus.moveFocus(direction)
+            }
+            true
+        } else false
+    }
 }
