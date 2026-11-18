@@ -22,7 +22,8 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 2. Apple build check: `gh workflow run check.yml -R sunny9781/courtside --ref <branch>` (macOS runner; sometimes
    queues ~15 min and gets cancelled: just re-run).
 3. Android build without publishing: `gh workflow run android.yml -R sunny9781/courtside --ref <branch> -f publish=false`.
-4. Merge to main with `--no-ff` and push. Main publishes the Mac app (latest.json) and the Android APK
+4. Merge to main with `--no-ff` and push. Each app publishes from its own workflow; the Mac one skips pushes that only
+   touch android/**, Apple TV files and the changelog. Main publishes the Mac app (latest.json) and the Android APK
    (release "android", Courtside.apk + android.json). Apple TV and iPhone: the user runs the
    "Update Apple TV and iPhone" shortcut.
 
@@ -47,6 +48,7 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 
 ## Working preferences (Sunny)
 - Report how long each request took.
+- Always tell Sunny when a release is actually published (after the main runs finish), not just merged.
 - To save credits: build and settle features on Android first, then port to Apple TV/Mac/iPhone in one batch.
   Batch requests into one release. Use quick mock-ups before coding big layout changes. Start fresh sessions
   instead of one very long one.

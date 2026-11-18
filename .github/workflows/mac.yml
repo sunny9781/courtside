@@ -5,7 +5,10 @@ name: Mac app
 on:
   push:
     branches: [main]
-    paths-ignore: ["**.md", "CourtsideTV/**", "CourtsideTV-Info.plist", "scripts/tv-*.sh"]
+    # Not for Apple TV- or Android-only changes. A release always touches Shared/Changelog.swift, so that alone
+    # doesn't count: an Android release (android/** + the changelog) no longer republishes an unchanged Mac app.
+    paths-ignore: ["**.md", "CourtsideTV/**", "CourtsideTV-Info.plist", "scripts/tv-*.sh", "android/**",
+                   "Shared/Changelog.swift", ".github/workflows/android.yml", ".github/workflows/check.yml"]
   workflow_dispatch:
 
 concurrency:
