@@ -34,6 +34,8 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Game screen: mini EPG, categories left ("All" first, with group headings), streams right; first non-4K stream autoplays.
 - EPG: no what's-playing panel (the bottom bar shows it); Done/Enter in Filter jumps to the first result.
 - Settings sections (both TVs): Account, General, Hidden, Changelog.
+- Corner player to full screen: click it; Android also hold Back, Apple TV hold Play/Pause (tvOS keeps hold-Back).
+- Apple TV shell ignores all safe areas (own 20pt margin); the now-playing bar sits on the screen's bottom edge.
 - EPG: favourites (hold select / heart) listed first; Hide via hold; Settings › Hidden lists hidden sports, leagues,
   categories, channels. Hidden sports/leagues are switched off (not fetched, not matched).
 - Android Lite mode (default on except Nvidia Shield): no corner player (channels open full screen, Back stops),

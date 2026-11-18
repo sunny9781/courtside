@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// The player in the bottom-left corner: shown only while something plays, in the same spot on every screen, and it
 /// keeps playing as you move between Home, games, EPG and Settings. Each screen's left panel sits on top of it and
@@ -82,10 +83,66 @@ struct TVNowPlayingBar: View {
             }
             .padding(.horizontal, TVLayout.margin + 8)
             .frame(maxHeight: .infinity)
+            // Sits right at the bottom of the screen: a small gap under the text, no more.
+            .padding(.bottom, 4)
         }
         .frame(height: TVLayout.barHeight + TVLayout.margin)
         .frame(maxWidth: .infinity)
         .background(Theme.bg)
         .frame(maxHeight: .infinity, alignment: .bottom)
+    }
+}
+
+/// Hold Play/Pause on the remote: the player in the corner goes full screen (on Android TV this is a long press of
+/// Back, but tvOS keeps holding Back for itself: it goes to the Apple TV Home screen). A short press still stops the
+/// player in the corner, and pauses in full screen.
+enum TVRemoteHold {
+    /// When a hold last started or ended: the press that ends a hold isn't also taken as a short press.
+    static var lastHold = Date.distantPast
+    static var justHeld: Bool { Date().timeIntervalSince(lastHold) < 0.6 }
+}
+
+struct TVPlayPauseHold: UIViewRepresentable {
+    let action: () -> Void
+
+    func makeUIView(context: Context) -> HoldView {
+        let view = HoldView()
+        view.action = action
+        view.isUserInteractionEnabled = false
+        return view
+    }
+
+    func updateUIView(_ view: HoldView, context: Context) {
+        view.action = action
+    }
+
+    final class HoldView: UIView {
+        var action: (() -> Void)?
+        private var recognizer: UILongPressGestureRecognizer?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            if let recognizer { recognizer.view?.removeGestureRecognizer(recognizer) }
+            recognizer = nil
+            guard let window else { return }
+            let hold = UILongPressGestureRecognizer(target: self, action: #selector(held(_:)))
+            hold.allowedPressTypes = [NSNumber(value: UIPress.PressType.playPause.rawValue)]
+            hold.minimumPressDuration = 0.6
+            hold.cancelsTouchesInView = false
+            window.addGestureRecognizer(hold)
+            recognizer = hold
+        }
+
+        @objc private func held(_ g: UILongPressGestureRecognizer) {
+            switch g.state {
+            case .began:
+                TVRemoteHold.lastHold = Date()
+                action?()
+            case .ended, .cancelled:
+                // Only after a hold began (a short press ends as .failed and stays a short press).
+                TVRemoteHold.lastHold = Date()
+            default: break
+            }
+        }
     }
 }

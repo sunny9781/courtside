@@ -62,6 +62,8 @@ struct TVPlayerView: View {
             }
         }
         .onPlayPauseCommand {
+            // The press that ends a hold (which opened full screen) isn't a pause.
+            guard !TVRemoteHold.justHeld else { return }
             controller.togglePause()
             poke()
         }

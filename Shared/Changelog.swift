@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.67", date: "2026-11-17", time: "20:00", title: "Tidier Settings, slimmer now-playing bar, hold Play/Pause for full screen", changes: [
+            Change(text: "Settings: the section list and the settings beside it line up the same way as Home and the EPG.", apps: tv),
+            Change(text: "The now-playing bar sits at the very bottom of the screen and is slimmer (no big empty strip under it).", apps: tv),
+            Change(text: "Hold Play/Pause on the remote: the player in the corner goes full screen (holding Back is kept by the Apple TV for its Home screen). A short press still stops it.", apps: tv)
+        ]),
         Release(version: "1.66", date: "2026-11-17", time: "15:20", title: "Steadier EPG focus, no screensaver mid-game", changes: [
             Change(text: "EPG: Back from full screen goes back to the channel you were watching, not the category.", apps: android),
             Change(text: "EPG: opening or leaving a group no longer flashes the EPG time at the top; leaving a group lands on that group.", apps: android),
