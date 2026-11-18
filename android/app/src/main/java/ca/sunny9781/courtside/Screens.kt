@@ -10,6 +10,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -251,6 +254,21 @@ fun Shell(model: AppModel) {
             model.pinned?.let { item -> PlayerStrip(model, item, strip, Modifier.align(Alignment.BottomStart).padding(bottom = Theme.margin + Theme.barHeight)) }
             }
         }
+        // The video: one view for the corner and full screen, which only changes size. Moving the stream between two
+        // views made some channels flash black, wait, or stop when leaving full screen.
+        if (model.nowPlaying != null || model.pinned != null) {
+            val b = model.cornerBounds
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val place = when {
+                full -> Modifier.fillMaxSize()
+                b != null -> with(density) {
+                    Modifier.offset { androidx.compose.ui.unit.IntOffset(b.left.toInt(), b.top.toInt()) }
+                        .size(b.width.toDp(), b.height.toDp())
+                }
+                else -> Modifier.size(0.dp)
+            }
+            PlayerVideo(place)
+        }
         model.nowPlaying?.let { FullScreenPlayer(model, it) }
         model.notice?.let { message ->
             Box(Modifier.fillMaxWidth().padding(top = 24.dp), contentAlignment = Alignment.TopCenter) {
@@ -366,15 +384,13 @@ fun TopBar(model: AppModel) {
 
 /** The video. Only one view shows the player at a time: the newest one takes it. */
 @Composable
-fun PlayerVideo(modifier: Modifier = Modifier, small: Boolean = false) {
+fun PlayerVideo(modifier: Modifier = Modifier) {
     AndroidView(
         factory = { ctx ->
-            // The player at the top draws into a texture: a 4K or HDR stream there doesn't switch the TV into HDR
-            // or another refresh rate. Full screen always uses the real video surface (like other IPTV apps): it's
-            // smooth for 4K and HDR comes out at the right brightness; whether the TV switches into HDR is up to its
-            // own Match content setting. Lite mode always uses the video surface, small player included.
-            val texture = !Perf.lite && small
-            (android.view.LayoutInflater.from(ctx).inflate(if (texture) R.layout.player_texture else R.layout.player_surface, null) as PlayerView).apply {
+            // The real video surface (like other IPTV apps): smooth for 4K, and HDR at the right brightness. Whether
+            // the TV switches into HDR is up to its own Match content setting; the refresh rate only switches in full
+            // screen (Playback.setFullScreen).
+            (android.view.LayoutInflater.from(ctx).inflate(R.layout.player_surface, null) as PlayerView).apply {
                 useController = false
                 resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                 setShutterBackgroundColor(android.graphics.Color.BLACK)
@@ -394,11 +410,13 @@ fun PlayerVideo(modifier: Modifier = Modifier, small: Boolean = false) {
  */
 @Composable
 fun PlayerStrip(model: AppModel, item: NowPlaying, targets: FocusTargets, modifier: Modifier = Modifier) {
-    TvButton(onClick = { model.play(item.channel, item.gameTitle, item.lineup, from = "strip") }, focusedScale = 1.03f,
+    TvButton(onClick = { model.play(item.channel, item.gameTitle, item.lineup, from = "strip") }, focusedScale = 1f,
         modifier = modifier.padding(start = Theme.margin).focusProperties { canFocus = !model.tabsFocused }
             .focusProperties { up = model.leftPanel }
             .tracked(targets, "video").size(Theme.playerWidth, Theme.playerWidth * 9 / 16)) { _ ->
-        if (model.nowPlaying == null) PlayerVideo(Modifier.fillMaxSize().padding(2.dp).clip(RoundedCornerShape(8.dp)), small = true)
+        // The video itself is drawn by the shell in this spot (one view for the corner and full screen); this only
+        // says where, inside the focus outline.
+        Box(Modifier.fillMaxSize().padding(3.dp).onGloballyPositioned { model.cornerBounds = it.boundsInRoot() })
     }
 }
 
@@ -502,8 +520,9 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
     }
     LaunchedEffect(Unit) { focus.requestFocus() }
 
+    // See-through: the video is drawn underneath by the shell (the same view as the corner player).
     Box(
-        Modifier.fillMaxSize().background(Color.Black).focusRequester(focus).focusable()
+        Modifier.fillMaxSize().focusRequester(focus).focusable()
             .onKeyEvent { e ->
                 if (e.type != KeyEventType.KeyDown) return@onKeyEvent false
                 when (e.key.nativeKeyCode) {
@@ -518,7 +537,6 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
                 }
             }
     ) {
-        PlayerVideo(Modifier.fillMaxSize())
         Box(Modifier.align(Alignment.Center)) {
             when (Playback.status) {
                 Playback.Status.FAILED -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {

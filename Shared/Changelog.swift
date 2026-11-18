@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.78", date: "2026-11-18", time: "13:30", title: "Smooth switch to the corner, fixed EPG columns", changes: [
+            Change(text: "Full screen and the corner player are now one video that just changes size, so going between them is instant: no black flash, no wait, and no more stopping when you leave full screen. (The corner player has square corners now.)", apps: android),
+            Change(text: "EPG, game screen and channel sports: the same fixed columns everywhere (channel, now, next). Text that doesn't fit scrolls inside its column on the row you're on.", apps: android),
+            Change(text: "The update button works on the first press, also while the app is already checking for an update by itself. After you switch on Install unknown apps, the update carries on by itself when you come back.", apps: android)
+        ]),
         Release(version: "1.77", date: "2026-11-18", time: "13:10", title: "One connection at a time, EPG progress", changes: [
             Change(text: "Channels and the guide never download while a stream plays: a refresh waits until the stream stops (the top bar says so), and starting a stream pauses a download that's under way. The channel list is downloaded in one request at a time. All so only one connection is ever in use.", apps: android),
             Change(text: "Settings › General › Connection log: streams opened and closed, downloads, and what the provider said was in use, so a 2/2 can be traced.", apps: android),

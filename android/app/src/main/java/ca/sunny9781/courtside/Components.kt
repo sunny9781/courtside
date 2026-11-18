@@ -1,5 +1,6 @@
 package ca.sunny9781.courtside
 
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -178,10 +179,20 @@ fun Label(
     weight: FontWeight = FontWeight.Normal,
     maxLines: Int = 1,
     modifier: Modifier = Modifier,
-    align: androidx.compose.ui.text.style.TextAlign? = null
+    align: androidx.compose.ui.text.style.TextAlign? = null,
+    scroll: Boolean = false
 ) {
-    Text(text, modifier = modifier, color = color, fontSize = size, fontWeight = weight, maxLines = maxLines,
+    // scroll: text too long for its space slides along inside it (used on the row you're on, in fixed columns).
+    if (scroll) ScrollingLabel(text, size, color, weight, modifier)
+    else Text(text, modifier = modifier, color = color, fontSize = size, fontWeight = weight, maxLines = maxLines,
         overflow = TextOverflow.Ellipsis, textAlign = align)
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun ScrollingLabel(text: String, size: TextUnit, color: Color, weight: FontWeight, modifier: Modifier) {
+    Text(text, modifier = modifier.basicMarquee(iterations = Int.MAX_VALUE), color = color, fontSize = size,
+        fontWeight = weight, maxLines = 1, overflow = TextOverflow.Clip)
 }
 
 @Composable

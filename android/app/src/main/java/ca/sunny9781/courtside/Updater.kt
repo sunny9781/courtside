@@ -30,8 +30,11 @@ object Updater {
     private var readyFile: File? = null
     private var readyBuild = 0
 
+    /** One check at a time; a press while the app is already checking (or downloading) waits for it, then carries on. */
+    private val lock = kotlinx.coroutines.sync.Mutex()
+
     suspend fun check(context: Context, userInitiated: Boolean = false) = withContext(Dispatchers.IO) {
-        if (checking) return@withContext
+        lock.lock()
         checking = true
         try {
             val text = get("$FEED?t=${System.currentTimeMillis() / 1000}")
@@ -54,8 +57,12 @@ object Updater {
             if (userInitiated) message = "Couldn't check for updates."
         } finally {
             checking = false
+            lock.unlock()
         }
     }
+
+    /** Waiting for "Install unknown apps" to be switched on: the install carries on by itself once you're back. */
+    private var waitingForPermission = false
 
     /** Opens Android's installer for the downloaded update. */
     /**
@@ -97,7 +104,8 @@ object Updater {
             .putInt("installAttempt", readyBuild).putLong("installAttemptAt", System.currentTimeMillis())
             .putString("installAttemptVersion", readyVersion).apply()
         if (android.os.Build.VERSION.SDK_INT >= 26 && !pm.canRequestPackageInstalls()) {
-            message = "Turn on Courtside here so it can install its own updates, then choose Install update again."
+            waitingForPermission = true
+            message = "Turn on Courtside here so it can install its own updates; the update carries on when you come back."
             runCatching {
                 context.startActivity(Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
                     android.net.Uri.parse("package:${context.packageName}")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -122,6 +130,14 @@ object Updater {
      * installed"), say what usually causes it. Also tidies away a downloaded update that's already installed.
      */
     fun afterInstall(context: Context) {
+        // Back from switching on "Install unknown apps": install straight away, no second press.
+        if (waitingForPermission && readyFile != null && (android.os.Build.VERSION.SDK_INT < 26 ||
+                context.packageManager.canRequestPackageInstalls())) {
+            waitingForPermission = false
+            message = null
+            install(context)
+            return
+        }
         val prefs = context.getSharedPreferences("courtside", Context.MODE_PRIVATE)
         val attempt = prefs.getInt("installAttempt", 0)
         val at = prefs.getLong("installAttemptAt", 0)
