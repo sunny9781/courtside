@@ -158,6 +158,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** In the player at the top. */
+    /** Where the corner player sits on screen (the shell draws the one video view there). */
+    var cornerBounds by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
     var pinned by mutableStateOf<NowPlaying?>(null)
     /** Full screen. */
     var nowPlaying by mutableStateOf<NowPlaying?>(null)
