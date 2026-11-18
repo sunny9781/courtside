@@ -732,8 +732,13 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
         SportChannels(model, sport, targets, modifier)
         return
     }
-    // An EPG-like list, like the channel sports: a row per game (status, the teams and scores, its streams), under
-    // a heading per league. It runs to the bottom of the screen, under the now-playing bar.
+    // Finished games fold into one row at the bottom ("Finished · 6", click to show them), so a page mostly draws the
+    // games that are live or coming up.
+    val open = sections.map { it.copy(games = it.games.filter { g -> g.state != GameState.FINISHED }) }.filter { it.games.isNotEmpty() }
+    val finished = sections.flatMap { it.games.filter { g -> g.state == GameState.FINISHED } }
+    var showFinished by remember(selection) { mutableStateOf(false) }
+    // An EPG-like list, like the channel sports: a row per game (status, the teams and scores), under a heading per
+    // league. It runs to the bottom of the screen, under the now-playing bar.
     BehindPlayerBar(model) {
     LazyColumn(modifier.fillMaxHeight(), state = model.homeList, verticalArrangement = Arrangement.spacedBy(2.dp),
         contentPadding = PaddingValues(top = 6.dp, bottom = 6.dp + barInset(model))) {
@@ -744,30 +749,50 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
                 Label("STATUS", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(STATUS_WIDTH))
                 Label("GAME", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.weight(1f))
-                Label("STREAMS", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted)
             }
         }
-        if (sections.isEmpty()) {
+        if (open.isEmpty()) {
             item(key = "empty") {
                 Label(when {
                     model.error != null -> model.error!!
                     model.loading && model.games.isEmpty() -> "Loading today's games…"
                     selection is HomeSelection.LiveNow -> "Nothing live right now."
+                    finished.isNotEmpty() -> "Nothing live or coming up."
                     else -> "No games today."
                 }, size = 14.sp, color = Theme.muted, maxLines = 3, modifier = Modifier.padding(10.dp))
             }
         }
-        for (section in sections) {
-            if (section.title.isNotEmpty() && sections.size > 1) item(key = "h:${section.id}") {
+        for (section in open) {
+            if (section.title.isNotEmpty() && open.size > 1) item(key = "h:${section.id}", contentType = "heading") {
                 Row(Modifier.padding(start = 10.dp, top = 10.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                     if (section.league != null) LeagueLogo(model, section.league, 15.dp)
                     Label(section.title.uppercase(), size = 10.sp, weight = FontWeight.Bold, color = Theme.muted)
                 }
             }
-            items(section.games, key = { "${section.id}:${it.id}" }) { game ->
-                val main = model.mainStreams(game.id)
-                GameRow(game, main.size, main.any { it.is4K }, showLeague = selection is HomeSelection.LiveNow,
+            // Same content type: switching sports reuses the rows already built (new text, same row) instead of
+            // building new ones.
+            items(section.games, key = { "${section.id}:${it.id}" }, contentType = { "game" }) { game ->
+                GameRow(game, model.mainStreams(game.id).any { it.is4K }, showLeague = selection is HomeSelection.LiveNow,
+                    modifier = Modifier.tracked(targets, "game:${game.id}"),
+                    onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
+            }
+        }
+        if (finished.isNotEmpty()) {
+            item(key = "finished", contentType = "finished") {
+                TvButton(onClick = { showFinished = !showFinished }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                    .tracked(targets, "finished")) { focused ->
+                    Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                        val color = if (focused) Theme.bg else Theme.muted
+                        Icon(if (showFinished) Icons.Filled.ExpandMore else Icons.Filled.ChevronRight, null, tint = color,
+                            modifier = Modifier.size(14.dp))
+                        Label("Finished · ${finished.size}", size = 12.sp, weight = FontWeight.SemiBold, color = color)
+                    }
+                }
+            }
+            if (showFinished) items(finished, key = { "f:${it.id}" }, contentType = { "game" }) { game ->
+                GameRow(game, model.mainStreams(game.id).any { it.is4K }, showLeague = sections.size > 1,
                     modifier = Modifier.tracked(targets, "game:${game.id}"),
                     onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
             }
@@ -783,7 +808,7 @@ private val STATUS_WIDTH = 150.dp
  * streams it has. Upcoming games are grey and finished ones a little dimmer, so live games stand out in white.
  */
 @Composable
-private fun GameRow(game: Game, streams: Int, has4K: Boolean, showLeague: Boolean, modifier: Modifier, onFocus: () -> Unit,
+private fun GameRow(game: Game, has4K: Boolean, showLeague: Boolean, modifier: Modifier, onFocus: () -> Unit,
                     onClick: () -> Unit) {
     // Only plain values come in (not the whole app model), so when the scores update, a row whose game didn't
     // change isn't drawn again.
@@ -817,12 +842,8 @@ private fun GameRow(game: Game, streams: Int, has4K: Boolean, showLeague: Boolea
                     }
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                if (has4K) Badge("4K", fill = Theme.accent, color = Theme.onAccent)
-                Label(if (streams == 0) "None" else "$streams", size = 12.sp, weight = FontWeight.SemiBold,
-                    color = if (streams == 0 && !focused) Theme.losing else text)
-                if (streams > 0) Icon(Icons.Filled.LiveTv, null, tint = text, modifier = Modifier.size(12.dp))
-            }
+            // Just a 4K tag; the number of streams isn't shown here any more (less to draw).
+            if (has4K) Badge("4K", fill = Theme.accent, color = Theme.onAccent)
         }
     }
 }
@@ -848,7 +869,7 @@ private fun SportChannels(model: AppModel, sport: Sport, targets: FocusTargets, 
                 Label(category.uppercase(), size = 10.sp, weight = FontWeight.Bold, color = Theme.muted,
                     modifier = Modifier.padding(start = 10.dp, top = 8.dp, bottom = 2.dp))
             }
-            items(list, key = { "ch:${it.id}" }) { ch ->
+            items(list, key = { "ch:${it.id}" }, contentType = { "channel" }) { ch ->
                 val k = "ch:${ch.id}"
                 ChannelRow(model, ch, ch.id == playing, Modifier.tracked(targets, k), nameWidth = nameWidth, onFocus = { last = k }) {
                     if (ch.id == playing) model.play(ch, null, lineup, from = "home") else model.pin(ch, null, lineup)
@@ -1040,10 +1061,10 @@ fun GameScreen(model: AppModel, gameId: String) {
                     Label(name.uppercase(), size = 10.sp, weight = FontWeight.Bold, color = Theme.muted,
                         modifier = Modifier.padding(start = 10.dp, top = 8.dp, bottom = 2.dp))
                 }
-                items(streams, key = { "$name:${it.channel.id}" }) { m ->
+                items(streams, key = { "$name:${it.channel.id}" }, contentType = { "stream" }) { m ->
                     val k = "s:${m.channel.id}"
                     ChannelRow(model, m.channel, m.channel.id == previewId, Modifier.tracked(rows, k),
-                        badge = model.measuredQuality[m.channel.id] ?: m.quality, nameWidth = nameWidth,
+                        badge = model.measuredQuality[m.channel.id] ?: m.quality, nameWidth = nameWidth, showNext = false,
                         onFocus = { lastRow = k }) { select(m) }
                 }
             }
