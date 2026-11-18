@@ -74,6 +74,12 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.70", date: "2026-11-17", time: "22:40", title: "Smooth, clear 4K in full screen", changes: [
+            Change(text: "Full screen always uses the fast video path, like other IPTV apps: 4K is smooth and HDR shows at the right brightness. Whether the TV switches into HDR is up to its own Match content setting, so the HDR in full screen switch is gone.", apps: android),
+            Change(text: "Going from the corner player to full screen starts the video decoder fresh, so the picture no longer turns fuzzy and unwatchable (Chromecast with Google TV).", apps: android),
+            Change(text: "A frozen stream is closed before it's reopened, so the restart no longer counts as two connections (2/2).", apps: android),
+            Change(text: "Streams that don't say their frame rate (most 4K) get it counted from the picture, so the fps badge shows and the TV can match it.", apps: android)
+        ]),
         Release(version: "1.69", date: "2026-11-17", time: "22:20", title: "Installs on older Fire TV Sticks", changes: [
             Change(text: "Courtside now installs on Android 7.1, so older Fire TV Sticks (Fire OS 6) can run it.", apps: android)
         ]),
