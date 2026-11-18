@@ -32,7 +32,7 @@ fun EpgScreen(model: AppModel) {
     val s = model.settings
     if (model.channels.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Label(if (model.loading) "Downloading channels…" else (model.error ?: "No channels yet."), size = 15.sp, color = Theme.muted)
+            Label(if (model.loading || model.guideLoading) "Refreshing EPG…" else (model.error ?: "No channels yet."), size = 15.sp, color = Theme.muted)
         }
         return
     }

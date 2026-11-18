@@ -104,6 +104,7 @@ object Playback {
                     videoFormat?.frameRate?.takeIf { it > 0 }?.let { frameRate = if (it > 61) it / 2 else it }
                 }
                 override fun onPlayerError(error: PlaybackException) {
+                    ConnLog.add("Stream error: ${error.errorCodeName}")
                     // TS didn't work: try the HLS version once before giving up.
                     val hls = fallbackUrl
                     if (hls != null) {
@@ -115,6 +116,19 @@ object Playback {
                 }
             })
         }
+        // The player reconnecting by itself (a dropped or stalled download) shows in the connection log: that can
+        // briefly count as two connections while the provider still sees the old one.
+        player.addAnalyticsListener(object : androidx.media3.exoplayer.analytics.AnalyticsListener {
+            override fun onLoadError(
+                eventTime: androidx.media3.exoplayer.analytics.AnalyticsListener.EventTime,
+                loadEventInfo: androidx.media3.exoplayer.source.LoadEventInfo,
+                mediaLoadData: androidx.media3.exoplayer.source.MediaLoadData,
+                error: java.io.IOException,
+                wasCanceled: Boolean
+            ) {
+                if (!wasCanceled) ConnLog.add("Stream dropped, player reconnecting (${error.javaClass.simpleName})")
+            }
+        })
         // Headphones or a speaker connected or disconnected (Bluetooth, HDMI): a Dolby stream was set up for the old
         // output (sent to the TV as is, or decoded here), so it's reopened for the new one, otherwise it goes silent.
         val audio = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
@@ -174,11 +188,13 @@ object Playback {
         // Flipping fast only opens the channel you stop on.
         pendingOpen?.let { mainHandler.removeCallbacks(it) }
         val hadStream = player.mediaItemCount > 0
+        if (hadStream) ConnLog.add("Closed ${player.currentMediaItem?.localConfiguration?.uri?.toString()?.let(ConnLog::stream) ?: "stream"}")
         player.stop()
         player.clearMediaItems()
         val run = Runnable {
             pendingOpen = null
             openedAt = System.currentTimeMillis()
+            ConnLog.add("Opened ${ConnLog.stream(url)}")
             player.setMediaSource(source(url))
             player.prepare()
             player.playWhenReady = true
@@ -213,6 +229,7 @@ object Playback {
     fun stop() {
         pendingOpen?.let { mainHandler.removeCallbacks(it) }
         pendingOpen = null
+        currentUrl?.let { ConnLog.add("Stopped ${ConnLog.stream(it)}") }
         player.stop()
         player.clearMediaItems()
         currentUrl = null
@@ -258,6 +275,7 @@ object Playback {
     private fun outputChanged() {
         if (!::player.isInitialized || currentUrl == null) return
         if (player.audioFormat?.sampleMimeType !in passthroughSound) return
+        ConnLog.add("Sound output changed: reopening the stream")
         val url = player.currentMediaItem?.localConfiguration?.uri?.toString() ?: return
         // A moment for the new output to settle, then reopen (closing first, so it never counts as two connections).
         pendingOpen?.let { mainHandler.removeCallbacks(it) }
@@ -298,6 +316,7 @@ object Playback {
         soundLabel(player.audioFormat).let { if (it.isNotEmpty() && it != audio) audio = it }
         val fallback = fallbackUrl
         if (!firstFrame && fallback != null && player.playWhenReady && System.currentTimeMillis() - openedAt > 8000) {
+            ConnLog.add("No picture after 8 s: trying the other format")
             fallbackUrl = null
             open(fallback)
             return
@@ -308,6 +327,7 @@ object Playback {
             FreezeWatch.Action.RESTART -> player.currentMediaItem?.localConfiguration?.uri?.toString()?.let { url ->
                 // Close the frozen stream first and give the provider a moment, like switching channels: opening
                 // the new one straight away counted as two connections (2/2) for a while.
+                ConnLog.add("Picture froze: reopening ${ConnLog.stream(url)}")
                 pendingOpen?.let { mainHandler.removeCallbacks(it) }
                 player.stop()
                 player.clearMediaItems()

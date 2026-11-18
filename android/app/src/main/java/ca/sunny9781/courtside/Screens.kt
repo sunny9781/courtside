@@ -311,16 +311,22 @@ fun TopBar(model: AppModel) {
                     Label("$active/$max", size = 12.sp, weight = FontWeight.SemiBold, color = if (full) Theme.onAccent else Theme.muted)
                 }
             }
-            if (model.loading) Label("Downloading channels…", size = 12.sp, color = Theme.muted)
-            else model.updatedAt?.let { at ->
-                TvButton(onClick = { model.refresh(force = true) }) { focused ->
-                    Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                        val color = if (focused) Theme.bg else Theme.muted
-                        Label("EPG ${clockTime(at)}", size = 12.sp, color = color)
-                        Icon(Icons.Filled.Refresh, null, tint = color, modifier = Modifier.size(13.dp))
+            // When the EPG was last downloaded (just text: it refreshes by itself, or from Settings › General).
+            // While it downloads: "Refreshing EPG" with how far along it is.
+            val progress = model.guideProgress
+            when {
+                model.refreshWaiting -> Label("EPG refreshes after this stream", size = 12.sp, color = Theme.muted)
+                model.loading -> Label("Refreshing EPG · channels…", size = 12.sp, color = Theme.muted)
+                model.guideLoading -> Row(verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Label(if (progress != null) "Refreshing EPG ${(progress * 100).toInt()}%"
+                        else "Refreshing EPG · ${model.guideMegabytes} MB", size = 12.sp, color = Theme.muted)
+                    if (progress != null) Box(Modifier.width(70.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Theme.raised)) {
+                        Box(Modifier.fillMaxHeight().fillMaxWidth(progress).background(Theme.accent))
                     }
                 }
+                else -> model.updatedAt?.let { at -> Label("EPG ${clockTime(at)}", size = 12.sp, color = Theme.muted,
+                    modifier = Modifier.padding(horizontal = 10.dp)) }
             }
         }
         Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically,
@@ -731,9 +737,16 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     }
     // Finished games fold into one row at the bottom ("Finished · 6", click to show them), so a page mostly draws the
     // games that are live or coming up.
-    val open = sections.map { it.copy(games = it.games.filter { g -> g.state != GameState.FINISHED }) }.filter { it.games.isNotEmpty() }
+    // Games starting more than 2 hours from now fold the same way ("Later today · 18"), so a busy day (31 basketball
+    // games) mostly draws what's live or about to start.
+    val soon = System.currentTimeMillis() + 2 * 3600_000L
+    fun isLater(g: Game) = g.state == GameState.UPCOMING && (g.start ?: 0L) > soon
+    val open = sections.map { it.copy(games = it.games.filter { g -> g.state != GameState.FINISHED && !isLater(g) }) }
+        .filter { it.games.isNotEmpty() }
+    val later = sections.flatMap { it.games.filter { g -> isLater(g) } }
     val finished = sections.flatMap { it.games.filter { g -> g.state == GameState.FINISHED } }
     var showFinished by remember(selection) { mutableStateOf(false) }
+    var showLater by remember(selection) { mutableStateOf(false) }
     // An EPG-like list, like the channel sports: a row per game (status, the teams and scores), under a heading per
     // league. It runs to the bottom of the screen, under the now-playing bar.
     BehindPlayerBar(model) {
@@ -754,6 +767,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
                     model.error != null -> model.error!!
                     model.loading && model.games.isEmpty() -> "Loading today's games…"
                     selection is HomeSelection.LiveNow -> "Nothing live right now."
+                    later.isNotEmpty() -> "Nothing in the next 2 hours."
                     finished.isNotEmpty() -> "Nothing live or coming up."
                     else -> "No games today."
                 }, size = 14.sp, color = Theme.muted, maxLines = 3, modifier = Modifier.padding(10.dp))
@@ -771,6 +785,16 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             // building new ones.
             items(section.games, key = { "${section.id}:${it.id}" }, contentType = { "game" }) { game ->
                 GameRow(game, model.mainStreams(game.id).any { it.is4K }, showLeague = selection is HomeSelection.LiveNow,
+                    modifier = Modifier.tracked(targets, "game:${game.id}"),
+                    onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
+            }
+        }
+        if (later.isNotEmpty()) {
+            item(key = "later", contentType = "finished") {
+                FoldRow("Later today · ${later.size}", showLater, Modifier.tracked(targets, "later")) { showLater = !showLater }
+            }
+            if (showLater) items(later, key = { "l:${it.id}" }, contentType = { "game" }) { game ->
+                GameRow(game, model.mainStreams(game.id).any { it.is4K }, showLeague = sections.size > 1,
                     modifier = Modifier.tracked(targets, "game:${game.id}"),
                     onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
             }
@@ -798,8 +822,21 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     }
 }
 
-private val STATUS_WIDTH = 150.dp
-private val TEAM_WIDTH = 220.dp
+/** A folded group on Home ("Finished · 6", "Later today · 18"): click to show or hide its games. */
+@Composable
+private fun FoldRow(title: String, open: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    TvButton(onClick = onClick, modifier = modifier.fillMaxWidth().padding(top = 8.dp)) { focused ->
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+            val color = if (focused) Theme.bg else Theme.muted
+            Icon(if (open) Icons.Filled.ExpandMore else Icons.Filled.ChevronRight, null, tint = color, modifier = Modifier.size(14.dp))
+            Label(title, size = 12.sp, weight = FontWeight.SemiBold, color = color)
+        }
+    }
+}
+
+private val STATUS_WIDTH = 125.dp
+private val TEAM_WIDTH = 175.dp
 private val SCORE_WIDTH = 30.dp
 
 /**
@@ -819,7 +856,12 @@ private fun GameRow(game: Game, has4K: Boolean, showLeague: Boolean, modifier: M
             else -> Theme.text
         }
         Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-            val status = if (Perf.lite && game.state == GameState.LIVE) "LIVE" else cardHeader(game)
+            // Upcoming: just the start time (the row is already grey), so the status column stays narrow.
+            val status = when {
+                Perf.lite && game.state == GameState.LIVE -> "LIVE"
+                game.state == GameState.UPCOMING && !game.isChannel -> startText(game)
+                else -> cardHeader(game)
+            }
             Label(if (showLeague) "$status · ${game.league.name}" else status, size = 11.sp,
                 weight = FontWeight.Bold, color = if (focused) Theme.bg else if (game.state == GameState.LIVE) Theme.accent else Theme.muted,
                 modifier = Modifier.width(STATUS_WIDTH))

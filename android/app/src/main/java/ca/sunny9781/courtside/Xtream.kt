@@ -38,7 +38,8 @@ class XtreamClient(private val creds: Credentials) {
         return sb.toString()
     }
 
-    private suspend fun get(url: String, timeoutMs: Int = 45_000): String = withContext(Dispatchers.IO) {
+    private suspend fun get(url: String, timeoutMs: Int = 45_000, label: String? = null): String = withContext(Dispatchers.IO) {
+        label?.let { ConnLog.add("Downloading $it") }
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 20_000
             readTimeout = timeoutMs
@@ -48,7 +49,7 @@ class XtreamClient(private val creds: Credentials) {
             if (conn.responseCode != 200) {
                 throw XtreamException("The server refused the request. Check the address, username and password.")
             }
-            conn.inputStream.bufferedReader().use { it.readText() }
+            conn.inputStream.bufferedReader().use { it.readText() }.also { label?.let { l -> ConnLog.add("Finished $l") } }
         } finally {
             conn.disconnect()
         }
@@ -71,16 +72,17 @@ class XtreamClient(private val creds: Credentials) {
 
     /** Live categories and channels (the movie and series lists are never fetched). */
     suspend fun live(): Pair<List<ChannelCategory>, List<Channel>> = coroutineScope {
-        val catsText = async { get(apiUrl("get_live_categories")) }
-        val streamsText = async { get(apiUrl("get_live_streams"), timeoutMs = 120_000) }
-        val cats = JSONArray(catsText.await())
+        // One after the other, never both at once: some providers count each open request as a connection.
+        val catsText = get(apiUrl("get_live_categories"), label = "categories")
+        val streamsText = get(apiUrl("get_live_streams"), timeoutMs = 120_000, label = "channels")
+        val cats = JSONArray(catsText)
         val categories = (0 until cats.length()).mapNotNull { i ->
             val o = cats.optJSONObject(i) ?: return@mapNotNull null
             val id = o.flexString("category_id") ?: return@mapNotNull null
             ChannelCategory(id, o.optString("category_name"))
         }
         val names = categories.associate { it.id to it.name }
-        val list = try { JSONArray(streamsText.await()) } catch (e: Exception) {
+        val list = try { JSONArray(streamsText) } catch (e: Exception) {
             throw XtreamException("The server replied with something that isn't an Xtream Codes response.")
         }
         val channels = (0 until list.length()).mapNotNull { i ->
@@ -99,7 +101,9 @@ class XtreamClient(private val creds: Credentials) {
      * Reads the provider's guide straight from the download, keeping only the wanted channels and the hours around
      * now, so even a huge guide file stays light on memory (the Chromecast with Google TV has little to spare).
      */
-    suspend fun guide(wanted: Set<String>, from: Long, to: Long): Map<String, List<Programme>> = withContext(Dispatchers.IO) {
+    suspend fun guide(wanted: Set<String>, from: Long, to: Long, progress: (read: Long, total: Long) -> Unit = { _, _ -> }):
+        Map<String, List<Programme>> = withContext(Dispatchers.IO) {
+        ConnLog.add("Downloading the guide")
         val conn = (URL("$base/xmltv.php?username=${enc(creds.username)}&password=${enc(creds.password)}")
             .openConnection() as HttpURLConnection).apply {
             connectTimeout = 20_000
@@ -108,9 +112,21 @@ class XtreamClient(private val creds: Credentials) {
         }
         try {
             if (conn.responseCode != 200) throw XtreamException("The provider's guide file couldn't be read.")
-            val raw: InputStream = conn.inputStream
+            // Counts what has come in so far, against the size the provider gives (when it gives one).
+            val total = conn.contentLengthLong
+            val raw: InputStream = object : java.io.FilterInputStream(conn.inputStream) {
+                var read = 0L
+                var told = 0L
+                private fun count(n: Int) {
+                    if (n <= 0) return
+                    read += n
+                    if (read - told > 256 * 1024) { told = read; progress(read, total) }
+                }
+                override fun read(): Int = super.read().also { if (it >= 0) count(1) }
+                override fun read(b: ByteArray, off: Int, len: Int): Int = super.read(b, off, len).also { count(it) }
+            }
             val input = if (conn.contentEncoding == "gzip") GZIPInputStream(raw) else raw
-            input.use { parseGuide(it, wanted, from, to) }
+            input.use { parseGuide(it, wanted, from, to) }.also { ConnLog.add("Finished the guide") }
         } finally {
             conn.disconnect()
         }
