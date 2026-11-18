@@ -18,6 +18,8 @@ android {
         targetSdk = 35
         versionCode = buildNumber
         versionName = appVersion
+        // TV boxes are ARM; leaving out the x86 copies of the sound decoder keeps the app small.
+        ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
     }
 
     // The signing key lives in GitHub secrets (never in the code). Updates only install over the top when every
@@ -69,6 +71,9 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.5.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.5.1")
     implementation("androidx.media3:media3-ui:1.5.1")
+    // Decodes Dolby (AC-3 / E-AC-3, common on 4K channels) and other sound the TV box can't, for Bluetooth
+    // headphones and speakers: over HDMI that sound goes to the TV to decode, but Bluetooth needs it decoded here.
+    implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1")
     implementation("io.coil-kt:coil-compose:2.7.0")
     // Prepares the app's code for speed when it's installed (the Play Store does this for its apps; sideloaded
     // apps need this library or everything runs slower).

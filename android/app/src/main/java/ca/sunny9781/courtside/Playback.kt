@@ -113,6 +113,17 @@ object Playback {
                 }
             })
         }
+        // Headphones or a speaker connected or disconnected (Bluetooth, HDMI): a Dolby stream was set up for the old
+        // output (sent to the TV as is, or decoded here), so it's reopened for the new one, otherwise it goes silent.
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        audio.registerAudioDeviceCallback(object : android.media.AudioDeviceCallback() {
+            private var ready = false
+            override fun onAudioDevicesAdded(added: Array<out android.media.AudioDeviceInfo>) {
+                // The first call lists what's already connected.
+                if (ready) outputChanged() else ready = true
+            }
+            override fun onAudioDevicesRemoved(removed: Array<out android.media.AudioDeviceInfo>) = outputChanged()
+        }, handler)
         handler.post(object : Runnable {
             override fun run() {
                 poll()
@@ -233,6 +244,33 @@ object Playback {
         }
     }
 
+    private val passthroughSound = setOf(
+        androidx.media3.common.MimeTypes.AUDIO_AC3, androidx.media3.common.MimeTypes.AUDIO_E_AC3,
+        androidx.media3.common.MimeTypes.AUDIO_E_AC3_JOC, androidx.media3.common.MimeTypes.AUDIO_AC4,
+        androidx.media3.common.MimeTypes.AUDIO_DTS, androidx.media3.common.MimeTypes.AUDIO_DTS_HD,
+        androidx.media3.common.MimeTypes.AUDIO_TRUEHD
+    )
+
+    private fun outputChanged() {
+        if (!::player.isInitialized || currentUrl == null) return
+        if (player.audioFormat?.sampleMimeType !in passthroughSound) return
+        val url = player.currentMediaItem?.localConfiguration?.uri?.toString() ?: return
+        // A moment for the new output to settle, then reopen (closing first, so it never counts as two connections).
+        pendingOpen?.let { mainHandler.removeCallbacks(it) }
+        val reopen = Runnable {
+            pendingOpen = null
+            player.setMediaSource(source(url)); player.prepare(); player.play()
+        }
+        val close = Runnable {
+            player.stop()
+            player.clearMediaItems()
+            pendingOpen = reopen
+            mainHandler.postDelayed(reopen, 400)
+        }
+        pendingOpen = close
+        mainHandler.postDelayed(close, 800)
+    }
+
     fun togglePause() {
         if (player.playWhenReady) player.pause() else player.play()
     }
@@ -335,6 +373,12 @@ class FreezeWatch {
  */
 @OptIn(UnstableApi::class)
 private class FreshDecoderRenderers(context: Context) : DefaultRenderersFactory(context) {
+    init {
+        // Sound the TV box can't play itself (Dolby over Bluetooth headphones) is decoded by the app's own decoder,
+        // used only when the box's own can't; over HDMI, Dolby still goes straight to the TV.
+        setExtensionRendererMode(EXTENSION_RENDERER_MODE_ON)
+    }
+
     override fun buildVideoRenderers(
         context: Context,
         extensionRendererMode: Int,
