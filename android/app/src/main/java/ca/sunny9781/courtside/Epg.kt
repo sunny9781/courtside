@@ -32,7 +32,7 @@ fun EpgScreen(model: AppModel) {
     val s = model.settings
     if (model.channels.isEmpty()) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Label(if (model.loading) "Downloading channels…" else (model.error ?: "No channels yet."), size = 15.sp, color = Theme.muted)
+            Label(if (model.loading || model.guideLoading) "Refreshing EPG…" else (model.error ?: "No channels yet."), size = 15.sp, color = Theme.muted)
         }
         return
     }
@@ -269,7 +269,7 @@ fun EpgScreen(model: AppModel) {
                     Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
                         Label(if (searching) "Results for “$hitsFor”" else (selected?.name ?: ""), size = 10.sp,
                             weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(nameWidth))
-                        Label("NOW", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.weight(1f))
+                        Label("NOW", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.weight(1f).padding(start = 14.dp))
                         Label("NEXT", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(NEXT_WIDTH))
                     }
                 }
@@ -360,7 +360,8 @@ private val NAME_WIDTH = 230.dp
 
 /** A name column wide enough for the longest channel name on one line (within reason), the same for every row. */
 internal fun nameWidthFor(channels: List<Channel>): androidx.compose.ui.unit.Dp =
-    (60 + 7 * (channels.maxOfOrNull { it.name.length } ?: 0)).coerceIn(230, 520).dp
+    // About as wide as the longest name needs (12 sp text), so the programme starts close by.
+    (44 + 6.3f * (channels.maxOfOrNull { it.name.length } ?: 0)).toInt().coerceIn(170, 460).dp
 /** The category column: narrow, so the names sit close to their counts. */
 private val CATEGORY_WIDTH = Theme.playerWidth
 private val NEXT_WIDTH = 180.dp
@@ -400,8 +401,10 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
         modifier = modifier.fillMaxWidth()) { focused ->
         val color = if (focused) Theme.bg else Theme.text
         Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            // A set name width (the game screen) keeps names on one line; otherwise they can wrap onto two.
-            Row(Modifier.width(nameWidth ?: NAME_WIDTH), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // A set name width (the game screen) keeps names on one line; otherwise they can wrap onto two. Names line
+            // up on the right, right beside what's on, so a short name doesn't leave a gap.
+            Row(Modifier.width(nameWidth ?: NAME_WIDTH), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
                 ChannelIcon(channel.icon, 24.dp)
                 Label(channel.name, size = 12.sp, weight = FontWeight.SemiBold, color = if (playing && !focused) Theme.accent else color,
                     maxLines = if (nameWidth != null) 1 else 2, modifier = Modifier.weight(1f, fill = false))
@@ -409,7 +412,7 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
                 if (model.isFavoriteChannel(channel.id))
                     Icon(Icons.Filled.Favorite, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(10.dp))
             }
-            Column(Modifier.weight(1f).padding(end = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Column(Modifier.weight(1f).padding(start = 14.dp, end = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Label(now?.title ?: "–", size = 12.sp, color = color)
                 if (now != null) {
                     val total = (now.end - now.start).toFloat()

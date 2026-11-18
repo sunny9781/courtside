@@ -67,6 +67,7 @@ fun SettingsScreen(model: AppModel) {
                     model.settings.hideSD = it
                 }
                     Updates(model)
+                    ConnectionLog()
                     LastCrash()
                 }
                 Section.HIDDEN -> Hidden(model)
@@ -112,6 +113,20 @@ private fun PlaybackSection(model: AppModel) {
     }
 }
 
+/** What used a connection to the provider, newest first: to see what caused 2/2 when only one thing plays. */
+@Composable
+private fun ConnectionLog() {
+    var open by remember { mutableStateOf(false) }
+    Action("Connection log", "Streams opened and closed, downloads, and what the provider said was in use.",
+        value = if (open) "Hide" else "Show") { open = !open }
+    if (open) {
+        if (ConnLog.entries.isEmpty()) Label("Nothing yet.", size = 11.sp, color = Theme.muted, modifier = Modifier.padding(horizontal = 10.dp))
+        ConnLog.entries.forEach { line ->
+            Label(line, size = 11.sp, color = Theme.soft, maxLines = 2, modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp))
+        }
+    }
+}
+
 @Composable
 private fun Updates(model: AppModel) {
     val context = LocalContext.current
@@ -124,7 +139,7 @@ private fun Updates(model: AppModel) {
         s.refreshHours = list[(list.indexOf(s.refreshHours) + 1) % list.size]
     }
     Action("Refresh now", model.updatedAt?.let { "Last downloaded ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))}" },
-        value = if (model.loading) "Downloading…" else null) { model.refresh(force = true) }
+        value = if (model.refreshWaiting) "After this stream" else if (model.loading || model.guideLoading) "Refreshing…" else null) { model.refresh(force = true) }
     val ready = Updater.readyVersion
     if (ready != null) {
         Action("Install version $ready", "Downloaded and ready. Android asks you to confirm the install.") { scope.launch { Updater.installLatest(context) } }

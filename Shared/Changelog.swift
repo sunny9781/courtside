@@ -74,6 +74,14 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.77", date: "2026-11-18", time: "13:10", title: "One connection at a time, EPG progress", changes: [
+            Change(text: "Channels and the guide never download while a stream plays: a refresh waits until the stream stops (the top bar says so), and starting a stream pauses a download that's under way. The channel list is downloaded in one request at a time. All so only one connection is ever in use.", apps: android),
+            Change(text: "Settings › General › Connection log: streams opened and closed, downloads, and what the provider said was in use, so a 2/2 can be traced.", apps: android),
+            Change(text: "The top bar shows when the EPG was downloaded as plain text (no refresh button; it refreshes by itself, or from Settings › General). While it downloads: Refreshing EPG with a percentage and a progress bar.", apps: android),
+            Change(text: "Home: games starting more than 2 hours from now fold into one row (Later today · 18), like finished games.", apps: android),
+            Change(text: "Home: less space between the start time and the teams; upcoming games show just their start time.", apps: android),
+            Change(text: "EPG and game screen: channel names line up on the right, right beside what's on, and the name column is only as wide as the longest name needs.", apps: android)
+        ]),
         Release(version: "1.76", date: "2026-11-18", time: "01:05", title: "Every app lined up", changes: [
             Change(text: "Home: the teams line up around the @ on every row, with the first team's score before its name.", apps: tvAndroid),
             Change(text: "Settings: Playback has its own section, and every setting reads more clearly (white title, grey detail, the value in orange).", apps: tvAndroid),

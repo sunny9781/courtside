@@ -84,6 +84,53 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         private set
     var updatedAt by mutableStateOf<Long?>(null)
         private set
+    /** The guide is downloading (the top bar shows "Refreshing EPG" and how far along it is). */
+    var guideLoading by mutableStateOf(false)
+        private set
+    /** How much of the guide has come in, 0 to 1 (null when the provider doesn't say how big it is). */
+    var guideProgress by mutableStateOf<Float?>(null)
+        private set
+    /** Megabytes of the guide downloaded so far, for when the size isn't known. */
+    var guideMegabytes by mutableStateOf(0)
+        private set
+    /** A refresh is waiting for the stream to stop (so the app never uses two connections). */
+    var refreshWaiting by mutableStateOf(false)
+        private set
+
+    private var guideJob: kotlinx.coroutines.Job? = null
+
+    /** A stream is open (or about to be). Downloads wait until it's closed, so only one connection is ever in use. */
+    private val streamOpen get() = Playback.currentUrl != null
+
+    private suspend fun waitForNoStream() {
+        if (!streamOpen) return
+        ConnLog.add("Waiting for the stream to stop before downloading")
+        refreshWaiting = true
+        try {
+            while (streamOpen) kotlinx.coroutines.delay(3000)
+            // A moment for the provider to see the stream closed.
+            kotlinx.coroutines.delay(2000)
+        } finally {
+            refreshWaiting = false
+        }
+    }
+
+    /** A stream is starting: a guide download in progress stops and starts again once nothing plays. */
+    private fun pauseDownloads() {
+        if (guideJob?.isActive != true) return
+        ConnLog.add("Paused the guide download (a stream started)")
+        guideJob?.cancel()
+        val creds = credentials ?: return
+        startGuide(XtreamClient(creds))
+    }
+
+    private fun startGuide(client: XtreamClient) {
+        guideJob?.cancel()
+        guideJob = viewModelScope.launch {
+            waitForNoStream()
+            loadGuide(client)
+        }
+    }
 
     var tab by mutableStateOf(Tab.HOME)
     /** Focus is on Home / EPG / Settings: the player's video can't take focus then, so down lands on the page. */
@@ -245,7 +292,10 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** The provider's own connection count, fetched again (it's only right once the provider has noticed a change). */
     fun refreshAccount() {
         val creds = credentials ?: return
-        viewModelScope.launch { runCatching { account = XtreamClient(creds).login() } }
+        viewModelScope.launch {
+            runCatching { account = XtreamClient(creds).login() }
+            account?.let { ConnLog.add("Provider says ${it.activeConnections ?: "?"}/${it.maxConnections ?: "?"} in use") }
+        }
     }
 
     /**
@@ -341,10 +391,11 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                     if (g.isNotEmpty()) { guide = g; matchGuideSports() }
                     loadScores()    // matches today's games with the guide already in place
                     loadBroadcasts()
-                    if (g.isEmpty()) loadGuide(client)
+                    if (g.isEmpty()) startGuide(client)
                     return@launch
                 }
                 runCatching { account = client.login() }
+                waitForNoStream()
                 val (cats, chans) = client.live()
                 rawCategories = cats
                 rawChannels = chans
@@ -353,7 +404,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 loadBroadcasts()
                 updatedAt = System.currentTimeMillis()
                 withContext(Dispatchers.IO) { Cache.saveLive(context, owner, cats, chans) }
-                loadGuide(client)
+                loading = false
+                startGuide(client)
             } catch (e: Exception) {
                 error = e.message ?: "Couldn't load your channels."
             } finally {
@@ -433,12 +485,29 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val wanted = channels.mapNotNull { it.epgId.ifEmpty { null } }.toSet()
         if (wanted.isEmpty()) return
         val now = System.currentTimeMillis()
-        runCatching {
-            // Last hour to the next 8: plenty for now/next and today's games, and light on a 2 GB TV.
-            val g = client.guide(wanted, now - 3600_000L, now + 8 * 3600_000L)
-            guide = g
-            withContext(Dispatchers.IO) { Cache.saveGuide(context, g) }
+        val job = kotlin.coroutines.coroutineContext[kotlinx.coroutines.Job]
+        guideLoading = true
+        guideProgress = null
+        guideMegabytes = 0
+        try {
+            runCatching {
+                // Last hour to the next 8: plenty for now/next and today's games, and light on a 2 GB TV.
+                val g = client.guide(wanted, now - 3600_000L, now + 8 * 3600_000L) { read, total ->
+                    // A stream started: stop reading (the download starts again once it's closed).
+                    if (job?.isActive == false) throw java.io.InterruptedIOException("paused")
+                    viewModelScope.launch {
+                        guideMegabytes = (read / 1_048_576).toInt()
+                        guideProgress = if (total > 0) (read.toFloat() / total).coerceIn(0f, 1f) else null
+                    }
+                }
+                guide = g
+                updatedAt = System.currentTimeMillis()
+                withContext(Dispatchers.IO) { Cache.saveGuide(context, g) }
+            }
+        } finally {
+            guideLoading = false
         }
+        if (job?.isActive == false) return
         rematch()
     }
 
@@ -634,6 +703,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         recent.add(channel.id)
         pinned = NowPlaying(channel, gameTitle, lineup.ifEmpty { listOf(channel) })
         val (ts, hls) = urls(channel) ?: return
+        pauseDownloads()
         Playback.play(ts, hls)
         checkAccountSoon()
     }
@@ -645,6 +715,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val item = NowPlaying(channel, gameTitle, lineup.ifEmpty { listOf(channel) })
         nowPlaying = item
         val (ts, hls) = urls(channel) ?: return
+        pauseDownloads()
         Playback.play(ts, hls)
         checkAccountSoon()
     }
