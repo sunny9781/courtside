@@ -69,6 +69,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         private set
     var measuredFrameRate by mutableStateOf<Map<Int, Float>>(emptyMap())
         private set
+    /** The sound each channel played with ("Stereo", "5.1 Dolby"). */
+    var measuredAudio by mutableStateOf<Map<Int, String>>(emptyMap())
+        private set
     var leagueLogos by mutableStateOf<Map<String, String>>(emptyMap())
         private set
     var guide by mutableStateOf<Map<String, List<Programme>>>(emptyMap())
@@ -507,6 +510,11 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         if (label.isEmpty() || measuredQuality[channelId] == label) return
         measuredQuality = measuredQuality + (channelId to label)
         // Shown on the stream straight away; the order catches up at the next rematch.
+    }
+
+    fun recordAudio(channelId: Int, label: String) {
+        if (label.isEmpty() || measuredAudio[channelId] == label) return
+        measuredAudio = measuredAudio + (channelId to label)
     }
 
     fun recordFrameRate(channelId: Int, fps: Float) {

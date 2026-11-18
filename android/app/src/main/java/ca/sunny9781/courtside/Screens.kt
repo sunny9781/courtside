@@ -210,6 +210,9 @@ fun Shell(model: AppModel) {
     LaunchedEffect(Playback.frameRate, current?.channel?.id) {
         current?.let { model.recordFrameRate(it.channel.id, Playback.frameRate) }
     }
+    LaunchedEffect(Playback.audio, current?.channel?.id) {
+        current?.let { model.recordAudio(it.channel.id, Playback.audio) }
+    }
     AfterFullScreen(model, "strip") { strip.focus("video") }
     // Update messages ("Turn on Courtside here…", "The update didn't install…") show as a notice.
     LaunchedEffect(Updater.message) { Updater.message?.let { model.notice = it } }
@@ -412,6 +415,8 @@ fun NowPlayingBar(model: AppModel, item: NowPlaying, modifier: Modifier = Modifi
             Icon(Icons.Filled.GraphicEq, null, tint = Theme.accent, modifier = Modifier.size(11.dp))
             Label(channel.name, size = 11.sp, weight = FontWeight.SemiBold, color = Theme.soft)
             if (Playback.resolution.isNotEmpty()) Badge(Playback.resolution)
+            if (Playback.frameRate > 0) Badge(Playback.fpsLabel(Playback.frameRate))
+            if (Playback.audio.isNotEmpty()) Badge(Playback.audio)
             Label(title, size = 12.sp, weight = FontWeight.Bold, modifier = Modifier.weight(1f, fill = false))
             if (now != null) {
                 if (now.title.isNotEmpty() && now.title != title) Label(now.title, size = 11.sp, color = Theme.soft,
@@ -545,6 +550,7 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
                 }
                 if (Playback.resolution.isNotEmpty()) Badge(Playback.resolution)
                 if (Playback.frameRate > 0) Badge(Playback.fpsLabel(Playback.frameRate))
+                if (Playback.audio.isNotEmpty()) Badge(Playback.audio)
             }
         }
     }

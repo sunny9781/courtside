@@ -74,6 +74,12 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.73", date: "2026-11-17", time: "23:59", title: "Sound on Bluetooth headphones, and the sound shown", changes: [
+            Change(text: "Channels with Dolby sound (most 4K ones) play through Bluetooth headphones and speakers: the app decodes it when the TV box can't. Over HDMI it still goes to the TV as before.", apps: android),
+            Change(text: "Connecting or disconnecting headphones while a Dolby channel plays reopens it for the new output, so the sound doesn't drop.", apps: android),
+            Change(text: "The sound is shown next to the resolution and frame rate (Stereo, 5.1 Dolby, Atmos...): in full screen, in the bar along the bottom, and on each stream you've played on the game screen and in the EPG.", apps: android),
+            Change(text: "Game screen and EPG: streams you've played show their real frame rate too, not just the resolution.", apps: android)
+        ], titleApps: [.android]),
         Release(version: "1.72", date: "2026-11-17", time: "23:15", title: "Lighter Home and EPG", changes: [
             Change(text: "Team and league logos are downloaded at the size they're shown, not as large images shrunk on the TV.", apps: android),
             Change(text: "When the scores update, only the games that changed are drawn again (not every row on Home).", apps: android),

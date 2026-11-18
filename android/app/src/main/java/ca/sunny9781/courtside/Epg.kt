@@ -418,8 +418,16 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
             }
             Label(next?.let { "${clockTime(it.start)}  ${it.title}" } ?: "", size = 11.sp, color = color.copy(alpha = 0.65f),
                 modifier = Modifier.width(NEXT_WIDTH))
-            if (!badge.isNullOrEmpty()) Badge(badge, fill = if (badge == "4K") Theme.accent else Theme.raised,
-                color = if (badge == "4K") Theme.onAccent else Theme.soft)
+            // What it really played at, once it has (resolution, frame rate, sound), on the EPG and the game screen.
+            val quality = badge?.takeIf { it.isNotEmpty() } ?: model.measuredQuality[channel.id]
+            val fps = model.measuredFrameRate[channel.id]
+            val sound = model.measuredAudio[channel.id]
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (!quality.isNullOrEmpty()) Badge(quality, fill = if (quality == "4K") Theme.accent else Theme.raised,
+                    color = if (quality == "4K") Theme.onAccent else Theme.soft)
+                if (fps != null && fps > 0) Badge(Playback.fpsLabel(fps), fill = Theme.raised, color = Theme.soft)
+                if (!sound.isNullOrEmpty()) Badge(sound, fill = Theme.raised, color = Theme.soft)
+            }
         }
     }
 }

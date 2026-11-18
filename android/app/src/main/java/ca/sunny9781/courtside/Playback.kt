@@ -43,6 +43,8 @@ object Playback {
         private set
     /** "1080p", "4K"… (empty until the first picture). */
     var resolution by mutableStateOf("")
+    /** The sound, like TiviMate shows it: "Stereo", "5.1 Dolby", "5.1 Atmos". */
+    var audio by mutableStateOf("")
         private set
     var frameRate by mutableStateOf(0f)
         private set
@@ -113,6 +115,17 @@ object Playback {
                 }
             })
         }
+        // Headphones or a speaker connected or disconnected (Bluetooth, HDMI): a Dolby stream was set up for the old
+        // output (sent to the TV as is, or decoded here), so it's reopened for the new one, otherwise it goes silent.
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        audio.registerAudioDeviceCallback(object : android.media.AudioDeviceCallback() {
+            private var ready = false
+            override fun onAudioDevicesAdded(added: Array<out android.media.AudioDeviceInfo>) {
+                // The first call lists what's already connected.
+                if (ready) outputChanged() else ready = true
+            }
+            override fun onAudioDevicesRemoved(removed: Array<out android.media.AudioDeviceInfo>) = outputChanged()
+        }, handler)
         handler.post(object : Runnable {
             override fun run() {
                 poll()
@@ -130,6 +143,7 @@ object Playback {
         freeze.reset()
         resolution = ""
         frameRate = 0f
+        audio = ""
         fallbackUrl = hlsFallback
         currentUrl = url
         open(url)
@@ -206,6 +220,7 @@ object Playback {
         status = Status.IDLE
         resolution = ""
         frameRate = 0f
+        audio = ""
     }
 
     /**
@@ -233,6 +248,33 @@ object Playback {
         }
     }
 
+    private val passthroughSound = setOf(
+        androidx.media3.common.MimeTypes.AUDIO_AC3, androidx.media3.common.MimeTypes.AUDIO_E_AC3,
+        androidx.media3.common.MimeTypes.AUDIO_E_AC3_JOC, androidx.media3.common.MimeTypes.AUDIO_AC4,
+        androidx.media3.common.MimeTypes.AUDIO_DTS, androidx.media3.common.MimeTypes.AUDIO_DTS_HD,
+        androidx.media3.common.MimeTypes.AUDIO_TRUEHD
+    )
+
+    private fun outputChanged() {
+        if (!::player.isInitialized || currentUrl == null) return
+        if (player.audioFormat?.sampleMimeType !in passthroughSound) return
+        val url = player.currentMediaItem?.localConfiguration?.uri?.toString() ?: return
+        // A moment for the new output to settle, then reopen (closing first, so it never counts as two connections).
+        pendingOpen?.let { mainHandler.removeCallbacks(it) }
+        val reopen = Runnable {
+            pendingOpen = null
+            player.setMediaSource(source(url)); player.prepare(); player.play()
+        }
+        val close = Runnable {
+            player.stop()
+            player.clearMediaItems()
+            pendingOpen = reopen
+            mainHandler.postDelayed(reopen, 400)
+        }
+        pendingOpen = close
+        mainHandler.postDelayed(close, 800)
+    }
+
     fun togglePause() {
         if (player.playWhenReady) player.pause() else player.play()
     }
@@ -253,6 +295,7 @@ object Playback {
     private fun poll() {
         if (!::player.isInitialized || currentUrl == null) return
         measureFrameRate()
+        soundLabel(player.audioFormat).let { if (it.isNotEmpty() && it != audio) audio = it }
         val fallback = fallbackUrl
         if (!firstFrame && fallback != null && player.playWhenReady && System.currentTimeMillis() - openedAt > 8000) {
             fallbackUrl = null
@@ -286,6 +329,30 @@ object Playback {
         height >= 700 -> "720p"
         else -> "${height}p"
     }
+
+    fun soundLabel(f: androidx.media3.common.Format?): String {
+        if (f == null) return ""
+        val layout = when (val ch = f.channelCount) {
+            Format_NO_VALUE, 0 -> ""
+            1 -> "Mono"
+            2 -> "Stereo"
+            6 -> "5.1"
+            8 -> "7.1"
+            else -> "$ch ch"
+        }
+        val codec = when (f.sampleMimeType) {
+            androidx.media3.common.MimeTypes.AUDIO_AC3 -> "Dolby"
+            androidx.media3.common.MimeTypes.AUDIO_E_AC3 -> "Dolby+"
+            androidx.media3.common.MimeTypes.AUDIO_E_AC3_JOC -> "Atmos"
+            androidx.media3.common.MimeTypes.AUDIO_AC4 -> "AC-4"
+            androidx.media3.common.MimeTypes.AUDIO_DTS, androidx.media3.common.MimeTypes.AUDIO_DTS_HD -> "DTS"
+            androidx.media3.common.MimeTypes.AUDIO_TRUEHD -> "TrueHD"
+            else -> ""
+        }
+        return listOf(layout, codec).filter { it.isNotEmpty() }.joinToString(" ")
+    }
+
+    private const val Format_NO_VALUE = androidx.media3.common.Format.NO_VALUE
 
     fun fpsLabel(fps: Float): String {
         val rounded = Math.round(fps * 100) / 100f
@@ -335,6 +402,12 @@ class FreezeWatch {
  */
 @OptIn(UnstableApi::class)
 private class FreshDecoderRenderers(context: Context) : DefaultRenderersFactory(context) {
+    init {
+        // Sound the TV box can't play itself (Dolby over Bluetooth headphones) is decoded by the app's own decoder,
+        // used only when the box's own can't; over HDMI, Dolby still goes straight to the TV.
+        setExtensionRendererMode(EXTENSION_RENDERER_MODE_ON)
+    }
+
     override fun buildVideoRenderers(
         context: Context,
         extensionRendererMode: Int,
