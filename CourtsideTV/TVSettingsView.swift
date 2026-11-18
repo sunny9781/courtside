@@ -40,7 +40,10 @@ struct TVSettingsView: View {
     }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 50) {
+        HStack(alignment: .top, spacing: TVLayout.playerGap - 24) {
+            // Built like the left column on Home and the EPG (same list, spacing and insets), so the three screens
+            // line up when you switch tabs.
+            ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(Section.allCases) { item in
                     Button {
@@ -58,23 +61,25 @@ struct TVSettingsView: View {
                     .buttonStyle(TVRowButtonStyle(selected: section == item))
                     .focused($focusedSection, equals: item)
                 }
-                Spacer()
             }
             .padding(.vertical, 20)
+            }
+            .ignoresSafeArea(.container, edges: .horizontal)
             .frame(width: TVLayout.sidebar)
-            .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : 0)
+            .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : TVLayout.margin)
             .focusSection()
 
             ScrollView(.vertical) {
-                // The section is highlighted on the left, so its name isn't repeated here.
-                VStack(alignment: .leading, spacing: 14) {
+                // The section is highlighted on the left, so its name isn't repeated here. Rows are the same height
+                // and spacing as the section list, so the first rows line up across.
+                VStack(alignment: .leading, spacing: 6) {
                     content
                 }
                 .padding(.vertical, 20)
-                .frame(maxWidth: 1000, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             // Runs to the bottom of the screen, under the now-playing bar.
-            .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : 0, for: .scrollContent)
+            .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : TVLayout.margin, for: .scrollContent)
             // Use the full width: no Apple TV side insets on top of our own small margin.
             .ignoresSafeArea(.container, edges: .horizontal)
             .focusSection()
@@ -120,10 +125,12 @@ struct TVSettingsView: View {
                 Text("Nothing is hidden. Hold the select button on a sport on Home, or a category or channel in the EPG, and choose Hide.")
                     .font(.system(size: 22))
                     .foregroundStyle(Theme.muted)
+                    .padding(.horizontal, 22)
             } else {
                 Text("Click one to show it again. A hidden sport is switched off: no scores are fetched and nothing is matched for it.")
                     .font(.system(size: 21))
                     .foregroundStyle(Theme.muted)
+                    .padding(.horizontal, 22)
                     .padding(.bottom, 10)
                 if !sports.isEmpty || !leagues.isEmpty { hiddenHeading("Sports") }
                 ForEach(sports) { sport in
@@ -184,6 +191,7 @@ struct TVSettingsView: View {
             Text("To update, double-click \"Update Apple TV and iPhone\" in the Courtside shortcuts folder on your Mac (at least weekly).")
                 .font(.system(size: 20))
                 .foregroundStyle(Theme.muted)
+                .padding(.horizontal, 22)
                 .padding(.top, 6)
 
         case .changelog:
@@ -231,7 +239,7 @@ struct TVSettingsView: View {
         }
         .font(.system(size: 26))
         .padding(.horizontal, 22)
-        .frame(minHeight: 64)
+        .frame(minHeight: 72)
     }
 
     private func toggle(_ title: String, detail: String?, _ value: Binding<Bool>) -> some View {
@@ -259,6 +267,7 @@ struct TVSettingsView: View {
         Text(title.uppercased())
             .font(.system(size: 19, weight: .bold))
             .foregroundStyle(Theme.muted)
+            .padding(.leading, 22)
             .padding(.top, 14)
     }
 

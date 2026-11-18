@@ -146,16 +146,22 @@ struct TVShell: View {
                     .transition(.opacity)
             }
         }
-        // Use almost the whole screen: no Apple TV insets at the sides or top, just our own small margin.
-        .ignoresSafeArea(.container, edges: [.horizontal, .top])
+        // Use almost the whole screen: no Apple TV insets at the sides, top or bottom, just our own small margin
+        // (the bottom inset left a big empty strip under the now-playing bar).
+        .ignoresSafeArea(.container, edges: .all)
         .padding(.top, TVLayout.margin)
         // Back on EPG or Settings goes to Home; on a game screen it goes back to the Home list (also when focus
         // isn't inside the game screen, e.g. right after full screen); on the Home list it leaves the app, as
         // usual on Apple TV.
         .onExitCommand(perform: exitAction)
         // Play/Pause on the remote stops the player at the top (and frees the connection).
+        // Hold Play/Pause: the player in the corner goes full screen (Android TV: hold Back).
+        .background(TVPlayPauseHold {
+            guard model.nowPlaying == nil, let item = model.pinned else { return }
+            model.play(item.channel, gameTitle: item.gameTitle, lineup: item.lineup)
+        })
         .onPlayPauseCommand {
-            guard model.nowPlaying == nil, model.pinned != nil else { return }
+            guard !TVRemoteHold.justHeld, model.nowPlaying == nil, model.pinned != nil else { return }
             PlaybackController.shared.stop()
             model.pinned = nil
             model.checkConnectionsSoon()

@@ -12,7 +12,7 @@ enum TVLayout {
     /// Height of the player in the bottom-left corner plus equal gaps above and below it: the left panels stop this
     /// far from the bottom while something plays, so they sit on top of the player.
     /// The one-line now-playing bar along the very bottom of the screen, under the player.
-    static let barHeight: CGFloat = 46
+    static let barHeight: CGFloat = 40
     static let playerInset: CGFloat = playerWidth * 9 / 16 + margin * 2 + barHeight
 
     /// A channel-name column wide enough for the longest name on one line (within reason), the same for every row.

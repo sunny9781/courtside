@@ -26,7 +26,7 @@ struct TVHomeView: View {
                 TVSportList(focused: $sidebarFocus, compact: false)
                     .frame(width: TVLayout.sidebar)
                     // On top of the player in the bottom-left corner.
-                    .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : 0)
+                    .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : TVLayout.margin)
                     .focusSection()
                     // Coming back from the games lands on the sport you left, not the row beside it.
                     .defaultFocus($sidebarFocus, sidebarTarget, priority: .userInitiated)
@@ -306,7 +306,7 @@ struct TVGamesPane: View {
             .padding(.vertical, 20)
         }
         // Runs to the bottom of the screen, under the now-playing bar (the last row can scroll clear of it).
-        .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : 0, for: .scrollContent)
+        .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : TVLayout.margin, for: .scrollContent)
         .ignoresSafeArea(.container, edges: [.horizontal, .bottom])
     }
 
@@ -517,6 +517,6 @@ struct TVSportChannels: View {
         }
         .defaultFocus($focused, playing ?? list.first?.id)
         // Runs to the bottom of the screen, under the now-playing bar (the last row can scroll clear of it).
-        .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : 0, for: .scrollContent)
+        .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : TVLayout.margin, for: .scrollContent)
     }
 }
