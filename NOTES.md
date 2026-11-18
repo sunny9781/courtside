@@ -6,6 +6,7 @@ Read this at the start of a session. Keep it short and current.
 Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - **Apple** (Swift/SwiftUI): `Courtside/` (Mac), `CourtsideTV/` (Apple TV), `CourtsideiOS/` (iPhone/iPad), shared code in `Shared/`.
 - **Android TV / Google TV** (Kotlin, Compose for TV, Media3): `android/app/src/main/java/ca/sunny9781/courtside/`.
+  Runs on Android 7.1+ (minSdk 25) so older Fire TV Sticks (Fire OS 6) work; keep API 26+ calls behind SDK_INT checks.
 - Scores from ESPN's public scoreboard; streams matched to games from channel names and the guide (`Matcher`).
 
 ## Rules

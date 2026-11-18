@@ -14,7 +14,7 @@ android {
 
     defaultConfig {
         applicationId = "ca.sunny9781.courtside"
-        minSdk = 26
+        minSdk = 25  // Android 7.1: older Fire TV Sticks (Fire OS 6)
         targetSdk = 35
         versionCode = buildNumber
         versionName = appVersion
