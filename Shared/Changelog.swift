@@ -74,8 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
-        Release(version: "1.78", date: "2026-11-18", time: "13:30", title: "Smooth switch between full screen and the corner", changes: [
+        Release(version: "1.78", date: "2026-11-18", time: "13:30", title: "Smooth switch to the corner, fixed EPG columns", changes: [
             Change(text: "Full screen and the corner player are now one video that just changes size, so going between them is instant: no black flash, no wait, and no more stopping when you leave full screen. (The corner player has square corners now.)", apps: android),
+            Change(text: "EPG, game screen and channel sports: the same fixed columns everywhere (channel, now, next). Text that doesn't fit scrolls inside its column on the row you're on.", apps: android),
             Change(text: "The update button works on the first press, also while the app is already checking for an update by itself. After you switch on Install unknown apps, the update carries on by itself when you come back.", apps: android)
         ]),
         Release(version: "1.77", date: "2026-11-18", time: "13:10", title: "One connection at a time, EPG progress", changes: [

@@ -269,7 +269,7 @@ fun EpgScreen(model: AppModel) {
                     Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
                         Label(if (searching) "Results for “$hitsFor”" else (selected?.name ?: ""), size = 10.sp,
                             weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(nameWidth))
-                        Label("NOW", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.weight(1f).padding(start = 14.dp))
+                        Label("NOW", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(NOW_WIDTH).padding(start = COLUMN_GAP))
                         Label("NEXT", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(NEXT_WIDTH))
                     }
                 }
@@ -356,15 +356,17 @@ internal fun HoldMenu(p: HoldPrompt, dismiss: () -> Unit) {
 
 private data class Entry(val id: String, val name: String, val categories: List<ChannelCategory>)
 
-private val NAME_WIDTH = 230.dp
 
 /** A name column wide enough for the longest channel name on one line (within reason), the same for every row. */
 internal fun nameWidthFor(channels: List<Channel>): androidx.compose.ui.unit.Dp =
-    // About as wide as the longest name needs (12 sp text), so the programme starts close by.
-    (44 + 6.3f * (channels.maxOfOrNull { it.name.length } ?: 0)).toInt().coerceIn(170, 460).dp
+    CHANNEL_WIDTH
 /** The category column: narrow, so the names sit close to their counts. */
 private val CATEGORY_WIDTH = Theme.playerWidth
-private val NEXT_WIDTH = 180.dp
+private val NEXT_WIDTH = 210.dp
+/** The same column widths on every screen: channel (with its logo), what's on now, what's next. */
+internal val CHANNEL_WIDTH = 210.dp
+private val NOW_WIDTH = 290.dp
+private val COLUMN_GAP = 12.dp
 
 private fun count(model: AppModel, cats: List<ChannelCategory>) = cats.sumOf { model.channelsByCategory[it.id]?.size ?: 0 }
 
@@ -401,19 +403,19 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
         modifier = modifier.fillMaxWidth()) { focused ->
         val color = if (focused) Theme.bg else Theme.text
         Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            // A set name width (the game screen) keeps names on one line; otherwise they can wrap onto two. Names line
-            // up on the right, right beside what's on, so a short name doesn't leave a gap.
-            Row(Modifier.width(nameWidth ?: NAME_WIDTH), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+            // Fixed columns on every screen (channel, now, next): one line each; on the row you're on, text that
+            // doesn't fit scrolls inside its column.
+            Row(Modifier.width(CHANNEL_WIDTH), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ChannelIcon(channel.icon, 24.dp)
                 Label(channel.name, size = 12.sp, weight = FontWeight.SemiBold, color = if (playing && !focused) Theme.accent else color,
-                    maxLines = if (nameWidth != null) 1 else 2, modifier = Modifier.weight(1f, fill = false))
+                    scroll = focused, modifier = Modifier.weight(1f, fill = false))
                 if (playing) Icon(Icons.Filled.GraphicEq, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(11.dp))
                 if (model.isFavoriteChannel(channel.id))
                     Icon(Icons.Filled.Favorite, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(10.dp))
             }
-            Column(Modifier.weight(1f).padding(start = 14.dp, end = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Label(now?.title ?: "–", size = 12.sp, color = color)
+            Column(Modifier.width(NOW_WIDTH).padding(start = COLUMN_GAP, end = COLUMN_GAP), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Label(now?.title ?: "–", size = 12.sp, color = color, scroll = focused)
                 if (now != null) {
                     val total = (now.end - now.start).toFloat()
                     ProgressLine(if (total > 0) (System.currentTimeMillis() - now.start) / total else 0f, focused)
@@ -421,12 +423,12 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
             }
             // The game screen shows the stream's tags where the EPG shows what's next.
             if (showNext) Label(next?.let { "${clockTime(it.start)}  ${it.title}" } ?: "", size = 11.sp,
-                color = color.copy(alpha = 0.65f), modifier = Modifier.width(NEXT_WIDTH))
+                color = color.copy(alpha = 0.65f), scroll = focused, modifier = Modifier.width(NEXT_WIDTH).padding(end = COLUMN_GAP))
             // What it really played at, once it has (resolution, frame rate, sound), on the EPG and the game screen.
             val quality = badge?.takeIf { it.isNotEmpty() } ?: model.measuredQuality[channel.id]
             val fps = model.measuredFrameRate[channel.id]
             val sound = model.measuredAudio[channel.id]
-            Row(Modifier.then(if (showNext) Modifier else Modifier.width(NEXT_WIDTH + 40.dp)),
+            Row(Modifier.then(if (showNext) Modifier else Modifier.width(NEXT_WIDTH)),
                 horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (!quality.isNullOrEmpty()) Badge(quality, fill = if (quality == "4K") Theme.accent else Theme.raised,
                     color = if (quality == "4K") Theme.onAccent else Theme.soft)
