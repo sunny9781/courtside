@@ -472,14 +472,29 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     private fun isAdult(name: String) = name.contains("adult", ignoreCase = true)
 
-    /** Hides adult categories and their channels everywhere when that setting is on (called again when it changes). */
+    /**
+     * A category with "adult" in its name goes into Settings › Hidden the first time it's seen, like one you hid
+     * yourself: showing it again there sticks. (Someone who had the old "Adult categories" switch on keeps them.)
+     */
+    private fun hideNewAdultCategories() {
+        val handled = settings.adultHandled.split("\n").filter { it.isNotEmpty() }.toSet()
+        val fresh = rawCategories.filter { isAdult(it.name) && it.id !in handled }.map { it.id }
+        if (fresh.isEmpty()) return
+        if (settings.hideAdult) {
+            val hidden = hiddenCategoryIds
+            settings.hiddenCategories = (hidden + fresh.filter { it !in hidden }).joinToString("\n")
+        }
+        settings.adultHandled = (handled + fresh).joinToString("\n")
+    }
+
+    /** Hides what's in Settings › Hidden everywhere (called again when it changes). */
     suspend fun applyFilters() {
-        val hide = settings.hideAdult
+        hideNewAdultCategories()
         val hiddenCats = hiddenCategoryIds.toSet()
         val hiddenChans = hiddenChannelIds.toSet()
-        val cats = rawCategories.filter { (!hide || !isAdult(it.name)) && it.id !in hiddenCats }
+        val cats = rawCategories.filter { it.id !in hiddenCats }
         val kept = cats.map { it.id }.toSet()
-        val list = rawChannels.filter { it.categoryId in kept && (!hide || !isAdult(it.categoryName)) && it.id !in hiddenChans }
+        val list = rawChannels.filter { it.categoryId in kept && it.id !in hiddenChans }
         // Hidden groups ("__node:" ids) leave the tree; their categories stay wherever else they're listed.
         fun prune(nodes: List<CategoryGrouping.Node>): List<CategoryGrouping.Node> =
             nodes.filter { it.id !in hiddenCats }.map { if (it.isGroup) it.copy(children = prune(it.children)) else it }

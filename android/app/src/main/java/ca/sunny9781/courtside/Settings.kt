@@ -73,7 +73,10 @@ class Settings(context: Context) {
     }
     var hideSD by Flag("hideSD", true)
     var showForeign by Flag("showForeign", false)
+    /** Old switch for adult categories; now only read once, to carry over someone who had turned them on. */
     var hideAdult by Flag("hideAdult", true)
+    /** Adult categories already put in Settings › Hidden once (so showing one again sticks). */
+    var adultHandled by Words("adultHandled")
     var grouped by Flag("guideGrouped", true)
     var guideCategory by Words("guideCategory")
     var hiddenSports by Words("hiddenSports")
