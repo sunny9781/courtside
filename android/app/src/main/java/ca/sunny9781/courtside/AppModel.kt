@@ -49,6 +49,16 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** Games in the leagues switched on in Settings. */
     var games by mutableStateOf<List<Game>>(emptyList())
         private set
+
+    /**
+     * New games keep the old ones where nothing about them changed, so when one score ticks over only that game's
+     * row is drawn again (not every row on Home).
+     */
+    private fun setGames(list: List<Game>) {
+        val old = games.associateBy { it.id }
+        games = list.map { n -> old[n.id]?.takeIf { it == n } ?: n }
+    }
+        private set
     private var allGames: List<Game> = emptyList()
     /** Canadian, UK and European broadcasters from the official schedules and the rights table (BroadcastSources). */
     private var extraBroadcasts: Map<String, List<Broadcast>> = emptyMap()
@@ -387,7 +397,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val unchanged = signature == scheduleSignature && matches.isNotEmpty()
         scheduleSignature = signature
         // Guide-built events (pickleball) stay put until rematch rebuilds them, so their cards don't blink.
-        games = visible(list) + games.filter { it.id.startsWith("guide-") }
+        setGames(visible(list) + games.filter { it.id.startsWith("guide-") })
         if (!unchanged) rematch()
     }
 
@@ -413,7 +423,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             extra to m
         }
         if (gs.isEmpty()) return
-        games = games.filter { !it.id.startsWith("guide-") } + gs
+        setGames(games.filter { !it.id.startsWith("guide-") } + gs)
         matches = matches + ms
     }
 
@@ -452,7 +462,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             m to extra
         }
         if (guideGames.isNotEmpty() || games.any { it.id.startsWith("guide-") }) {
-            games = visible(allGames) + guideGames
+            setGames(visible(allGames) + guideGames)
         }
         matches = found
         withContext(Dispatchers.IO) { Cache.saveMatches(context, found) }
@@ -490,7 +500,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun leagueFilterChanged() {
-        games = visible(allGames)
+        setGames(visible(allGames))
         viewModelScope.launch { rematch() }
     }
 
@@ -549,6 +559,25 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun mainStreams(gameId: String): List<StreamMatch> = home.main[gameId] ?: run {
         val all = matches[gameId] ?: emptyList()
         all.filter { !it.hidden }.ifEmpty { all }
+    }
+
+    /** What's on a channel now and next. */
+    class NowNext(val now: Programme?, val next: Programme?, internal val list: List<Programme>?, internal val from: Long, internal val until: Long)
+
+    private val nowNextCache = HashMap<String, NowNext>()
+
+    /**
+     * What's on now and next, for the EPG rows: worked out once per programme and kept until it ends (or the guide
+     * is downloaded again), instead of searching the channel's whole guide for every row each time it's drawn.
+     */
+    fun nowNext(channel: Channel): NowNext {
+        val list = guide[channel.epgId]
+        val t = System.currentTimeMillis()
+        nowNextCache[channel.epgId]?.let { if (it.list === list && t >= it.from && t < it.until) return it }
+        val now = list?.firstOrNull { it.start <= t && it.end > t }
+        val next = now?.let { n -> list.firstOrNull { it.start >= n.end } }
+        val until = now?.end ?: list?.firstOrNull { it.start > t }?.start ?: Long.MAX_VALUE
+        return NowNext(now, next, list, now?.start ?: t, until).also { nowNextCache[channel.epgId] = it }
     }
 
     fun currentProgramme(channel: Channel, at: Long = System.currentTimeMillis()): Programme? =
