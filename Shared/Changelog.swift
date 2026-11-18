@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.75", date: "2026-11-18", time: "00:35", title: "Adult categories in Hidden", changes: [
+            Change(text: "The Adult categories switch is gone: any category with \"adult\" in its name now starts out in Settings › Hidden, where you can show it again like anything else you've hidden.", apps: android)
+        ]),
         Release(version: "1.74", date: "2026-11-18", time: "00:25", title: "Quicker Home, tags on the game screen", changes: [
             Change(text: "Home: finished games fold into one row at the bottom (Finished · 6); click it to show them. Pages draw only what's live or coming up, so moving between sports is quicker.", apps: android),
             Change(text: "Home: the number of streams per game is gone (less to draw); 4K games still show a 4K tag.", apps: android),
