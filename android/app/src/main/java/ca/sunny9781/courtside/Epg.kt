@@ -393,8 +393,9 @@ internal fun CategoryRow(
 internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, modifier: Modifier, badge: String? = null,
                         nameWidth: androidx.compose.ui.unit.Dp? = null,
                         onLongClick: (() -> Unit)? = null, onFocus: () -> Unit, onClick: () -> Unit) {
-    val now = model.currentProgramme(channel)
-    val next = now?.let { n -> model.guide[channel.epgId]?.firstOrNull { it.start >= n.end } }
+    val nowNext = model.nowNext(channel)
+    val now = nowNext.now
+    val next = nowNext.next
     TvButton(onClick = onClick, onFocus = onFocus, focusedScale = 1.02f, onLongClick = onLongClick,
         modifier = modifier.fillMaxWidth()) { focused ->
         val color = if (focused) Theme.bg else Theme.text

@@ -195,8 +195,7 @@ fun Badge(text: String, fill: Color = Theme.raised, color: Color = Theme.soft) {
 fun Logo(url: String?, size: Dp, fallback: String = "") {
     Box(Modifier.size(size).clip(CircleShape).background(Theme.raised), contentAlignment = Alignment.Center) {
         if (url != null) {
-            AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Fit,
-                modifier = Modifier.size(size * 0.8f))
+            SmallLogo(url, size, Modifier.size(size * 0.8f))
         } else if (fallback.isNotEmpty()) {
             Label(fallback.take(3), size = (size.value / 3).sp, color = Theme.soft, weight = FontWeight.Bold)
         }
@@ -269,7 +268,7 @@ fun ChannelIcon(url: String?, size: Dp) {
 fun LeagueLogo(model: AppModel, league: League, size: Dp) {
     val url = model.leagueLogos[league.id]
     if (url != null) {
-        AsyncImage(model = url, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.size(size))
+        SmallLogo(url, size, Modifier.size(size))
     } else {
         androidx.tv.material3.Icon(league.sport.icon, contentDescription = null, tint = Theme.accent, modifier = Modifier.size(size * 0.8f))
     }
@@ -368,4 +367,24 @@ fun Modifier.flushOn(settle: Settle, direction: androidx.compose.ui.focus.FocusD
             true
         } else false
     }
+}
+
+/**
+ * ESPN's logos are 500-pixel images; a row shows them at about 30. ESPN's image server sends them at the size
+ * they're shown (sharp on a 4K TV too), so there's much less to download and shrink on the TV. Other addresses
+ * are left as they are.
+ */
+fun smallLogo(url: String, size: Dp): String {
+    val prefix = "https://a.espncdn.com/i/"
+    if (!url.startsWith(prefix) || url.contains('?')) return url
+    val px = (size.value * 4).toInt().coerceIn(48, 160)
+    return "https://a.espncdn.com/combiner/i?img=/i/${url.removePrefix(prefix)}&w=$px&h=$px"
+}
+
+/** A logo at the size it's shown; if the small version won't load, the full-size one. */
+@Composable
+private fun SmallLogo(url: String, size: Dp, modifier: Modifier) {
+    var failed by remember(url) { mutableStateOf(false) }
+    AsyncImage(model = if (failed) url else smallLogo(url, size), contentDescription = null, contentScale = ContentScale.Fit,
+        modifier = modifier, onError = { if (!failed) failed = true })
 }

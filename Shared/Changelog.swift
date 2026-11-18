@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.72", date: "2026-11-17", time: "23:15", title: "Lighter Home and EPG", changes: [
+            Change(text: "Team and league logos are downloaded at the size they're shown, not as large images shrunk on the TV.", apps: android),
+            Change(text: "When the scores update, only the games that changed are drawn again (not every row on Home).", apps: android),
+            Change(text: "EPG: what's on now and next is worked out once per programme, so long categories scroll more smoothly.", apps: android)
+        ]),
         Release(version: "1.71", date: "2026-11-17", time: "22:55", title: "Faster moving through lists", changes: [
             Change(text: "Home: moving through the sports only draws a sport's games once you stop on it, so flipping past several is quicker. Clicking, or pressing right into the games, is instant.", apps: android),
             Change(text: "The tabs: going from Home to Settings no longer draws the EPG on the way past. Pressing down into a page is instant.", apps: android),

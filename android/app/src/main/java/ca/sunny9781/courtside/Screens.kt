@@ -760,7 +760,8 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
                 }
             }
             items(section.games, key = { "${section.id}:${it.id}" }) { game ->
-                GameRow(model, game, showLeague = selection is HomeSelection.LiveNow,
+                val main = model.mainStreams(game.id)
+                GameRow(game, main.size, main.any { it.is4K }, showLeague = selection is HomeSelection.LiveNow,
                     modifier = Modifier.tracked(targets, "game:${game.id}"),
                     onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
             }
@@ -776,8 +777,10 @@ private val STATUS_WIDTH = 150.dp
  * streams it has. Upcoming games are grey and finished ones a little dimmer, so live games stand out in white.
  */
 @Composable
-private fun GameRow(model: AppModel, game: Game, showLeague: Boolean, modifier: Modifier, onFocus: () -> Unit, onClick: () -> Unit) {
-    val main = model.mainStreams(game.id)
+private fun GameRow(game: Game, streams: Int, has4K: Boolean, showLeague: Boolean, modifier: Modifier, onFocus: () -> Unit,
+                    onClick: () -> Unit) {
+    // Only plain values come in (not the whole app model), so when the scores update, a row whose game didn't
+    // change isn't drawn again.
     TvButton(onClick = onClick, onFocus = onFocus, focusedScale = 1.02f, modifier = modifier.fillMaxWidth()) { focused ->
         val text = when {
             focused -> Theme.bg
@@ -809,10 +812,10 @@ private fun GameRow(model: AppModel, game: Game, showLeague: Boolean, modifier: 
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                if (main.any { it.is4K }) Badge("4K", fill = Theme.accent, color = Theme.onAccent)
-                Label(if (main.isEmpty()) "None" else "${main.size}", size = 12.sp, weight = FontWeight.SemiBold,
-                    color = if (main.isEmpty() && !focused) Theme.losing else text)
-                if (main.isNotEmpty()) Icon(Icons.Filled.LiveTv, null, tint = text, modifier = Modifier.size(12.dp))
+                if (has4K) Badge("4K", fill = Theme.accent, color = Theme.onAccent)
+                Label(if (streams == 0) "None" else "$streams", size = 12.sp, weight = FontWeight.SemiBold,
+                    color = if (streams == 0 && !focused) Theme.losing else text)
+                if (streams > 0) Icon(Icons.Filled.LiveTv, null, tint = text, modifier = Modifier.size(12.dp))
             }
         }
     }
