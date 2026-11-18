@@ -105,8 +105,6 @@ private fun PlaybackSection(model: AppModel) {
         s.matchFrameRate) { s.matchFrameRate = it }
     Toggle("Lite mode", "For less powerful TVs (Chromecast): no player in the corner (channels open full screen), no live scores (today's games load once when the app opens), no zoom when moving around, no team logos, and the fastest video drawing. On by default except on an Nvidia Shield.",
         s.lite) { s.lite = it; if (it) model.stopPinned() }
-    Toggle("HDR in full screen", "Lets HDR streams switch the TV into HDR. Off shows everything in standard range, so the TV never changes mode.",
-        s.hdr) { s.hdr = it }
     Action("Stream format", "Which version of each stream to open first. If it shows no picture within 8 seconds, the other one is tried.",
         value = if (s.preferHls) "HLS first" else "TS first") { s.preferHls = !s.preferHls }
     Action("Buffer", "More buffer means fewer stalls but a longer delay behind live. Takes effect the next time the app opens.",

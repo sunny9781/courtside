@@ -14,6 +14,11 @@ import androidx.media3.common.Player
 import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.Renderer
+import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
+import androidx.media3.exoplayer.video.MediaCodecVideoRenderer
+import androidx.media3.exoplayer.video.VideoRendererEventListener
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.DefaultHlsExtractorFactory
@@ -86,7 +91,7 @@ object Playback {
             .setAllowCrossProtocolRedirects(true)
             .setConnectTimeoutMs(10_000)
             .setReadTimeoutMs(15_000)
-        player = ExoPlayer.Builder(context).setLoadControl(load).build().apply {
+        player = ExoPlayer.Builder(context, FreshDecoderRenderers(context)).setLoadControl(load).build().apply {
             videoChangeFrameRateStrategy = C.VIDEO_CHANGE_FRAME_RATE_STRATEGY_OFF
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) = refreshStatus()
@@ -168,6 +173,29 @@ object Playback {
         if (hadStream) mainHandler.postDelayed(run, 400) else run.run()
     }
 
+    private var countFrom = 0L
+    private var countFrames = 0
+
+    /**
+     * Many streams (most 4K ones) don't say their frame rate, so it's counted from the frames actually shown over
+     * a few seconds and rounded to the usual rates (25, 29.97, 50, 59.94...).
+     */
+    private fun measureFrameRate() {
+        if (frameRate > 0f || !firstFrame || !player.isPlaying) { countFrom = 0L; return }
+        val counters = player.videoDecoderCounters ?: return
+        counters.ensureUpdated()
+        val frames = counters.renderedOutputBufferCount
+        val now = System.currentTimeMillis()
+        if (countFrom == 0L || frames < countFrames) { countFrom = now; countFrames = frames; return }
+        val elapsed = now - countFrom
+        if (elapsed < 4000) return
+        val fps = (frames - countFrames) * 1000f / elapsed
+        val rates = floatArrayOf(23.976f, 24f, 25f, 29.97f, 30f, 50f, 59.94f, 60f)
+        val nearest = rates.minByOrNull { kotlin.math.abs(it - fps) } ?: return
+        // Only when it's clearly one of them: a stuttering stream gives an in-between number, so it counts again.
+        if (kotlin.math.abs(nearest - fps) <= nearest * 0.06f) frameRate = nearest else { countFrom = now; countFrames = frames }
+    }
+
     fun stop() {
         pendingOpen?.let { mainHandler.removeCallbacks(it) }
         pendingOpen = null
@@ -224,6 +252,7 @@ object Playback {
      */
     private fun poll() {
         if (!::player.isInitialized || currentUrl == null) return
+        measureFrameRate()
         val fallback = fallbackUrl
         if (!firstFrame && fallback != null && player.playWhenReady && System.currentTimeMillis() - openedAt > 8000) {
             fallbackUrl = null
@@ -233,8 +262,18 @@ object Playback {
         val watching = firstFrame && player.playWhenReady &&
             (status == Status.PLAYING || status == Status.BUFFERING || status == Status.OPENING)
         when (freeze.check(player.currentPosition.toDouble(), watching)) {
-            FreezeWatch.Action.RESTART -> player.currentMediaItem?.localConfiguration?.uri?.toString()?.let {
-                player.setMediaSource(source(it)); player.prepare(); player.play()
+            FreezeWatch.Action.RESTART -> player.currentMediaItem?.localConfiguration?.uri?.toString()?.let { url ->
+                // Close the frozen stream first and give the provider a moment, like switching channels: opening
+                // the new one straight away counted as two connections (2/2) for a while.
+                pendingOpen?.let { mainHandler.removeCallbacks(it) }
+                player.stop()
+                player.clearMediaItems()
+                val run = Runnable {
+                    pendingOpen = null
+                    player.setMediaSource(source(url)); player.prepare(); player.play()
+                }
+                pendingOpen = run
+                mainHandler.postDelayed(run, 400)
             }
             FreezeWatch.Action.SKIP -> onRepeatedFreezing?.invoke()
             FreezeWatch.Action.NONE -> {}
@@ -286,5 +325,31 @@ class FreezeWatch {
             return Action.SKIP
         }
         return Action.RESTART
+    }
+}
+
+/**
+ * When the picture moves between the player at the top and full screen (two kinds of video view), the video
+ * decoder is started fresh on the new view instead of being handed over while it runs. Handing a running 4K
+ * stream over left the picture fuzzy and unwatchable on the Chromecast with Google TV.
+ */
+@OptIn(UnstableApi::class)
+private class FreshDecoderRenderers(context: Context) : DefaultRenderersFactory(context) {
+    override fun buildVideoRenderers(
+        context: Context,
+        extensionRendererMode: Int,
+        mediaCodecSelector: MediaCodecSelector,
+        enableDecoderFallback: Boolean,
+        eventHandler: Handler,
+        eventListener: VideoRendererEventListener,
+        allowedVideoJoiningTimeMs: Long,
+        out: ArrayList<Renderer>
+    ) {
+        out.add(object : MediaCodecVideoRenderer(
+            context, mediaCodecSelector, allowedVideoJoiningTimeMs, enableDecoderFallback,
+            eventHandler, eventListener, 50
+        ) {
+            override fun codecNeedsSetOutputSurfaceWorkaround(name: String) = true
+        })
     }
 }

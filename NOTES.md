@@ -42,6 +42,8 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Android Lite mode (default on except Nvidia Shield): no corner player (channels open full screen, Back stops),
   no live scores (games load once at open), no logos, no zoom.
 - Android streams open TS first (HLS fallback): HLS made the provider count extra connections while flipping.
+- Android full screen always uses SurfaceView (no HDR switch; the TV's Match content setting decides HDR). The video
+  renderer forces a fresh decoder on every surface change (handover garbled 4K on Chromecast).
 
 ## Working preferences (Sunny)
 - Report how long each request took.

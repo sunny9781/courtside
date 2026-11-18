@@ -353,13 +353,14 @@ fun TopBar(model: AppModel) {
 
 /** The video. Only one view shows the player at a time: the newest one takes it. */
 @Composable
-fun PlayerVideo(modifier: Modifier = Modifier, small: Boolean = false, hdr: Boolean = false) {
+fun PlayerVideo(modifier: Modifier = Modifier, small: Boolean = false) {
     AndroidView(
         factory = { ctx ->
             // The player at the top draws into a texture: a 4K or HDR stream there doesn't switch the TV into HDR
-            // or another refresh rate. Full screen uses a real video surface, so HDR works there.
-            // Lite mode (less powerful TVs) always uses the fast video surface, small player included.
-            val texture = !Perf.lite && (small || !hdr)
+            // or another refresh rate. Full screen always uses the real video surface (like other IPTV apps): it's
+            // smooth for 4K and HDR comes out at the right brightness; whether the TV switches into HDR is up to its
+            // own Match content setting. Lite mode always uses the video surface, small player included.
+            val texture = !Perf.lite && small
             (android.view.LayoutInflater.from(ctx).inflate(if (texture) R.layout.player_texture else R.layout.player_surface, null) as PlayerView).apply {
                 useController = false
                 resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
@@ -505,7 +506,7 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
                 }
             }
     ) {
-        PlayerVideo(Modifier.fillMaxSize(), hdr = model.settings.hdr)
+        PlayerVideo(Modifier.fillMaxSize())
         Box(Modifier.align(Alignment.Center)) {
             when (Playback.status) {
                 Playback.Status.FAILED -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
