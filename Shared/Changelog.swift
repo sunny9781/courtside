@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.94", date: "2026-11-19", time: "00:20", title: "Lite mode, your way", changes: [
+            Change(text: "Settings › Lite mode (only on less powerful TVs, not the Shield): one switch for everything, then each option on its own, from the least to the most effect on speed: slower page switching, fold finished games, no logos, no live scores, don't start a stream on the game screen, no player in the corner. Each starts where the old Lite mode switch was.", apps: android),
+            Change(text: "When the channels are due to download again, the saved channels and EPG show straight away while the new list comes in (the EPG was empty until then).", apps: android)
+        ]),
         Release(version: "1.93", date: "2026-11-18", time: "23:55", title: "Android TV catches up with Apple TV", changes: [
             Change(text: "EPG: a timeline: two and a half hours of programmes laid out by time, every show coloured (by sport, or the channel's own colour), an orange line at the current time and what's already been on a shade darker. The channel column is narrow, with names over up to three lines and the quality, frame rate and sound tags always shown; every row is the same height.", apps: android),
             Change(text: "Home: the Live Now row is gone (each sport already shows its live games); Home opens on your first sport, and pressing down from the tabs lands on the first game (left goes to the sports).", apps: android),

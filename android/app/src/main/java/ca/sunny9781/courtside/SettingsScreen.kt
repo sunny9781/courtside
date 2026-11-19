@@ -27,6 +27,8 @@ private enum class Section(val title: String, val icon: ImageVector) {
     PLAYBACK("Playback", Icons.Filled.PlayCircle),
     /** Channels and guide, updates. */
     GENERAL("General", Icons.Filled.Tune),
+    /** Lite mode's options, one switch each (only on less powerful TVs, not the Shield). */
+    LITE("Lite mode", Icons.Filled.Speed),
     /** Hidden sports, categories, groups and channels (hold the select button on one to hide it). */
     HIDDEN("Hidden", Icons.Filled.VisibilityOff),
     CHANGELOG("Changelog", Icons.Filled.AutoAwesome)
@@ -42,7 +44,7 @@ fun SettingsScreen(model: AppModel) {
         Column(Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).padding(vertical = 8.dp)
             .focusRequester(model.leftPanel).enterAt { side[section] },
             verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            for (item in Section.entries) {
+            for (item in Section.entries.filter { it != Section.LITE || model.settings.slowDevice }) {
                 TvButton(onClick = { section = item }, selected = section == item, onFocus = { section = item },
                     modifier = Modifier.fillMaxWidth().tracked(side, item)) { focused ->
                     val color = if (focused) Theme.bg else Theme.text
@@ -70,6 +72,7 @@ fun SettingsScreen(model: AppModel) {
                     ConnectionLog()
                     LastCrash()
                 }
+                Section.LITE -> LiteSection(model)
                 Section.HIDDEN -> Hidden(model)
                 Section.CHANGELOG -> Changelog(model)
             }
@@ -102,8 +105,6 @@ private fun PlaybackSection(model: AppModel) {
     Toggle("Switch to the next stream when one stalls", "USA and Canada streams are tried first.", s.autoSwitch) { s.autoSwitch = it }
     Toggle("Match frame rate", "Switches your TV to each stream's frame rate (50 or 60 fps) in full screen, for smoother motion.",
         s.matchFrameRate) { s.matchFrameRate = it }
-    Toggle("Lite mode", "For less powerful TVs (Chromecast): no player in the corner (channels open full screen), no live scores (today's games load once when the app opens), no zoom when moving around, no team logos, and the fastest video drawing. On by default except on an Nvidia Shield.",
-        s.lite) { s.lite = it; if (it) model.stopPinned() }
     Action("Stream format", "Which version of each stream to open first. If it shows no picture within 8 seconds, the other one is tried.",
         value = if (s.preferHls) "HLS first" else "TS first") { s.preferHls = !s.preferHls }
     Action("Buffer", "More buffer means fewer stalls but a longer delay behind live. Takes effect the next time the app opens.",
@@ -222,6 +223,36 @@ private fun Info(label: String, value: String) {
         Label(label, size = 13.sp, color = Theme.muted, modifier = Modifier.weight(1f))
         Label(value, size = 13.sp, weight = FontWeight.SemiBold, color = Theme.text)
     }
+}
+
+/**
+ * Lite mode, for less powerful TVs: one switch for everything, then each option on its own, from the one that
+ * makes the least difference to speed to the one that makes the most.
+ */
+@Composable
+private fun LiteSection(model: AppModel) {
+    val s = model.settings
+    Action("Lite mode", "Everything below at once. Turn options on from the bottom up if this TV feels slow.",
+        value = when { s.lite -> "On"; s.anyLite -> "Custom"; else -> "Off" }) {
+        val on = !s.lite
+        s.lite = on
+        if (on) model.stopPinned()
+    }
+    Spacer(Modifier.height(6.dp))
+    Label("FROM LEAST TO MOST EFFECT ON SPEED", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted,
+        modifier = Modifier.padding(start = 10.dp))
+    Toggle("Slower page switching", "Moving through sports, tabs and categories shows a page after a slightly longer pause (350 ms instead of 250).",
+        s.liteSettle) { s.liteSettle = it }
+    Toggle("Fold finished games", "Home keeps finished games in one row at the bottom (Finished · 6) instead of showing them.",
+        s.liteFoldFinished) { s.liteFoldFinished = it }
+    Toggle("No logos", "No team logos on Home and the game screen, no channel logos in the EPG and the now-playing bar.",
+        s.liteNoLogos) { s.liteNoLogos = it }
+    Toggle("No live scores", "Today's games load once when the app opens and don't update; Home shows no scores (LIVE instead of the clock).",
+        s.liteNoScores) { s.liteNoScores = it }
+    Toggle("Don't start a stream on the game screen", "Opening a game waits for you to pick a stream.",
+        s.liteNoAutoplay) { s.liteNoAutoplay = it }
+    Toggle("No player in the corner", "Channels open straight in full screen, and leaving full screen stops the stream.",
+        s.liteNoCorner) { s.liteNoCorner = it; if (it) model.stopPinned() }
 }
 
 @Composable

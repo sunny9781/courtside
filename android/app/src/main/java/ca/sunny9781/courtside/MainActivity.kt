@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
             model.notice = "Courtside closed unexpectedly last time: $first"
             crashFile.renameTo(java.io.File(filesDir, "crash-last.txt"))
         }
-        Perf.lite = model.settings.lite
+        Perf.settings = model.settings
         // Logos: a small memory cache and no fade-in animation (cheap on low-power TVs).
         coil.Coil.setImageLoader(coil.ImageLoader.Builder(this)
             .memoryCache { coil.memory.MemoryCache.Builder(this).maxSizePercent(0.08).build() }
@@ -45,7 +45,6 @@ class MainActivity : ComponentActivity() {
             // In full screen, switch the TV to a refresh rate that matches the stream (Settings › Player).
             val fps = Playback.frameRate
             val full = model.nowPlaying != null
-            LaunchedEffect(model.settings.lite) { Perf.lite = model.settings.lite }
             // While a stream is opening or playing (full screen or the player in the corner), keep the TV awake: without
             // this the screensaver comes on mid-game (Chromecast's is quick) and leaving the app stops the stream.
             val awake = (full || model.pinned != null) && Playback.status in

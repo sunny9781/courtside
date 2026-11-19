@@ -41,11 +41,28 @@ class Settings(context: Context) {
 
     var autoSwitch by Flag("autoSwitch", true)
     var matchFrameRate by Flag("matchFrameRate", true)
-    /**
-     * Lite mode: cheaper drawing for less powerful TVs (no zoom on focus, no team logos on Home, the fast video
-     * path). On by default everywhere except an Nvidia Shield.
-     */
-    var lite by Flag("lite", !android.os.Build.MANUFACTURER.equals("NVIDIA", ignoreCase = true))
+    /** A less powerful TV (anything but an Nvidia Shield): Settings shows the Lite mode section only here. */
+    val slowDevice = !android.os.Build.MANUFACTURER.equals("NVIDIA", ignoreCase = true)
+    /** Before 1.94 Lite mode was one switch ("lite"); each option starts where that switch was. */
+    private val liteDefault = p.getBoolean("lite", slowDevice)
+    // Lite mode's options, from the least to the most effect on speed (the order Settings › Lite mode lists them).
+    /** Wait a little longer (350 ms instead of 250) before showing a page as you move through lists. */
+    var liteSettle by Flag("liteSettle", liteDefault)
+    /** Finished games stay folded on Home. */
+    var liteFoldFinished by Flag("liteFoldFinished", liteDefault)
+    /** No team or channel logos. */
+    var liteNoLogos by Flag("liteNoLogos", liteDefault)
+    /** No live scores: today's games load once when the app opens, and Home shows no scores. */
+    var liteNoScores by Flag("liteNoScores", liteDefault)
+    /** Opening a game doesn't start one of its streams by itself. */
+    var liteNoAutoplay by Flag("liteNoAutoplay", liteDefault)
+    /** No player in the corner: channels open full screen, and leaving full screen stops the stream. */
+    var liteNoCorner by Flag("liteNoCorner", liteDefault)
+    /** Every Lite option on (the one switch at the top of the section turns them all on or off). */
+    var lite: Boolean
+        get() = liteSettle && liteFoldFinished && liteNoLogos && liteNoScores && liteNoAutoplay && liteNoCorner
+        set(v) { liteSettle = v; liteFoldFinished = v; liteNoLogos = v; liteNoScores = v; liteNoAutoplay = v; liteNoCorner = v }
+    val anyLite get() = liteSettle || liteFoldFinished || liteNoLogos || liteNoScores || liteNoAutoplay || liteNoCorner
     var bufferMs by Number("bufferMs", 2000)
     /** Opening the app reuses the saved channels and guide until they're this old. */
     var refreshHours by Number("refreshHours", 6)

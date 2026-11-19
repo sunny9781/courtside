@@ -436,7 +436,7 @@ fun NowPlayingBar(model: AppModel, item: NowPlaying, modifier: Modifier = Modifi
         Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             Icon(Icons.Filled.GraphicEq, null, tint = Theme.accent, modifier = Modifier.size(13.dp))
-            if (!Perf.lite) ChannelIcon(channel.icon, 22.dp)
+            if (!Perf.noLogos) ChannelIcon(channel.icon, 22.dp)
             Label(channel.name, size = 13.sp, weight = FontWeight.SemiBold, color = Theme.soft)
             if (Playback.resolution.isNotEmpty()) Badge(Playback.resolution)
             if (Playback.frameRate > 0) Badge(Playback.fpsLabel(Playback.frameRate))
@@ -781,7 +781,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     val later = sections.flatMap { it.games.filter { g -> isLater(g) } }
     val finished = sections.flatMap { it.games.filter { g -> g.state == GameState.FINISHED } }
     // Finished games show by default; Lite mode folds them (less to draw).
-    var showFinished by remember(selection) { mutableStateOf(!Perf.lite) }
+    var showFinished by remember(selection) { mutableStateOf(!Perf.foldFinished) }
     val first = open.firstOrNull()?.games?.firstOrNull()?.id ?: if (showFinished) finished.firstOrNull()?.id else null
     SideEffect { onFirst(first) }
     // Right on a game (the screen's right edge) jumps to the EPG.
@@ -924,7 +924,7 @@ private fun GameRow(game: Game, streams: Int, has4K: Boolean, showLeague: Boolea
         Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
             // Upcoming: just the start time (the row is already grey), so the status column stays narrow.
             val status = when {
-                Perf.lite && game.state == GameState.LIVE -> "LIVE"
+                Perf.noScores && game.state == GameState.LIVE -> "LIVE"
                 game.state == GameState.UPCOMING -> startText(game)
                 else -> cardHeader(game)
             }
@@ -940,7 +940,7 @@ private fun GameRow(game: Game, streams: Int, has4K: Boolean, showLeague: Boolea
                 } else {
                     // Lined up around the "@" on every row: name, score, logo | @ | logo, score, name, so each score
                     // sits between its team's name and logo. Lite mode: no scores or logos.
-                    val showScore = game.state != GameState.UPCOMING && !Perf.lite
+                    val showScore = game.state != GameState.UPCOMING && !Perf.noScores
                     @Composable
                     fun score(team: Team, end: Boolean) = Box(Modifier.width(SCORE_WIDTH),
                         contentAlignment = if (end) Alignment.CenterEnd else Alignment.CenterStart) {
@@ -953,12 +953,12 @@ private fun GameRow(game: Game, streams: Int, has4K: Boolean, showLeague: Boolea
                             Label(game.away.shortName.ifEmpty { game.away.name }, size = 13.sp, weight = FontWeight.SemiBold, color = text)
                         }
                         score(game.away, end = true)
-                        if (!Perf.lite) Logo(game.away.logo, 16.dp, game.away.abbr)
+                        if (!Perf.noLogos) Logo(game.away.logo, 16.dp, game.away.abbr)
                     }
                     Label("@", size = 12.sp, color = text.copy(alpha = 0.6f))
                     Row(Modifier.width(TEAM_WIDTH), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        if (!Perf.lite) Logo(game.home.logo, 16.dp, game.home.abbr)
+                        if (!Perf.noLogos) Logo(game.home.logo, 16.dp, game.home.abbr)
                         score(game.home, end = false)
                         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                             Label(game.home.shortName.ifEmpty { game.home.name }, size = 13.sp, weight = FontWeight.SemiBold, color = text)
@@ -1081,7 +1081,7 @@ private fun GameCard(model: AppModel, game: Game, showLeague: Boolean, modifier:
                 for (team in listOf(game.away, game.home)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // Lite mode leaves the logos out (names and scores only).
-                        if (!Perf.lite) {
+                        if (!Perf.noLogos) {
                             Logo(team.logo, 24.dp, team.abbr)
                             Spacer(Modifier.width(8.dp))
                         }
@@ -1144,7 +1144,7 @@ fun GameScreen(model: AppModel, gameId: String) {
     LaunchedEffect(gameId, all.isNotEmpty()) {
         var id = previewId
         // Lite mode has no player in the corner, so nothing starts until you pick a stream.
-        if (!pinnedHere && !model.settings.lite) (main.firstOrNull { m ->
+        if (!pinnedHere && !model.settings.liteNoAutoplay && !model.settings.liteNoCorner) (main.firstOrNull { m ->
             !(m.is4K || m.quality == "4K" || model.measuredQuality[m.channel.id] == "4K" ||
                 Categories.isUHD(m.channel.name) || Categories.isUHD(m.channel.categoryName))
         } ?: main.firstOrNull())
