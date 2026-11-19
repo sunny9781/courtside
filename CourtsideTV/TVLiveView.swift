@@ -323,45 +323,44 @@ struct TVLiveView: View {
     // MARK: Channels
 
     private var channelList: some View {
-        let nameWidth = TVLayout.nameWidth(searching ? hits.flatMap(\.channels) : channels)
-        return ScrollView(.vertical) {
-            LazyVStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 0) {
-                    Text(searching ? "Results for \u{201C}\(search.trimmingCharacters(in: .whitespaces))\u{201D}" : (selected?.name ?? ""))
-                        .frame(width: nameWidth, alignment: .leading)
-                    Text("NOW").padding(.leading, 24).frame(width: TVChannelRow.nowWidth, alignment: .leading)
-                    Text("NEXT").frame(width: TVChannelRow.nextWidth, alignment: .leading)
-                    Spacer(minLength: 0)
-                }
-                .font(.system(size: 19, weight: .bold))
-                .foregroundStyle(Theme.muted)
-                .padding(.horizontal, 22)
-                .padding(.bottom, 6)
-
-                if search.trimmingCharacters(in: .whitespaces).count >= 2 {
-                    searchResults
-                }
-                ForEach(search.trimmingCharacters(in: .whitespaces).count >= 2 ? [] : channels) { channel in
-                    Button {
-                        if channel.id == playingChannel?.id {
-                            model.play(channel, lineup: channels)
-                        } else {
-                            model.pin(channel, lineup: channels)
-                        }
-                    } label: {
-                        TVChannelRow(channel: channel, playing: channel.id == playingChannel?.id, nameWidth: nameWidth)
+        // Redrawn every minute so the time line and the guide's start move along.
+        TimelineView(.everyMinute) { context in
+            let now = context.date
+            let start = TVGuide.windowStart(now)
+            ScrollView(.vertical) {
+                LazyVStack(alignment: .leading, spacing: 6) {
+                    TVGuideHeader(title: searching ? "Results for \u{201C}\(search.trimmingCharacters(in: .whitespaces))\u{201D}" : (selected?.name ?? ""),
+                                  start: start, now: now)
+                    if searching {
+                        searchResults(start: start, now: now)
                     }
-                    .buttonStyle(TVRowButtonStyle())
-                    .focused($focusedChannel, equals: channel.id)
-                    .contextMenu { favoriteButton(channel: channel.id); hideButton(channel: channel) }
+                    ForEach(searching ? [] : channels) { channel in
+                        guideButton(channel, lineup: channels, start: start, now: now)
+                    }
                 }
+                .padding(.vertical, 10)
             }
-            .padding(.vertical, 10)
+            // Use the full width: no Apple TV side insets on top of our own small margin.
+            .ignoresSafeArea(.container, edges: .horizontal)
+            // Runs to the bottom of the screen, under the now-playing bar (the last row can scroll clear of it).
+            .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : TVLayout.margin, for: .scrollContent)
         }
-        // Use the full width: no Apple TV side insets on top of our own small margin.
-        .ignoresSafeArea(.container, edges: .horizontal)
-        // Runs to the bottom of the screen, under the now-playing bar (the last row can scroll clear of it).
-        .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : TVLayout.margin, for: .scrollContent)
+    }
+
+    /// A channel in the guide: the first click previews it in the corner, a second click goes full screen.
+    private func guideButton(_ channel: Channel, lineup: [Channel], start: Date, now: Date) -> some View {
+        Button {
+            if channel.id == playingChannel?.id {
+                model.play(channel, lineup: lineup)
+            } else {
+                model.pin(channel, lineup: lineup)
+            }
+        } label: {
+            TVGuideRow(channel: channel, playing: channel.id == playingChannel?.id, start: start, now: now)
+        }
+        .buttonStyle(TVGuideButtonStyle())
+        .focused($focusedChannel, equals: channel.id)
+        .contextMenu { favoriteButton(channel: channel.id); hideButton(channel: channel) }
     }
 
     private var searching: Bool { search.trimmingCharacters(in: .whitespaces).count >= 2 }
@@ -377,8 +376,7 @@ struct TVLiveView: View {
 
     /// Search results: a header per category (click to fold it), then its matching channels.
     @ViewBuilder
-    private var searchResults: some View {
-        let nameWidth = TVLayout.nameWidth(hits.flatMap(\.channels))
+    private func searchResults(start: Date, now: Date) -> some View {
         if hits.isEmpty {
             Text("Nothing matches \"\(search)\".")
                 .font(.system(size: 24))
@@ -406,18 +404,7 @@ struct TVLiveView: View {
             .buttonStyle(TVRowButtonStyle())
             if isOpen(hit) {
                 ForEach(hit.channels) { channel in
-                    Button {
-                        if channel.id == playingChannel?.id {
-                            model.play(channel, lineup: hit.channels)
-                        } else {
-                            model.pin(channel, lineup: hit.channels)
-                        }
-                    } label: {
-                        TVChannelRow(channel: channel, playing: channel.id == playingChannel?.id, nameWidth: nameWidth)
-                    }
-                    .buttonStyle(TVRowButtonStyle())
-                    .focused($focusedChannel, equals: channel.id)
-                    .contextMenu { favoriteButton(channel: channel.id); hideButton(channel: channel) }
+                    guideButton(channel, lineup: hit.channels, start: start, now: now)
                 }
             }
         }
@@ -505,5 +492,261 @@ struct TVChannelRow: View {
         let total = p.end.timeIntervalSince(p.start)
         guard total > 0 else { return 0 }
         return min(max(Date().timeIntervalSince(p.start) / total, 0), 1)
+    }
+}
+
+// MARK: Timeline guide
+
+/// The EPG's timeline: a channel column on the left, then two and a half hours of programmes laid out by time,
+/// coloured by sport, with a line at the current time. The row you're on opens up to two lines.
+enum TVGuide {
+    static let channelWidth: CGFloat = 330
+    static let span: TimeInterval = 150 * 60
+    static let rowHeight: CGFloat = 62
+    static let openHeight: CGFloat = 116
+    static let gap: CGFloat = 8
+
+    /// The guide starts at the last half hour, so up to 30 minutes of what's on is behind the line.
+    static func windowStart(_ now: Date) -> Date {
+        let t = now.timeIntervalSinceReferenceDate
+        return Date(timeIntervalSinceReferenceDate: (t / 1800).rounded(.down) * 1800)
+    }
+
+    /// A dark shade per sport (white text reads on all of them); anything else is neutral.
+    static func fill(_ sport: Sport?) -> Color {
+        switch sport {
+        case .basketball: return Color(hex: 0x6A3512)
+        case .hockey: return Color(hex: 0x1C3D6B)
+        case .football: return Color(hex: 0x1F5634)
+        case .soccer: return Color(hex: 0x14585A)
+        case .motorsport: return Color(hex: 0x6B1D27)
+        case .cricket: return Color(hex: 0x574510)
+        case .baseball: return Color(hex: 0x5A2440)
+        case .fighting: return Color(hex: 0x4A3424)
+        case .tennis: return Color(hex: 0x3F5414)
+        case .golf: return Color(hex: 0x2B4A22)
+        case .rugby: return Color(hex: 0x3D2F5A)
+        case .aussieRules: return Color(hex: 0x5A3A12)
+        case .lacrosse: return Color(hex: 0x24465A)
+        case .pickleball: return Color(hex: 0x4E5A12)
+        case nil: return Color(hex: 0x262B36)
+        }
+    }
+
+    private static let words: [(Sport, [String])] = [
+        (.basketball, ["nba", "wnba", "basketball", "ncaab", "euroleague", "march madness"]),
+        (.hockey, ["nhl", "hockey", "ahl", "ohl", "whl", "khl", "stanley cup"]),
+        (.football, ["nfl", "cfl", "ncaaf", "college football", "super bowl", "redzone", "red zone", "grey cup"]),
+        (.baseball, ["mlb", "baseball", "world series"]),
+        (.soccer, ["soccer", "epl", "premier league", "champions league", "europa league", "conference league", "la liga",
+                   "laliga", "serie a", "bundesliga", "ligue 1", "mls", "uefa", "fifa", "fa cup", "world cup", "eredivisie"]),
+        (.fighting, ["ufc", "boxing", "mma", "wwe", "aew", "pfl", "fight night"]),
+        (.tennis, ["tennis", "atp", "wta", "wimbledon"]),
+        (.motorsport, ["f1", "formula 1", "formula one", "nascar", "indycar", "motogp", "grand prix", "motorsport"]),
+        (.golf, ["golf", "pga", "lpga"]),
+        (.rugby, ["rugby", "six nations", "urc"]),
+        (.aussieRules, ["afl"]),
+        (.lacrosse, ["lacrosse", "nll", "pll"]),
+        (.cricket, ["cricket", "ipl", "bbl", "t20", "odi", "test match", "psl"]),
+        (.pickleball, ["pickleball", "ppa"])
+    ]
+
+    @MainActor private static var cache: [String: Sport?] = [:]
+
+    /// The sport a programme is about, from its title, else from the channel's name ("NBA TV").
+    @MainActor static func sport(title: String, channel: String) -> Sport? {
+        if let hit = guess(title) { return hit }
+        return guess(channel)
+    }
+
+    @MainActor private static func guess(_ text: String) -> Sport? {
+        if let hit = cache[text] { return hit }
+        let letters = String(text.lowercased().map { $0.isLetter || $0.isNumber ? $0 : " " })
+        let clean = " " + letters.split(separator: " ").joined(separator: " ") + " "
+        let found = words.first { entry in entry.1.contains { clean.contains(" \($0) ") } }?.0
+        if cache.count > 4000 { cache.removeAll() }
+        cache[text] = found
+        return found
+    }
+
+    static func time(_ d: Date) -> String { d.formatted(date: .omitted, time: .shortened) }
+
+    static func left(_ seconds: TimeInterval) -> String {
+        let m = max(Int(seconds / 60), 0)
+        return m >= 60 ? "\(m / 60)h \(m % 60)m left" : "\(m)m left"
+    }
+}
+
+/// Times along the top of the guide, with the current time in a pill over the line.
+struct TVGuideHeader: View {
+    let title: String
+    let start: Date
+    let now: Date
+
+    var body: some View {
+        HStack(spacing: TVGuide.gap) {
+            Text(title)
+                .font(.system(size: 19, weight: .bold))
+                .foregroundStyle(Theme.muted)
+                .lineLimit(1)
+                .frame(width: TVGuide.channelWidth, alignment: .leading)
+            GeometryReader { geo in
+                let perSecond = geo.size.width / TVGuide.span
+                ZStack(alignment: .topLeading) {
+                    ForEach(0..<5, id: \.self) { i in
+                        Text(TVGuide.time(start.addingTimeInterval(Double(i) * 1800)))
+                            .font(.system(size: 19, weight: .medium))
+                            .foregroundStyle(Theme.muted)
+                            .offset(x: CGFloat(i) * 1800 * perSecond)
+                    }
+                    Text(now.formatted(date: .omitted, time: .shortened).replacingOccurrences(of: " AM", with: "")
+                        .replacingOccurrences(of: " PM", with: ""))
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Theme.onAccent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(Theme.accent))
+                        .fixedSize()
+                        .offset(x: now.timeIntervalSince(start) * perSecond - 28, y: -2)
+                }
+            }
+        }
+        .frame(height: 30)
+        .padding(.bottom, 4)
+    }
+}
+
+/// One channel in the timeline guide. The row you're on opens up: two lines per programme, time left on what's
+/// on now, and the stream's tags under the channel's name.
+struct TVGuideRow: View {
+    @EnvironmentObject var model: AppModel
+    @Environment(\.isFocused) private var focused
+    let channel: Channel
+    var playing = false
+    let start: Date
+    let now: Date
+
+    var body: some View {
+        let end = start.addingTimeInterval(TVGuide.span)
+        let programmes = (model.guide[channel.epgID] ?? []).filter { $0.end > start && $0.start < end }
+        HStack(spacing: TVGuide.gap) {
+            tile
+            GeometryReader { geo in
+                let perSecond = geo.size.width / TVGuide.span
+                ZStack(alignment: .topLeading) {
+                    if programmes.isEmpty {
+                        Text("No guide information")
+                            .font(.system(size: 20))
+                            .foregroundStyle(Theme.muted)
+                            .padding(.horizontal, 16)
+                            .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
+                            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
+                    }
+                    ForEach(programmes, id: \.self) { p in
+                        cell(p, perSecond: perSecond, height: geo.size.height)
+                    }
+                    Rectangle()
+                        .fill(Theme.accent)
+                        .frame(width: 3, height: geo.size.height)
+                        .offset(x: now.timeIntervalSince(start) * perSecond - 1)
+                }
+            }
+        }
+        .frame(height: focused ? TVGuide.openHeight : TVGuide.rowHeight)
+        .animation(.easeOut(duration: 0.15), value: focused)
+    }
+
+    private var tile: some View {
+        let quality = model.measuredQuality[channel.id]
+        let fps = model.measuredFrameRate[channel.id] ?? 0
+        let sound = model.measuredAudio[channel.id]
+        return HStack(spacing: 14) {
+            TVChannelIcon(url: channel.icon, size: 40)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    TVScrollingText(text: channel.name, font: .system(size: 22, weight: .semibold), active: focused)
+                        .foregroundStyle(playing && !focused ? Theme.accent : (focused ? Theme.bg : Theme.text))
+                    if playing {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .font(.system(size: 17))
+                            .foregroundStyle(focused ? Theme.bg : Theme.accent)
+                    }
+                    if model.isFavorite(channel: channel.id) {
+                        Image(systemName: "heart.fill").font(.system(size: 15)).foregroundStyle(Theme.accent)
+                    }
+                }
+                if focused {
+                    HStack(spacing: 8) {
+                        if let quality, !quality.isEmpty {
+                            TVBadge(text: quality, fill: quality == "4K" ? Theme.accent : Theme.raised,
+                                    color: quality == "4K" ? Theme.onAccent : Theme.soft)
+                        }
+                        if fps > 0 { TVBadge(text: PlaybackController.fpsLabel(fps)) }
+                        if let sound { TVBadge(text: sound) }
+                    }
+                    .fixedSize()
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(width: TVGuide.channelWidth, alignment: .leading)
+        .frame(maxHeight: .infinity)
+        .background(RoundedRectangle(cornerRadius: 10).fill(focused ? Theme.text : Theme.card))
+    }
+
+    @ViewBuilder
+    private func cell(_ p: Programme, perSecond: CGFloat, height: CGFloat) -> some View {
+        let s = max(p.start, start)
+        let e = min(p.end, start.addingTimeInterval(TVGuide.span))
+        let width = max(e.timeIntervalSince(s) * perSecond - TVGuide.gap / 2, 0)
+        let isNow = p.start <= now && p.end > now
+        let lit = focused && isNow
+        let sport = TVGuide.sport(title: p.title, channel: channel.name)
+        let sub = lit ? Color(hex: 0x4A4F5C) : Color.white.opacity(0.78)
+        let elapsed = min(max(now.timeIntervalSince(s) * perSecond, 0), width)
+        ZStack(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 10).fill(lit ? Theme.text : TVGuide.fill(sport))
+            // What's already been on is a shade darker.
+            Rectangle().fill(Color.black.opacity(lit ? 0.07 : 0.28)).frame(width: elapsed)
+            if focused {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 12) {
+                        Text(isNow ? "\(TVGuide.time(p.start)) – \(TVGuide.time(p.end))" : TVGuide.time(p.start))
+                        if isNow { Text(TVGuide.left(p.end.timeIntervalSince(now))) }
+                    }
+                    .font(.system(size: 18))
+                    .foregroundStyle(sub)
+                    .lineLimit(1)
+                    TVScrollingText(text: p.title, font: .system(size: 24, weight: .bold), active: lit)
+                        .foregroundStyle(lit ? Theme.bg : Theme.text)
+                }
+                .padding(.horizontal, 14)
+            } else {
+                HStack(spacing: 10) {
+                    Text(TVGuide.time(p.start))
+                        .font(.system(size: 17))
+                        .foregroundStyle(sub)
+                        .fixedSize()
+                    Text(p.title)
+                        .font(.system(size: 21, weight: .semibold))
+                        .foregroundStyle(Theme.text)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 12)
+            }
+        }
+        .frame(width: width, height: height, alignment: .leading)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(lit ? Theme.accent : .clear, lineWidth: 4))
+        .offset(x: s.timeIntervalSince(start) * perSecond)
+    }
+}
+
+/// The timeline guide's rows: no fill or zoom of their own (the row draws its own focus).
+struct TVGuideButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .opacity(configuration.isPressed ? 0.85 : 1)
     }
 }

@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.81", date: "2026-11-18", time: "20:45", title: "New EPG: a timeline", changes: [
+            Change(text: "EPG: channels now show two and a half hours of programmes laid out by time, coloured by sport (basketball orange, hockey blue, football green, soccer teal, motorsport red...), with an orange line at the current time and what's already been on a shade darker.", apps: tv),
+            Change(text: "EPG: the channel you're on opens up to two lines: start and end times, time left, the full title, and the stream's quality, frame rate and sound under the channel's name.", apps: tv)
+        ]),
         Release(version: "1.80", date: "2026-11-18", time: "20:30", title: "Real HDR for 4K", changes: [
             Change(text: "4K channels play with Apple's own player, which sends HDR to the TV as HDR (the TV shows its HDR sign, like other apps), so 4K HDR is no longer dark. Everything else still plays with VLC. If a 4K channel won't start this way within 8 seconds, it plays the old way.", apps: tv),
             Change(text: "Settings › Playback › 4K with Apple's player: on by default; turn it off to play 4K like everything else.", apps: tv),
