@@ -790,17 +790,11 @@ final class AppModel: ObservableObject {
     }
     #endif
 
-    /// Apple TV: 4K channels play with Apple's own player (as HLS), which sends HDR to the TV as HDR; VLC turns it into
-    /// a dark standard-range picture. On by default; Settings › Playback can turn it off.
-    func wantsApplePlayer(_ channel: Channel) -> Bool {
-        #if os(tvOS)
-        guard UserDefaults.standard.object(forKey: Prefs.appleFor4K) as? Bool ?? true else { return false }
-        return CategoryGrouping.isUHD(channel.name) || CategoryGrouping.isUHD(channel.categoryName)
-            || measuredQuality[channel.id] == "4K"
-        #else
-        return false
-        #endif
-    }
+    /// Apple TV: whether to play a channel with Apple's own player instead of VLC. Off (1.81): Apple's player only takes
+    /// HLS with H.264 in TS segments, and 4K HDR channels are HEVC, so it failed, fell back to VLC after 8 seconds and
+    /// left the provider counting two connections. The path stays for a provider that sends fMP4 HLS, or until
+    /// VLCKit 4 (HDR10 output) replaces VLCKit 3.6.
+    func wantsApplePlayer(_ channel: Channel) -> Bool { false }
 
     /// Starts `channel` on the shared player: Apple's player for 4K on Apple TV (VLC if it can't), VLC otherwise.
     func startStream(_ channel: Channel, on controller: PlaybackController, bufferMs: Int) {
