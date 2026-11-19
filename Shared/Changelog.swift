@@ -74,7 +74,7 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
-        Release(version: "1.85", date: "2026-11-18", time: "21:20", title: "", changes: [
+        Release(version: "1.86", date: "2026-11-18", time: "21:25", title: "", changes: [
             Change(text: "EPG: the channel you're on no longer grows taller; every row stays the same size.", apps: tv)
         ]),
         Release(version: "1.85", date: "2026-11-18", time: "21:25", title: "EPG ready faster", changes: [
