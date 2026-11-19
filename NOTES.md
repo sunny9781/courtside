@@ -39,6 +39,9 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   two lines (times, time left, title; tags under the channel). Android still uses the columns below; port once settled.
 - EPG: no what's-playing panel (the bottom bar shows it); Done/Enter in Filter jumps to the first result.
 - Settings sections (both TVs): Account, General, Hidden, Changelog.
+- Apple TV (1.88/1.89): Home has no Live Now row (opens on the first sport; Android still has it); score column
+  66 pt (3-digit scores). EPG channel column 220 pt, names wrap (3 lines), tags always shown, rows 92 pt, no expanding.
+  Edge shortcuts: right on a Home game → EPG, left on EPG categories → Home (`tvEdgeJump`).
 - Corner player to full screen: click it; Android also hold Back, Apple TV hold Play/Pause (tvOS keeps hold-Back).
 - Apple TV shell ignores all safe areas (own 20pt margin); the now-playing bar sits on the screen's bottom edge.
 - EPG: favourites (hold select / heart) listed first; Hide via hold; Settings › Hidden lists hidden sports, leagues,
