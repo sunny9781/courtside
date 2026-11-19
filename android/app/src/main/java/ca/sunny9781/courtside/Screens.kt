@@ -631,7 +631,7 @@ fun HomeScreen(model: AppModel) {
 private fun sidebarKey(s: HomeSelection): String = when (s) {
     is HomeSelection.LiveNow -> ""
     is HomeSelection.OfSport -> s.sport.name
-    is HomeSelection.OfLeague -> League.all.firstOrNull { it.id == s.leagueId }?.sport?.name ?: "
+    is HomeSelection.OfLeague -> League.all.firstOrNull { it.id == s.leagueId }?.sport?.name ?: ""
 }
 
 private fun selectedSport(s: HomeSelection): Sport? = when (s) {
