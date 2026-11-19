@@ -603,7 +603,7 @@ internal fun GuideRow(model: AppModel, channel: Channel, playing: Boolean, start
             val color = if (focused) Theme.bg else if (playing) Theme.accent else Theme.text
             Row(Modifier.width(Guide.channelWidth).fillMaxHeight().background(if (focused) Theme.text else Theme.card, shape)
                 .padding(horizontal = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                if (!Perf.lite) ChannelIcon(channel.icon, 20.dp)
+                if (!Perf.noLogos) ChannelIcon(channel.icon, 20.dp)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                         Label(channel.name, size = 10.sp, weight = FontWeight.SemiBold, color = color, maxLines = 3,

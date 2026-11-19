@@ -374,8 +374,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             try {
                 val client = XtreamClient(creds)
                 val maxAge = settings.refreshHours * 3600_000L
-                val saved = if (force) null else withContext(Dispatchers.IO) { Cache.loadLive(context) }
-                    ?.takeIf { it.server == owner && it.channels.isNotEmpty() && System.currentTimeMillis() - it.savedAt < maxAge }
+                val stored = withContext(Dispatchers.IO) { Cache.loadLive(context) }
+                    ?.takeIf { it.server == owner && it.channels.isNotEmpty() }
+                val saved = if (force) null else stored?.takeIf { System.currentTimeMillis() - it.savedAt < maxAge }
                 if (saved != null) {
                     // The saved guide is read alongside the channels and shown before today's scores come in (which
                     // can take a while on a slower TV), so the EPG is there straight away after an update or reopen.
@@ -395,6 +396,16 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                     loadBroadcasts()
                     if (g.isEmpty()) startGuide(client)
                     return@launch
+                }
+                // Channels are due again (or you asked): until the new list is in, show the saved channels and guide
+                // (when there are any), so the EPG isn't empty while the provider's list downloads.
+                if (stored != null && rawChannels.isEmpty()) {
+                    val savedGuide = async(Dispatchers.IO) { Cache.loadGuide(context) }
+                    rawCategories = stored.categories
+                    rawChannels = stored.channels
+                    applyFilters()
+                    val g = savedGuide.await()
+                    if (g.isNotEmpty() && guide.isEmpty()) { guide = g; matchGuideSports() }
                 }
                 runCatching { account = client.login() }
                 waitForNoStream()
@@ -420,7 +431,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             while (true) {
                 delay(60_000)
                 // Lite mode: no live scores. Today's games are fetched when the app opens, and not again.
-                if (!settings.lite) runCatching { loadScores() }
+                if (!settings.liteNoScores) runCatching { loadScores() }
                 // While something plays, the connection count is checked each minute too.
                 if (pinned != null || nowPlaying != null) refreshAccount()
             }
@@ -707,7 +718,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** Plays in the player at the top. */
     fun pin(channel: Channel, gameTitle: String? = null, lineup: List<Channel> = emptyList()) {
         // Lite mode has no player in the corner: a channel goes straight to full screen.
-        if (settings.lite) {
+        if (settings.liteNoCorner) {
             play(channel, gameTitle, lineup, from = when {
                 tab == Tab.EPG -> "epg"
                 tab == Tab.HOME && openGameId != null -> "game"
@@ -740,7 +751,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val closing = nowPlaying ?: return
         lastPlayedChannelId = closing.channel.id
         nowPlaying = null
-        if (settings.lite) {
+        if (settings.liteNoCorner) {
             // Lite mode: no player in the corner, so leaving full screen stops the stream (and frees the connection).
             Playback.stop()
             pinned = null

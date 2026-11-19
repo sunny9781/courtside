@@ -161,7 +161,7 @@ fun TvButton(
                     else -> false
                 }
             }
-            .scale(if (focused && !Perf.lite) focusedScale else 1f)
+            .scale(if (focused) focusedScale else 1f)
             .clip(shape)
             .background(
                 when {
@@ -313,8 +313,13 @@ fun ProgressLine(fraction: Float, focused: Boolean, width: Dp = 160.dp) {
 }
 
 /** Lite mode (Settings › General), read by every button and card; kept in step with the setting. */
+/** Lite mode's options, for drawing code that doesn't get the app model (reads the settings, so screens redraw). */
 object Perf {
-    var lite by androidx.compose.runtime.mutableStateOf(false)
+    var settings: Settings? = null
+    val noLogos get() = settings?.liteNoLogos == true
+    val noScores get() = settings?.liteNoScores == true
+    val foldFinished get() = settings?.liteFoldFinished == true
+    val slowSettle get() = settings?.liteSettle == true
 }
 
 /**
@@ -332,7 +337,7 @@ class Settle(private val scope: kotlinx.coroutines.CoroutineScope) {
         job?.cancel()
         waiting = action
         job = scope.launch {
-            kotlinx.coroutines.delay(if (Perf.lite) 350L else 250L)
+            kotlinx.coroutines.delay(if (Perf.slowSettle) 350L else 250L)
             waiting = null
             action()
         }
