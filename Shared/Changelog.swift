@@ -74,12 +74,15 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
-        Release(version: "1.86", date: "2026-11-18", time: "21:14", title: "Real HDR for 4K, one connection", changes: [
+        Release(version: "1.87", date: "2026-11-18", time: "21:25", title: "Real HDR for 4K, one connection", changes: [
             Change(text: "4K channels play with a new HDR player (the same kind of engine UHF uses), so in full screen the TV switches into HDR and shows its HDR sign, and 4K HDR is no longer dark. It reads the same stream VLC does, so the provider still counts one connection. Everything else still plays with VLC.", apps: tv),
             Change(text: "If a 4K channel shows nothing within a few seconds, the HDR player closes it and the channel plays with VLC instead, never both at once.", apps: tv),
             Change(text: "Settings › Playback › 4K with the HDR player: on by default; turn it off to play 4K like everything else.", apps: tv),
             Change(text: "Home: each game shows its number of streams again (with the 4K tag), under a STREAMS heading.", apps: tvAndroid)
         ], titleApps: tv),
+        Release(version: "1.86", date: "2026-11-18", time: "21:25", title: "", changes: [
+            Change(text: "EPG: the channel you're on no longer grows taller; every row stays the same size.", apps: tv)
+        ]),
         Release(version: "1.85", date: "2026-11-18", time: "21:25", title: "EPG ready faster", changes: [
             Change(text: "EPG: after reopening or updating the app, the saved guide shows straight away instead of after today's scores load.", apps: all),
             Change(text: "The guide is saved as a small copy with only the programmes the app shows, so it no longer reads the provider's whole guide file every time it opens (it's also much less for the Apple TV to clear when it needs space).", apps: all)

@@ -565,7 +565,7 @@ struct TVGameRow: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            // 4K tag and the number of streams (back in 1.86).
+            // 4K tag and the number of streams (back in 1.87).
             HStack(spacing: 8) {
                 if main.contains(where: \.is4K) { TVBadge(text: "4K", fill: Theme.accent, color: Theme.onAccent) }
                 Text(main.isEmpty ? "None" : "\(main.count)")

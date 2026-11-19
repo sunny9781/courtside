@@ -944,7 +944,7 @@ private fun GameRow(game: Game, streams: Int, has4K: Boolean, showLeague: Boolea
                     }
                 }
             }
-            // 4K tag and the number of streams (back in 1.86).
+            // 4K tag and the number of streams (back in 1.87).
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 if (has4K) Badge("4K", fill = Theme.accent, color = Theme.onAccent)
                 Label(if (streams == 0) "None" else "$streams", size = 12.sp, weight = FontWeight.SemiBold,
