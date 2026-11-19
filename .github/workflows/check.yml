@@ -1,8 +1,17 @@
 name: Check
 
-# Compiles the Mac and Apple TV apps without publishing anything. Started by hand (it uses GitHub's Mac minutes).
+# Compiles the Apple apps without publishing anything. Started by hand (it uses GitHub's Mac minutes).
+#   gh workflow run check.yml --ref <branch>                 # all three apps
+#   gh workflow run check.yml --ref <branch> -f apps=tv      # only the Apple TV app (~1-2 min instead of ~7)
+# Pick "all" whenever Shared/ or more than one app changed.
 on:
   workflow_dispatch:
+    inputs:
+      apps:
+        description: "Which apps to build"
+        type: choice
+        default: all
+        options: [all, tv, mac, ios]
 
 concurrency:
   group: check-${{ github.ref }}
@@ -12,10 +21,22 @@ jobs:
   compile:
     runs-on: macos-26
     timeout-minutes: 30
+    env:
+      APPS: ${{ inputs.apps || 'all' }}
     steps:
       - uses: actions/checkout@v4
 
+      # The downloaded Swift packages (VLCKit and the rest) are kept between runs; they change only when
+      # Package.resolved does. Saved once per Package.resolved, restored on every run.
+      - name: Restore Swift packages
+        uses: actions/cache@v4
+        with:
+          path: build/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('Courtside.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
       - name: Mac app
+        if: env.APPS == 'all' || env.APPS == 'mac'
         run: |
           set -o pipefail
           xcodebuild -project Courtside.xcodeproj -scheme Courtside -configuration Debug \
@@ -24,7 +45,7 @@ jobs:
             || { grep -E "error:|warning: .*(deprecated|unavailable)" mac.log | sort -u | head -80; tail -20 mac.log; exit 1; }
 
       - name: Apple TV app
-        if: always()
+        if: always() && (env.APPS == 'all' || env.APPS == 'tv')
         run: |
           set -o pipefail
           xcodebuild -project Courtside.xcodeproj -scheme CourtsideTV -configuration Debug \
@@ -33,7 +54,7 @@ jobs:
             || { grep -E "error:" tv.log | sort -u | head -80; tail -30 tv.log; exit 1; }
 
       - name: iPhone and iPad app
-        if: always()
+        if: always() && (env.APPS == 'all' || env.APPS == 'ios')
         run: |
           set -o pipefail
           xcodebuild -project Courtside.xcodeproj -scheme CourtsideiOS -configuration Debug \
