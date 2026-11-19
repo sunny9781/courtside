@@ -138,6 +138,7 @@ struct IOSGameView: View {
                         IOSStreamRow(match: match,
                                      quality: model.measuredQuality[match.channel.id] ?? match.quality,
                                      frameRate: model.measuredFrameRate[match.channel.id],
+                                     audio: model.measuredAudio[match.channel.id],
                                      previewing: match.channel.id == previewID)
                             .onTapGesture { tap(match) }
                     }
@@ -240,6 +241,7 @@ struct IOSStreamRow: View {
     let match: StreamMatch
     let quality: String
     var frameRate: Double?
+    var audio: String?
     var previewing = false
 
     var body: some View {
@@ -264,6 +266,7 @@ struct IOSStreamRow: View {
                              color: quality == "4K" ? Theme.onAccent : Theme.soft)
                 }
                 if let frameRate { IOSBadge(text: PlaybackController.fpsLabel(frameRate)) }
+                if let audio, !audio.isEmpty { IOSBadge(text: audio) }
             }
         }
         .padding(12)

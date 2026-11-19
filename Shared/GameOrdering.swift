@@ -89,3 +89,59 @@ extension Array where Element == StreamMatch {
         first { !$0.looksUHD(measured) } ?? first
     }
 }
+
+/// The sport Home opens on (no Live Now page): a favourite sport with something live, else any sport with something
+/// live, else the first sport with games today, else the first sport.
+@MainActor func startingSport(model: AppModel) -> Sport? {
+    let sports = orderedSports(model: model)
+    let favs = Set((UserDefaults.standard.string(forKey: Prefs.favoriteSports) ?? "")
+        .split(separator: ",").compactMap { Sport(rawValue: String($0)) })
+    func live(_ s: Sport) -> Bool { model.games(for: s).contains { $0.state == .live } }
+    return sports.first { favs.contains($0) && live($0) }
+        ?? sports.first(where: live)
+        ?? sports.first { !model.games(for: $0).isEmpty }
+        ?? sports.first
+}
+
+/// Home's folds, as on the TVs: games starting more than 2 hours from now fold into "Later today · N".
+enum HomeFolds {
+    static func isLater(_ game: Game, now: Date = Date()) -> Bool {
+        guard game.state == .upcoming, let start = game.start else { return false }
+        return start.timeIntervalSince(now) > 2 * 3600
+    }
+
+    /// While an NFL game is live, the RedZone channels get a folder at the top of Football / NFL.
+    @MainActor static func redZone(model: AppModel, sport: Sport?) -> [Channel] {
+        guard sport == .football, model.games.contains(where: { $0.league.id == "nfl" && $0.state == .live }) else { return [] }
+        return model.redZoneChannels()
+    }
+}
+
+/// A sport with no live scores today but channels or shows in the guide (pickleball): shown as channels.
+@MainActor
+func isChannelSport(_ sport: Sport, model: AppModel) -> Bool {
+    let games = model.games(for: sport)
+    return !games.isEmpty && games.allSatisfy { $0.id.hasPrefix("guide-") }
+}
+
+/// A channel sport's channels (its own channels and today's shows), under the category each comes from, the sport's
+/// own channels first.
+@MainActor
+func channelSportGroups(_ sport: Sport, model: AppModel) -> [(category: String, channels: [Channel])] {
+    var seen = Set<Int>()
+    let name = sport.rawValue.lowercased()
+    let all = model.games(for: sport).flatMap { model.matches[$0.id] ?? [] }.map(\.channel)
+        .filter { seen.insert($0.id).inserted }
+        .sorted { a, b in
+            let ao = a.name.lowercased().contains(name), bo = b.name.lowercased().contains(name)
+            return ao != bo ? ao : a.name < b.name
+        }
+    var order: [String] = []
+    var groups: [String: [Channel]] = [:]
+    for c in all {
+        let key = c.categoryName.isEmpty ? "Other" : c.categoryName
+        if groups[key] == nil { order.append(key) }
+        groups[key, default: []].append(c)
+    }
+    return order.map { ($0, groups[$0] ?? []) }
+}

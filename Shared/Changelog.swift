@@ -74,6 +74,21 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.95", date: "2026-11-19", time: "13:30", title: "Score cards, and the Mac and iPhone catch up", changes: [
+            Change(text: "Home: games are score cards again, as many to a row as fit: the time or live clock, the 4K tag and number of streams on top, then each team with its logo and score.", apps: tvAndroid),
+            Change(text: "Home: the Live Now page is gone. Home opens on your favourite sport with something live, or any sport with something live if none of your favourites has.", apps: [.mac, .ios]),
+            Change(text: "Home: games starting more than 2 hours from now fold into Later today · 18, and while an NFL game is live the RedZone channels sit in a folder at the top of Football.", apps: [.mac, .ios]),
+            Change(text: "Home: finished games show under the cards (Finished · 6 folds them away).", apps: mac),
+            Change(text: "Home: channel sports (like pickleball) list their channels under the category each comes from, with resolution, frame rate and sound, like the TVs.", apps: mac),
+            Change(text: "Home: two score cards side by side.", apps: ios),
+            Change(text: "EPG: every show is coloured by its sport (or the channel's own colour), and what's already been on is a shade darker. Channels show their resolution, frame rate and sound under the name.", apps: mac),
+            Change(text: "EPG: each channel has its sport's colour on the left, and its frame rate and sound next to the resolution.", apps: ios),
+            Change(text: "EPG: turn the phone sideways on a category for a timeline: two and a half hours of programmes coloured by sport, with a line at the current time.", apps: ios),
+            Change(text: "The sound (Stereo, 5.1 Dolby...) shows next to the resolution and frame rate: in the player, full screen and on each stream you've played.", apps: ios),
+            Change(text: "Game screen: streams you've played show their sound too.", apps: mac),
+            Change(text: "While the EPG downloads: Refreshing EPG with a percentage and a bar; while a stream plays: EPG refreshes after this stream.", apps: [.mac, .ios]),
+            Change(text: "Settings has the same sections as the TVs: Account, Playback, General, Hidden (sports, leagues, categories and channels) and Changelog. General has a Connection log: streams opened and closed, downloads, and what the provider said was in use.", apps: [.mac, .ios])
+        ], titleApps: [.mac, .tv, .ios, .android]),
         Release(version: "1.94", date: "2026-11-19", time: "00:20", title: "Lite mode, your way", changes: [
             Change(text: "Settings › Lite mode (only on less powerful TVs, not the Shield): one switch for everything, then each option on its own, from the least to the most effect on speed: slower page switching, fold finished games, no logos, no live scores, don't start a stream on the game screen, no player in the corner. Each starts where the old Lite mode switch was.", apps: android),
             Change(text: "When the channels are due to download again, the saved channels and EPG show straight away while the new list comes in (the EPG was empty until then).", apps: android)

@@ -16,7 +16,10 @@ struct DashboardView: View {
             sportList
             Rectangle().fill(Theme.raised).frame(width: 1)
             Group {
-                if let sport = selectedSport {
+                if let sport = selectedSport, isChannelSport(sport, model: model) {
+                    MacSportChannels(sport: sport)
+                        .id(sport.rawValue)
+                } else if let sport = selectedSport {
                     // Like the Apple TV: sports down the left, the sport's leagues across the top.
                     VStack(spacing: 0) {
                         if model.leagues(for: sport).count > 1 { leagueChips(sport) }
@@ -24,11 +27,21 @@ struct DashboardView: View {
                             .id("\(sport.rawValue)|\(selectedLeague ?? "")")
                     }
                 } else {
+                    // No Live Now page: until today's games are in, nothing is picked.
                     overview
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .onAppear { pickStartingSport() }
+        .onChange(of: model.games.count) { pickStartingSport() }
+    }
+
+    /// Home opens on a sport (no Live Now page): a favourite with something live, else any sport with something
+    /// live, else the first with games. Picked once today's games are in.
+    private func pickStartingSport() {
+        guard selectedSport == nil, !model.games.isEmpty else { return }
+        selectedSport = startingSport(model: model)
     }
 
     // MARK: Left column
@@ -36,16 +49,6 @@ struct DashboardView: View {
     private var sportList: some View {
         ScrollView {
             VStack(spacing: 4) {
-                let liveTotal = model.games.filter { $0.state == .live && !Sport.hidden(hiddenSports).contains($0.league.sport) }.count
-                SportRow(symbol: "dot.radiowaves.left.and.right", name: "Live Now",
-                         detail: liveTotal > 0 ? nil : "\(model.games.count) today", live: liveTotal,
-                         total: model.games.filter { !Sport.hidden(hiddenSports).contains($0.league.sport) }.count,
-                         selected: selectedSport == nil, dimmed: false, favorite: nil, alignWithHearts: true) {
-                    selectedSport = nil
-                    selectedLeague = nil
-                }
-                .padding(.bottom, 8)
-
                 ForEach(tileOrder) { sport in
                     let games = model.games(for: sport)
                     SportRow(symbol: sport.symbol, name: sport.rawValue,

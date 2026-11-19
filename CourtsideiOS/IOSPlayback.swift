@@ -19,6 +19,9 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
     @Published private(set) var status: PlaybackController.Status = .idle
     @Published private(set) var resolution = ""
     @Published private(set) var frameRate: Double = 0
+    /// The sound ("Stereo", "5.1 Dolby"...), from the audio track's format.
+    @Published private(set) var audio = ""
+    private var audioLookup: Task<Void, Never>?
     @Published private(set) var pipActive = false
     @Published private(set) var pipStarting = false
 
@@ -63,8 +66,12 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
         status = .opening
         resolution = ""
         frameRate = 0
+        audio = ""
+        audioLookup?.cancel()
         lastBufferMs = bufferMs
         freezeWatch.reset()
+        if player.currentItem != nil { ConnLog.add("Closed \(ConnLog.stream((player.currentItem?.asset as? AVURLAsset)?.url))") }
+        ConnLog.add("Opened \(ConnLog.stream(url))")
         let item = AVPlayerItem(url: url)
         item.preferredForwardBufferDuration = Double(bufferMs) / 1000
         player.replaceCurrentItem(with: item)
@@ -83,6 +90,7 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
     /// Starts the stream again without showing it (the resolution and frame rate stay as they were).
     private func restartQuietly() {
         guard let url = currentURL else { return }
+        ConnLog.add("Opened \(ConnLog.stream(url)) again (it froze)")
         let item = AVPlayerItem(url: url)
         item.preferredForwardBufferDuration = Double(lastBufferMs) / 1000
         player.replaceCurrentItem(with: item)
@@ -97,6 +105,9 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
         timer?.invalidate()
         timer = nil
         if pip?.isPictureInPictureActive == true { pip?.stopPictureInPicture() }
+        if let url = currentURL { ConnLog.add("Closed \(ConnLog.stream(url))") }
+        audioLookup?.cancel()
+        audio = ""
         player.pause()
         player.replaceCurrentItem(with: nil)
         currentURL = nil
@@ -132,6 +143,14 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
            fps > 0 {
             frameRate = Double(fps > 61 ? fps / 2 : fps)
         }
+        if audio.isEmpty, audioLookup == nil || audioLookup?.isCancelled == true, status == .playing,
+           let track = item.tracks.first(where: { $0.assetTrack?.mediaType == .audio })?.assetTrack {
+            audioLookup = Task { @MainActor [weak self] in
+                guard let formats = try? await track.load(.formatDescriptions), !Task.isCancelled,
+                      let label = Self.soundLabel(formats) else { return }
+                self?.audio = label
+            }
+        }
         // Frozen for 4 seconds: restart quietly; if it keeps happening, move on.
         let watching = !resolution.isEmpty && (status == .playing || status == .buffering || status == .opening)
         switch freezeWatch.check(progress: player.currentTime().seconds, watching: watching) {
@@ -139,6 +158,29 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
         case .skip: onRepeatedFreezing?()
         case .none: break
         }
+    }
+
+    /// "Stereo", "5.1 Dolby", "Dolby+" and so on, from the audio track's format (like the VLC label on the Mac).
+    private static func soundLabel(_ formats: [CMFormatDescription]) -> String? {
+        guard let f = formats.first else { return nil }
+        let channels = Int(CMAudioFormatDescriptionGetStreamBasicDescription(f)?.pointee.mChannelsPerFrame ?? 0)
+        let layout: String
+        switch channels {
+        case 0: layout = ""
+        case 1: layout = "Mono"
+        case 2: layout = "Stereo"
+        case 6: layout = "5.1"
+        case 8: layout = "7.1"
+        default: layout = "\(channels) ch"
+        }
+        let codec: String
+        switch CMFormatDescriptionGetMediaSubType(f) {
+        case kAudioFormatAC3: codec = "Dolby"
+        case kAudioFormatEnhancedAC3: codec = "Dolby+"
+        default: codec = ""
+        }
+        let label = [layout, codec].filter { !$0.isEmpty }.joined(separator: " ")
+        return label.isEmpty ? nil : label
     }
 
     // MARK: Picture in Picture
@@ -201,6 +243,7 @@ final class IOSPlayback: ObservableObject {
     var status: PlaybackController.Status { usingVLC ? vlc.status : av.status }
     var resolution: String { usingVLC ? vlc.resolution : av.resolution }
     var frameRate: Double { usingVLC ? vlc.frameRate : av.frameRate }
+    var audio: String { usingVLC ? vlc.audio : av.audio }
     var isActive: Bool { channelID != nil }
     var canPictureInPicture: Bool { !usingVLC && AVEngine.pipSupported }
 

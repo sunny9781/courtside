@@ -329,25 +329,40 @@ struct TVGamesPane: View {
         }
     }
 
-    /// An EPG-like list (like the Android TV app): a row per game (status, the teams and scores on one line, its
-    /// streams) under a heading per league, running to the bottom of the screen under the now-playing bar.
+    /// Score cards, as many to a row as fit (each at least `TVScoreCard.minWidth`).
+    private var columns: Int { max(1, Int((paneWidth - 16 + 20) / (TVScoreCard.minWidth + 20))) }
+
+    /// A grid of score cards. Right on a card in the last column (or the last card) jumps to the EPG.
+    private func gameGrid(_ games: [Game]) -> some View {
+        let count = columns
+        return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 20, alignment: .top), count: count),
+                         alignment: .leading, spacing: 20) {
+            ForEach(Array(games.enumerated()), id: \.element.id) { index, game in
+                let button = Button {
+                    nav.homePath.append(game.id)
+                } label: {
+                    TVScoreCard(game: game)
+                }
+                .buttonStyle(TVCardButtonStyle())
+                .focused(focusedGame, equals: game.id)
+                if index % count == count - 1 || index == games.count - 1 {
+                    button.tvEdgeJump(.right, to: .epg)
+                } else {
+                    button
+                }
+            }
+        }
+        .padding(.horizontal, 8)
+    }
+
+    /// Score cards under a heading per league (like the Mac and iPhone), running to the bottom of the screen under
+    /// the now-playing bar.
     private var cards: some View {
         ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: 6) {
                 if let sport = filterSport, model.leagues(for: sport).count > 1 {
                     leagueFilters(sport)
                 }
-                HStack(spacing: 0) {
-                    Text("STATUS").frame(width: TVGameRow.statusWidth, alignment: .leading)
-                    // Over the "@" between the two teams.
-                    Text("GAME").frame(width: TVGameRow.teamWidth * 2 + 56, alignment: .center)
-                    Spacer(minLength: 0)
-                    Text("STREAMS")
-                }
-                .font(.system(size: 19, weight: .bold))
-                .foregroundStyle(Theme.muted)
-                .padding(.horizontal, 22)
-
                 let redZone = redZone
                 if !redZone.isEmpty {
                     fold("NFL RedZone · \(redZone.count)", open: showRedZone) { showRedZone.toggle() }
@@ -383,50 +398,19 @@ struct TVGamesPane: View {
                         .padding(.leading, 22)
                         .padding(.top, 16)
                     }
-                    ForEach(section.games) { game in
-                        Button {
-                            nav.homePath.append(game.id)
-                        } label: {
-                            TVGameRow(game: game)
-                        }
-                        .buttonStyle(TVRowButtonStyle())
-                        .focused(focusedGame, equals: game.id)
-                        .tvEdgeJump(.right, to: .epg)
-                    }
+                    gameGrid(section.games)
                 }
 
                 if !later.isEmpty {
                     fold("Later today · \(later.count)", open: showLater) { showLater.toggle() }
-                    if showLater {
-                        ForEach(later) { game in
-                            Button {
-                                nav.homePath.append(game.id)
-                            } label: {
-                                TVGameRow(game: game)
-                            }
-                            .buttonStyle(TVRowButtonStyle())
-                            .focused(focusedGame, equals: game.id)
-                            .tvEdgeJump(.right, to: .epg)
-                        }
-                    }
+                    if showLater { gameGrid(later) }
                 }
 
                 // Finished games fold into one row at the bottom ("Finished · 6", click to show them), so a page
                 // mostly shows the games that are live or coming up.
                 if !finished.isEmpty {
                     fold("Finished · \(finished.count)", open: showFinished) { showFinished.toggle() }
-                    if showFinished {
-                        ForEach(finished) { game in
-                            Button {
-                                nav.homePath.append(game.id)
-                            } label: {
-                                TVGameRow(game: game)
-                            }
-                            .buttonStyle(TVRowButtonStyle())
-                            .focused(focusedGame, equals: game.id)
-                            .tvEdgeJump(.right, to: .epg)
-                        }
-                    }
+                    if showFinished { gameGrid(finished) }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -604,13 +588,6 @@ struct TVGameRow: View {
     }
 }
 
-/// A sport with no live scores today but channels or shows in the guide (pickleball): shown as channels.
-@MainActor
-func isChannelSport(_ sport: Sport, model: AppModel) -> Bool {
-    let games = model.games(for: sport)
-    return !games.isEmpty && games.allSatisfy { $0.id.hasPrefix("guide-") }
-}
-
 /// Every channel showing a channel sport (its own channels and today's shows), like the EPG. Click to play in the
 /// player, again for full screen.
 struct TVSportChannels: View {
@@ -673,4 +650,89 @@ struct TVSportChannels: View {
 struct TVFirstGameKey: PreferenceKey {
     static let defaultValue: String? = nil
     static func reduce(value: inout String?, nextValue: () -> String?) { value = value ?? nextValue() }
+}
+
+/// A game as a score card: when (or the live clock), its 4K tag and number of streams, then each team with its logo
+/// and score. Upcoming games are dimmer, so live games stand out.
+struct TVScoreCard: View {
+    @EnvironmentObject var model: AppModel
+    @Environment(\.isFocused) private var focused
+    let game: Game
+    static let minWidth: CGFloat = 400
+
+    var body: some View {
+        let main = model.mainStreams(game.id)
+        let text: Color = focused ? Theme.bg : Theme.text
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Text(game.state == .upcoming ? game.startText : game.headerText)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(focused ? Theme.bg : (game.state == .live ? Theme.accent : Theme.muted))
+                    .lineLimit(1)
+                Spacer(minLength: 6)
+                if main.contains(where: \.is4K) { TVBadge(text: "4K", fill: Theme.accent, color: Theme.onAccent) }
+                Text(main.isEmpty ? "None" : "\(main.count)")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundStyle(main.isEmpty && !focused ? Theme.danger : (focused ? Theme.bg : Theme.muted))
+                if !main.isEmpty {
+                    Image(systemName: "play.tv").font(.system(size: 17)).foregroundStyle(focused ? Theme.bg : Theme.muted)
+                }
+            }
+            if game.isEvent && !game.hasSides {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(game.eventTitle).font(.system(size: 24, weight: .semibold)).foregroundStyle(text).lineLimit(2)
+                    if !game.eventDetail.isEmpty {
+                        Text(game.eventDetail).font(.system(size: 20)).foregroundStyle(text.opacity(0.75)).lineLimit(1)
+                    }
+                }
+                .frame(minHeight: 96, alignment: .topLeading)
+            } else {
+                teamLine(game.away, text: text)
+                teamLine(game.home, text: text)
+            }
+        }
+        .opacity(game.state == .upcoming && !focused ? 0.7 : 1)
+    }
+
+    private func teamLine(_ team: Team, text: Color) -> some View {
+        HStack(spacing: 14) {
+            TVTeamLogo(team: team, size: 40)
+            Text(team.shortName.isEmpty ? team.name : team.shortName)
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundStyle(text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Spacer(minLength: 8)
+            if game.state != .upcoming {
+                Text(team.score)
+                    .font(.system(size: 30, weight: .bold).monospacedDigit())
+                    .foregroundStyle(focused ? Theme.bg : game.scoreColor(team))
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
+        .frame(height: 42)
+    }
+}
+
+/// A score card: a dark card that turns white when it's focused (no zoom, like the rows).
+struct TVCardButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Card(configuration: configuration)
+    }
+
+    private struct Card: View {
+        let configuration: ButtonStyleConfiguration
+        @Environment(\.isFocused) private var focused
+
+        var body: some View {
+            configuration.label
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 18).fill(focused ? Theme.text : Theme.card))
+                .scaleEffect(configuration.isPressed ? 0.98 : 1)
+                .animation(.easeOut(duration: 0.15), value: focused)
+        }
+    }
 }

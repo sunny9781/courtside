@@ -85,6 +85,7 @@ struct IOSPlayerView: View {
         .onChange(of: playback.frameRate) {
             model.recordFrameRate(item.channel.id, playback.frameRate)
         }
+        .onChange(of: playback.audio) { model.recordAudio(item.channel.id, playback.audio) }
         .onDisappear {
             hideTask?.cancel()
             flipTask?.cancel()
@@ -254,6 +255,7 @@ struct IOSPlayerView: View {
                 Spacer()
                 if !playback.resolution.isEmpty { IOSBadge(text: playback.resolution) }
                 if playback.frameRate > 0 { IOSBadge(text: PlaybackController.fpsLabel(playback.frameRate)) }
+                if !playback.audio.isEmpty { IOSBadge(text: playback.audio) }
                 if item.lineup.count > 1 {
                     circleButton("chevron.up") { model.step(-1) }
                     circleButton("chevron.down") { model.step(1) }
