@@ -63,20 +63,21 @@ struct TVNowPlayingBar: View {
             Color.clear.frame(height: TVLayout.margin)
             Rectangle().fill(Theme.raised).frame(height: 2)
             HStack(spacing: 18) {
-                Image(systemName: "speaker.wave.2.fill").font(.system(size: 17)).foregroundStyle(Theme.accent)
-                Text(channel.name).font(.system(size: 20, weight: .semibold)).foregroundStyle(Theme.soft).lineLimit(1)
+                Image(systemName: "speaker.wave.2.fill").font(.system(size: 22)).foregroundStyle(Theme.accent)
+                TVChannelIcon(url: channel.icon, size: 44)
+                Text(channel.name).font(.system(size: 24, weight: .semibold)).foregroundStyle(Theme.soft).lineLimit(1)
                 if !controller.resolution.isEmpty { TVBadge(text: controller.resolution) }
                 if controller.frameRate > 0 { TVBadge(text: PlaybackController.fpsLabel(controller.frameRate)) }
                 if !controller.audio.isEmpty { TVBadge(text: controller.audio) }
-                Text(title).font(.system(size: 22, weight: .bold)).foregroundStyle(Theme.text).lineLimit(1)
+                Text(title).font(.system(size: 26, weight: .bold)).foregroundStyle(Theme.text).lineLimit(1)
                 if let now {
                     if !now.title.isEmpty && now.title != title {
-                        Text(now.title).font(.system(size: 20)).foregroundStyle(Theme.soft).lineLimit(1)
+                        Text(now.title).font(.system(size: 23)).foregroundStyle(Theme.soft).lineLimit(1)
                     }
                     Text("\(now.start.formatted(date: .omitted, time: .shortened)) – \(now.end.formatted(date: .omitted, time: .shortened))")
-                        .font(.system(size: 19)).foregroundStyle(Theme.muted).fixedSize()
+                        .font(.system(size: 22)).foregroundStyle(Theme.muted).fixedSize()
                     ProgressView(value: min(max(Date().timeIntervalSince(now.start) / max(now.end.timeIntervalSince(now.start), 1), 0), 1))
-                        .tint(Theme.accent).frame(width: 160)
+                        .tint(Theme.accent).frame(width: 200)
                 }
                 Spacer(minLength: 0)
             }
@@ -103,26 +104,34 @@ enum TVRemoteHold {
 
 struct TVPlayPauseHold: UIViewRepresentable {
     let action: () -> Void
+    /// A short press (only once it's clear it isn't a hold, so a hold never also counts as a short press).
+    var tap: (() -> Void)? = nil
 
     func makeUIView(context: Context) -> HoldView {
         let view = HoldView()
         view.action = action
+        view.tap = tap
         view.isUserInteractionEnabled = false
         return view
     }
 
     func updateUIView(_ view: HoldView, context: Context) {
         view.action = action
+        view.tap = tap
     }
 
     final class HoldView: UIView {
         var action: (() -> Void)?
+        var tap: (() -> Void)?
         private var recognizer: UILongPressGestureRecognizer?
+        private var tapRecognizer: UITapGestureRecognizer?
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
             if let recognizer { recognizer.view?.removeGestureRecognizer(recognizer) }
+            if let tapRecognizer { tapRecognizer.view?.removeGestureRecognizer(tapRecognizer) }
             recognizer = nil
+            tapRecognizer = nil
             guard let window else { return }
             let hold = UILongPressGestureRecognizer(target: self, action: #selector(held(_:)))
             hold.allowedPressTypes = [NSNumber(value: UIPress.PressType.playPause.rawValue)]
@@ -130,6 +139,17 @@ struct TVPlayPauseHold: UIViewRepresentable {
             hold.cancelsTouchesInView = false
             window.addGestureRecognizer(hold)
             recognizer = hold
+            let press = UITapGestureRecognizer(target: self, action: #selector(tapped))
+            press.allowedPressTypes = [NSNumber(value: UIPress.PressType.playPause.rawValue)]
+            press.cancelsTouchesInView = false
+            press.require(toFail: hold)
+            window.addGestureRecognizer(press)
+            tapRecognizer = press
+        }
+
+        @objc private func tapped() {
+            guard !TVRemoteHold.justHeld else { return }
+            tap?()
         }
 
         @objc private func held(_ g: UILongPressGestureRecognizer) {

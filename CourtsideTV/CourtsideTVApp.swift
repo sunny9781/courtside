@@ -156,16 +156,17 @@ struct TVShell: View {
         .onExitCommand(perform: exitAction)
         // Play/Pause on the remote stops the player at the top (and frees the connection).
         // Hold Play/Pause: the player in the corner goes full screen (Android TV: hold Back).
-        .background(TVPlayPauseHold {
+        // Both from the same place, so on every screen a hold is never also taken as a short press (on Home the short
+        // press used to stop the player before the hold could open it).
+        .background(TVPlayPauseHold(action: {
             guard model.nowPlaying == nil, let item = model.pinned else { return }
             model.play(item.channel, gameTitle: item.gameTitle, lineup: item.lineup)
-        })
-        .onPlayPauseCommand {
-            guard !TVRemoteHold.justHeld, model.nowPlaying == nil, model.pinned != nil else { return }
+        }, tap: {
+            guard model.nowPlaying == nil, model.pinned != nil else { return }
             PlaybackController.shared.stop()
             model.pinned = nil
             model.checkConnectionsSoon()
-        }
+        }))
         .animation(.easeOut(duration: 0.25), value: model.pinned == nil)
         .task { await model.refresh() }
         .onChange(of: scenePhase) {
