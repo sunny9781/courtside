@@ -45,6 +45,14 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   categories, channels. Hidden sports/leagues are switched off (not fetched, not matched).
 - Android Lite mode (default on except Nvidia Shield): no corner player (channels open full screen, Back stops),
   no live scores (games load once at open), no logos, no zoom.
+- Apple TV playback (1.83): VLCKit 3.6 for everything except 4K channels, which play on `CourtsideTV/HDREngine.swift`
+  (KSPlayer 5.6.2 GPL build: a binary xcframework with a tvOS slice, + FFmpegKit 9; linked only into CourtsideTV, so
+  `#if os(tvOS) && canImport(KSPlayer)`). It reads the same TS URL as VLC (one connection), passes the video's
+  frame rate + format to `displayCriteria` (applied only in full screen by TVPlayerView; KSPlayer's own TV switch is
+  overridden) and shows HDR10/HLG/Dolby Vision tags. No picture in 6 s or an error: the 4K player is closed, 1 s gap,
+  then the same URL on VLC (that URL skips the 4K player for the rest of the session). KSPlayer logging is silenced
+  (URLs). Setting: Playback › HDR player for 4K (`hdrPlayer4K`, default on). The old AVPlayer/HLS path (1.80) is gone.
+  Licence: KSPlayer is GPL-3.0 (fine while the repo is public and the app isn't sold); LGPL is a paid version.
 - Android streams open TS first (HLS fallback): HLS made the provider count extra connections while flipping.
 - Android full screen always uses SurfaceView (no HDR switch; the TV's Match content setting decides HDR). The video
   renderer forces a fresh decoder on every surface change (handover garbled 4K on Chromecast).
@@ -57,6 +65,8 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   instead of one very long one.
 
 ## Open items
+- 1.83 Apple TV HDR player: unconfirmed on the TV (HDR badge in full screen, 1/2 connections, 4K ↔ normal switching,
+  sound/fps tags from KSPlayer's track info).
 - 1.81 Apple TV timeline EPG: merged without the check.yml build (gh had no login in that session); unconfirmed on the TV.
 - iPhone Home "Live Now" blue bar: unexplained; ask for a screenshot if it's still there.
 - Chromecast crashes: Android now saves crash details (shown once on next start, and in Settings › General).

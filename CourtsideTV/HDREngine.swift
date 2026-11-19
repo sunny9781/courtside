@@ -172,4 +172,7 @@ extension HDREngine: MediaPlayerDelegate {
 
     func playerDidClear(player: some MediaPlayerProtocol) {}
 }
+#elseif os(tvOS)
+// The KSPlayer and FFmpegKit packages belong to the CourtsideTV target: without them 4K would quietly stay on VLC.
+#error("KSPlayer package missing from the CourtsideTV target")
 #endif
