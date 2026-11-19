@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.89", date: "2026-11-18", time: "22:25", title: "Edge shortcuts", changes: [
+            Change(text: "Home: press right on a game to jump to the EPG. EPG: press left on the categories to jump back to Home.", apps: tv)
+        ]),
         Release(version: "1.88", date: "2026-11-18", time: "22:15", title: "Home without Live Now", changes: [
             Change(text: "Home: the Live Now row is gone (each sport already shows its live games); Home opens on your first sport.", apps: tv),
             Change(text: "Home: scores over 99 fit (no more cut-off basketball scores).", apps: tv),

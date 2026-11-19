@@ -353,3 +353,13 @@ struct TVScrollingText: View {
         }
     }
 }
+
+extension View {
+    /// A shortcut at the edge of a screen: pressing this direction (where there's nothing more to move to) switches
+    /// to another tab (right on a Home game goes to the EPG; left on the EPG's categories goes to Home).
+    func tvEdgeJump(_ direction: MoveCommandDirection, to tab: TVTab) -> some View {
+        onMoveCommand { moved in
+            if moved == direction { NotificationCenter.default.post(name: .tvSwitchTab, object: tab) }
+        }
+    }
+}
