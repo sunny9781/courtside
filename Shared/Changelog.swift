@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.84", date: "2026-11-18", time: "21:10", title: "Every show in colour", changes: [
+            Change(text: "EPG: every programme is coloured now. Games keep their sport's colour (brighter than before); everything else takes its channel's own colour, the same each time.", apps: tv),
+            Change(text: "EPG: rows are a bit smaller again (between 1.81 and 1.83), still with titles over two lines.", apps: tv)
+        ]),
         Release(version: "1.83", date: "2026-11-18", time: "20:55", title: "Bigger EPG rows, more colour", changes: [
             Change(text: "EPG: rows are twice as tall, with programme titles over two lines (three on the row you're on) and bigger channel logos.", apps: tv),
             Change(text: "EPG: more programmes get their sport's colour: games are also recognised by today's team names (\"Bucks at Heat\"), and by the channel's category when the title and channel name don't say.", apps: tv)
