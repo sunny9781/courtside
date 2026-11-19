@@ -19,7 +19,10 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
    next version, Eastern date/time, title, each change tagged with apps (`mac`, `tv`, `ios`, `android`, or inline
    `[.tv, .android]`). Optional `titleApps:` after `changes: [...]` says which apps see the title (otherwise the title
    shows only where every change applies). `android/changelog.py` turns the Android entries into the app's What's new.
-2. Apple build check: `gh workflow run check.yml -R sunny9781/courtside --ref <branch>` (macOS runner; sometimes
+2. Apple build check: `gh workflow run check.yml -R sunny9781/courtside --ref <branch>` (all apps, ~7 min cold), or
+   `-f apps=tv` / `mac` / `ios` when only that app's folder changed (Apple TV alone ~2 min with the package cache).
+   Use all when Shared/ changed. Batch mid-work requests into the release in progress: one check per release.
+   (gh only works once the repo is attached to the session.) (macOS runner; sometimes
    queues ~15 min and gets cancelled: just re-run).
 3. Android build without publishing: `gh workflow run android.yml -R sunny9781/courtside --ref <branch> -f publish=false`.
 4. Merge to main with `--no-ff` and push. Each app publishes from its own workflow; the Mac one skips pushes that only
