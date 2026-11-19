@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.83", date: "2026-11-18", time: "20:54", title: "Real HDR for 4K, one connection", changes: [
+            Change(text: "4K channels play with a new HDR player (the same kind of engine UHF uses), so in full screen the TV switches into HDR and shows its HDR sign, and 4K HDR is no longer dark. It reads the same stream VLC does, so the provider still counts one connection. Everything else still plays with VLC.", apps: tv),
+            Change(text: "If a 4K channel shows nothing within a few seconds, the HDR player closes it and the channel plays with VLC instead, never both at once.", apps: tv),
+            Change(text: "Settings › Playback › 4K with the HDR player: on by default; turn it off to play 4K like everything else.", apps: tv)
+        ]),
         Release(version: "1.82", date: "2026-11-18", time: "20:45", title: "4K back to one connection", changes: [
             Change(text: "4K channels play with VLC again, like everything else: Apple's player can't play this provider's 4K HDR streams, so it gave up after 8 seconds and the switch counted as two connections. The 4K with Apple's player setting is gone.", apps: tv)
         ]),
