@@ -49,6 +49,10 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Android full screen always uses SurfaceView (no HDR switch; the TV's Match content setting decides HDR). The video
   renderer forces a fresh decoder on every surface change (handover garbled 4K on Chromecast).
 
+- Apple guide (1.84): parsed guide saved as Caches/Courtside/guide.json (wanted channels, up to guide hours + refresh
+  interval ahead); the raw guide.xml is deleted after parsing. `refresh()` loads it right after saved channels, while
+  ESPN downloads (Android does the same via Cache.kt). tvOS can still purge Caches (no persistent storage there).
+
 ## Working preferences (Sunny)
 - Report how long each request took.
 - Always tell Sunny when a release is actually published (after the main runs finish), not just merged.
