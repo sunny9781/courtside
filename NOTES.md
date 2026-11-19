@@ -34,6 +34,9 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Home: sports sidebar (groups: live scores / channel sports / nothing today) + EPG-style list of games (one line per
   game; upcoming grey). Channel-only sports (pickleball) show channels grouped by category.
 - Game screen: mini EPG, categories left ("All" first, with group headings), streams right; first non-4K stream autoplays.
+- EPG (Apple TV, 1.81): timeline guide (option C mock-up): 2.5 h from the last half hour, cells coloured by sport
+  (`TVGuide.sport` guesses from title, then channel name), orange now line, past part darker; the focused row opens to
+  two lines (times, time left, title; tags under the channel). Android still uses the columns below; port once settled.
 - EPG: no what's-playing panel (the bottom bar shows it); Done/Enter in Filter jumps to the first result.
 - Settings sections (both TVs): Account, General, Hidden, Changelog.
 - Corner player to full screen: click it; Android also hold Back, Apple TV hold Play/Pause (tvOS keeps hold-Back).
@@ -54,6 +57,7 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   instead of one very long one.
 
 ## Open items
+- 1.81 Apple TV timeline EPG: merged without the check.yml build (gh had no login in that session); unconfirmed on the TV.
 - iPhone Home "Live Now" blue bar: unexplained; ask for a screenshot if it's still there.
 - Chromecast crashes: Android now saves crash details (shown once on next start, and in Settings › General).
 - Apple TV hasn't got a Lite mode (not needed so far).
