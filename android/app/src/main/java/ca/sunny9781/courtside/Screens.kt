@@ -736,10 +736,11 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     val selection = model.homeSelection
     val sport = selectedSport(selection)
     val sections: List<PaneSection> = when (selection) {
-        // Only games that are live right now, by sport.
-        // All live games in one grid (each card names its league), so games from different sports share a row.
-        is HomeSelection.LiveNow -> model.orderedSports().flatMap { s -> sortedGames(model.games(s).filter { it.state == GameState.LIVE }) }
-            .let { if (it.isEmpty()) emptyList() else listOf(PaneSection("live", "", null, null, it)) }
+        // Only games that are live right now, under a heading per league (NBA, NCAA, NFL...), like a sport's page.
+        is HomeSelection.LiveNow -> model.orderedSports().flatMap { s -> model.leagues(s) }.mapNotNull { l ->
+            val live = model.gamesIn(l.id).filter { it.state == GameState.LIVE }
+            if (live.isEmpty()) null else PaneSection(l.id, l.name, null, l, sortedGames(live))
+        }
         is HomeSelection.OfSport -> model.leagues(selection.sport).mapNotNull { l ->
             val g = model.gamesIn(l.id)
             if (g.isEmpty()) null else PaneSection(l.id, l.name, null, l, sortedGames(g))
@@ -765,6 +766,11 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     val finished = sections.flatMap { it.games.filter { g -> g.state == GameState.FINISHED } }
     var showFinished by remember(selection) { mutableStateOf(false) }
     var showLater by remember(selection) { mutableStateOf(false) }
+    // NFL RedZone: while any NFL game is live, its channels sit in a folder at the top of Live Now and Football.
+    val nflLive = selection.let { it is HomeSelection.LiveNow || selectedSport(it) == Sport.FOOTBALL ||
+        (it is HomeSelection.OfLeague && it.leagueId == "nfl") } && model.gamesIn("nfl").any { it.state == GameState.LIVE }
+    val redZone = if (nflLive) model.redZoneChannels() else emptyList()
+    var showRedZone by remember(selection) { mutableStateOf(false) }
     // An EPG-like list, like the channel sports: a row per game (status, the teams and scores), under a heading per
     // league. It runs to the bottom of the screen, under the now-playing bar.
     BehindPlayerBar(model) {
@@ -776,7 +782,22 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
         item(key = "header") {
             Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
                 Label("STATUS", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(STATUS_WIDTH))
-                Label("GAME", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.weight(1f))
+                // Over the "@" between the two teams.
+                Box(Modifier.width(TEAM_WIDTH * 2 + 22.dp), contentAlignment = Alignment.Center) {
+                    Label("GAME", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted)
+                }
+            }
+        }
+        if (redZone.isNotEmpty()) {
+            item(key = "redzone", contentType = "finished") {
+                FoldRow("NFL RedZone · ${redZone.size}", showRedZone, Modifier.tracked(targets, "redzone")) { showRedZone = !showRedZone }
+            }
+            if (showRedZone) items(redZone, key = { "rz:${it.id}" }, contentType = { "channel" }) { ch ->
+                val playing = model.pinned?.channel?.id
+                ChannelRow(model, ch, ch.id == playing, Modifier.tracked(targets, "rz:${ch.id}"), showNext = false,
+                    onFocus = { }) {
+                    if (ch.id == playing) model.play(ch, null, redZone, from = "home") else model.pin(ch, null, redZone)
+                }
             }
         }
         if (open.isEmpty()) {
@@ -802,7 +823,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             // Same content type: switching sports reuses the rows already built (new text, same row) instead of
             // building new ones.
             items(section.games, key = { "${section.id}:${it.id}" }, contentType = { "game" }) { game ->
-                GameRow(game, model.mainStreams(game.id).any { it.is4K }, showLeague = selection is HomeSelection.LiveNow,
+                GameRow(game, model.mainStreams(game.id).any { it.is4K }, showLeague = false,
                     modifier = Modifier.tracked(targets, "game:${game.id}"),
                     onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
             }
@@ -812,7 +833,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
                 FoldRow("Later today · ${later.size}", showLater, Modifier.tracked(targets, "later")) { showLater = !showLater }
             }
             if (showLater) items(later, key = { "l:${it.id}" }, contentType = { "game" }) { game ->
-                GameRow(game, model.mainStreams(game.id).any { it.is4K }, showLeague = sections.size > 1,
+                GameRow(game, model.mainStreams(game.id).any { it.is4K }, showLeague = false,
                     modifier = Modifier.tracked(targets, "game:${game.id}"),
                     onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
             }
@@ -831,7 +852,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
                 }
             }
             if (showFinished) items(finished, key = { "f:${it.id}" }, contentType = { "game" }) { game ->
-                GameRow(game, model.mainStreams(game.id).any { it.is4K }, showLeague = sections.size > 1,
+                GameRow(game, model.mainStreams(game.id).any { it.is4K }, showLeague = false,
                     modifier = Modifier.tracked(targets, "game:${game.id}"),
                     onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
             }
@@ -855,7 +876,7 @@ private fun FoldRow(title: String, open: Boolean, modifier: Modifier, onClick: (
 
 private val STATUS_WIDTH = 125.dp
 private val TEAM_WIDTH = 175.dp
-private val SCORE_WIDTH = 30.dp
+private val SCORE_WIDTH = 26.dp
 
 /**
  * A game as an EPG row, all on one line: when (or LIVE and the clock), the teams with their scores, and how many
@@ -877,7 +898,7 @@ private fun GameRow(game: Game, has4K: Boolean, showLeague: Boolean, modifier: M
             // Upcoming: just the start time (the row is already grey), so the status column stays narrow.
             val status = when {
                 Perf.lite && game.state == GameState.LIVE -> "LIVE"
-                game.state == GameState.UPCOMING && !game.isChannel -> startText(game)
+                game.state == GameState.UPCOMING -> startText(game)
                 else -> cardHeader(game)
             }
             Label(if (showLeague) "$status · ${game.league.name}" else status, size = 11.sp,
@@ -890,8 +911,8 @@ private fun GameRow(game: Game, has4K: Boolean, showLeague: Boolean, modifier: M
                     if (game.eventDetail.isNotEmpty()) Label(game.eventDetail, size = 11.sp, color = text.copy(alpha = 0.75f),
                         modifier = Modifier.weight(1f, fill = false))
                 } else {
-                    // Lined up around the "@" on every row: the first team's score, name and logo end at the "@",
-                    // the second team's logo, name and score start after it. Lite mode: no scores or logos.
+                    // Lined up around the "@" on every row: name, score, logo | @ | logo, score, name, so each score
+                    // sits between its team's name and logo. Lite mode: no scores or logos.
                     val showScore = game.state != GameState.UPCOMING && !Perf.lite
                     @Composable
                     fun score(team: Team, end: Boolean) = Box(Modifier.width(SCORE_WIDTH),
@@ -901,20 +922,20 @@ private fun GameRow(game: Game, has4K: Boolean, showLeague: Boolean, modifier: M
                     }
                     Row(Modifier.width(TEAM_WIDTH), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        score(game.away, end = false)
                         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
                             Label(game.away.shortName.ifEmpty { game.away.name }, size = 13.sp, weight = FontWeight.SemiBold, color = text)
                         }
+                        score(game.away, end = true)
                         if (!Perf.lite) Logo(game.away.logo, 16.dp, game.away.abbr)
                     }
                     Label("@", size = 12.sp, color = text.copy(alpha = 0.6f))
                     Row(Modifier.width(TEAM_WIDTH), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(7.dp)) {
                         if (!Perf.lite) Logo(game.home.logo, 16.dp, game.home.abbr)
+                        score(game.home, end = false)
                         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                             Label(game.home.shortName.ifEmpty { game.home.name }, size = 13.sp, weight = FontWeight.SemiBold, color = text)
                         }
-                        score(game.home, end = true)
                     }
                 }
             }

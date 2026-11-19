@@ -10,7 +10,16 @@ final class AppModel: ObservableObject {
     @Published var account: AccountInfo?
     @Published var categories: [ChannelCategory] = []
     @Published var categoryTree: [CategoryGrouping.Node] = []
-    @Published var channels: [Channel] = []
+    @Published var channels: [Channel] = [] { didSet { redZoneCache = nil } }
+    private var redZoneCache: [Channel]?
+
+    /// NFL RedZone channels (their name says RedZone or Red Zone), worked out once per channel list.
+    func redZoneChannels() -> [Channel] {
+        if let redZoneCache { return redZoneCache }
+        let list = channels.filter { let n = $0.name.lowercased(); return n.contains("redzone") || n.contains("red zone") }
+        redZoneCache = list
+        return list
+    }
     @Published var channelsByCategory: [String: [Channel]] = [:]
     @Published var channelByID: [Int: Channel] = [:]
     @Published var games: [Game] = []
@@ -26,9 +35,9 @@ final class AppModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var lastRefresh: Date?
-    @Published var nowPlaying: NowPlaying?
+    @Published var nowPlaying: NowPlaying? { didSet { streamsChanged() } }
     /// What the pinned player at the top is playing (iPhone/iPad and Mac). Nil hides it.
-    @Published var pinned: NowPlaying?
+    @Published var pinned: NowPlaying? { didSet { streamsChanged() } }
     /// Mac: the pinned player is showing in its own window.
     @Published var poppedOut = false
 
@@ -255,6 +264,47 @@ final class AppModel: ObservableObject {
     @Published var savedAt: Date?
     /// True only while channels are actually being downloaded from the provider (not for score updates).
     @Published var downloadingChannels = false
+    /// The guide is downloading: how far along (0...1, nil when the provider doesn't say the size) and megabytes so far.
+    @Published var guideDownloading = false
+    @Published var guideProgress: Double?
+    @Published var guideMegabytes = 0
+    /// A refresh waits for the stream to stop, so only one connection to the provider is ever in use.
+    @Published var refreshWaiting = false
+    private var channelsPending = false
+    private var guidePending = false
+
+    /// A stream is open (in the corner or full screen): downloads wait until it's closed.
+    var streamOpen: Bool { pinned != nil || nowPlaying != nil }
+
+    /// A stream started or stopped: a guide download under way pauses for it, and anything waiting starts once
+    /// nothing plays.
+    private func streamsChanged() {
+        if streamOpen {
+            if guideDownloading {
+                guideTask?.cancel()
+                guidePending = true
+                refreshWaiting = true
+            }
+            return
+        }
+        guard channelsPending || guidePending else { return }
+        Task { @MainActor in
+            // A moment for the provider to see the stream closed.
+            try? await Task.sleep(for: .seconds(2))
+            guard !self.streamOpen else { return }
+            if self.channelsPending {
+                self.channelsPending = false
+                self.guidePending = false
+                self.refreshWaiting = false
+                await self.refresh(force: true)
+            } else if self.guidePending {
+                self.guidePending = false
+                self.refreshWaiting = false
+                self.guideTask?.cancel()
+                self.guideTask = Task { await self.loadGuide(download: true) }
+            }
+        }
+    }
 
     /// Everything from the provider, before Settings filters (adult categories) are applied.
     private var rawCategories: [ChannelCategory] = []
@@ -330,16 +380,20 @@ final class AppModel: ObservableObject {
         let fetching = League.active
         async let gamesTask = ScheduleClient().schedule(for: fetching)
 
-        // 2. Channels from the provider only when the saved copy is too old (or you asked).
+        // 2. Channels from the provider only when the saved copy is too old (or you asked), and never while a stream
+        // plays (that would be a second connection): then it waits until the stream stops.
+        if stale && streamOpen && !channels.isEmpty {
+            channelsPending = true
+            refreshWaiting = true
+            stale = false
+        }
         if stale {
             downloadingChannels = true
             defer { downloadingChannels = false }
             let client = XtreamClient(creds: creds)
             do {
-                async let accountTask = client.login()
-                async let liveTask = client.live()
-                account = try await accountTask
-                let (cats, list) = try await liveTask
+                account = try await client.login()
+                let (cats, list) = try await client.live()
                 await apply(categories: cats, channels: list)
                 let now = Date()
                 savedAt = now
@@ -591,9 +645,23 @@ final class AppModel: ObservableObject {
             if !download { return }   // the saved guide is recent enough
         }
 
+        if streamOpen {
+            guidePending = true
+            refreshWaiting = true
+            return
+        }
         guideStatus = "Updating the guide…"
+        guideDownloading = true
+        guideProgress = nil
+        guideMegabytes = 0
+        defer { guideDownloading = false }
         do {
-            try await XtreamClient(creds: creds).downloadGuide(to: file)
+            try await XtreamClient(creds: creds).downloadGuide(to: file) { read, total in
+                Task { @MainActor [weak self] in
+                    self?.guideMegabytes = Int(read / 1_048_576)
+                    self?.guideProgress = total > 0 ? min(1, Double(read) / Double(total)) : nil
+                }
+            }
             let fresh = try await Task.detached(priority: .utility, operation: {
                 try XtreamClient.parseGuide(file: file, wanted: wanted, from: from, to: to)
             }).value

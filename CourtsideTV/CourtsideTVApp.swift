@@ -254,19 +254,29 @@ struct TVTopBar: View {
             }
 
             HStack(spacing: 16) {
-                // Connections in use, and "EPG 9:10 PM ⟳": when the channels and guide were last downloaded
-                // (click to download them again).
+                // Connections in use, and "EPG 9:10 PM": when the channels and guide were last downloaded (just text:
+                // it refreshes by itself, or from Settings › General). While it downloads: "Refreshing EPG 45%".
                 TVConnectionsPill(account: model.account)
-                if let saved = model.savedAt, !model.downloadingChannels {
-                    Button {
-                        Task { await model.refresh(force: true) }
-                    } label: {
-                        Label("EPG \(saved.formatted(date: .omitted, time: .shortened))", systemImage: "arrow.clockwise")
-                            .font(.system(size: 22, weight: .medium))
-                            .foregroundStyle(Theme.muted)
+                Group {
+                    if model.refreshWaiting {
+                        Text("EPG refreshes after this stream")
+                    } else if model.downloadingChannels {
+                        Text("Refreshing EPG · channels…")
+                    } else if model.guideDownloading {
+                        HStack(spacing: 12) {
+                            if let p = model.guideProgress {
+                                Text("Refreshing EPG \(Int(p * 100))%")
+                                ProgressView(value: p).frame(width: 120).tint(Theme.accent)
+                            } else {
+                                Text("Refreshing EPG · \(model.guideMegabytes) MB")
+                            }
+                        }
+                    } else if let saved = model.guideUpdated ?? model.savedAt {
+                        Text("EPG \(saved.formatted(date: .omitted, time: .shortened))")
                     }
-                    .buttonStyle(TVQuietButtonStyle())
                 }
+                .font(.system(size: 22, weight: .medium))
+                .foregroundStyle(Theme.muted)
                 Spacer()
                 status
             }
@@ -277,14 +287,7 @@ struct TVTopBar: View {
 
     @ViewBuilder
     private var status: some View {
-        if model.downloadingChannels {
-            HStack(spacing: 12) {
-                ProgressView()
-                Text("Downloading channels…")
-            }
-            .font(.system(size: 22))
-            .foregroundStyle(Theme.muted)
-        } else {
+        Group {
             // The version, which checks for a newer Courtside; when there is one, it says so (Apple TV is updated
             // from the Mac). Channels refresh on their own, or from Settings › General › Refresh now.
             Button {

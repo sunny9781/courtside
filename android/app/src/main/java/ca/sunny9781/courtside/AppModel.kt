@@ -649,6 +649,19 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     /** The streams shown on a game's card: local stations and guesses left out, unless that's all there is. */
+    private var redZoneFor: List<Channel>? = null
+    private var redZoneList: List<Channel> = emptyList()
+
+    /** NFL RedZone channels (their name says RedZone or Red Zone), worked out once per channel list. */
+    fun redZoneChannels(): List<Channel> {
+        val all = channels
+        if (redZoneFor !== all) {
+            redZoneFor = all
+            redZoneList = all.filter { val n = it.name.lowercase(); "redzone" in n || "red zone" in n }
+        }
+        return redZoneList
+    }
+
     fun mainStreams(gameId: String): List<StreamMatch> = home.main[gameId] ?: run {
         val all = matches[gameId] ?: emptyList()
         all.filter { !it.hidden }.ifEmpty { all }

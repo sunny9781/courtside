@@ -87,9 +87,9 @@ struct XtreamClient {
 
     /// Live categories and channels only. The video-on-demand and series actions are never called.
     func live() async throws -> (categories: [ChannelCategory], channels: [Channel]) {
-        async let categoriesJSON = getJSON(action: "get_live_categories")
-        async let streamsJSON = getJSON(action: "get_live_streams")
-        let (cats, streams) = try await (categoriesJSON, streamsJSON)
+        // One after the other, never both at once: some providers count each open request as a connection.
+        let cats = try await getJSON(action: "get_live_categories")
+        let streams = try await getJSON(action: "get_live_streams")
 
         var categories: [ChannelCategory] = []
         for item in (cats as? [[String: Any]]) ?? [] {
@@ -115,10 +115,12 @@ struct XtreamClient {
     }
 
     /// Downloads the provider's full XMLTV guide to a file.
-    func downloadGuide(to destination: URL) async throws {
+    /// `progress` gets the bytes received and the total (or -1 when the provider doesn't say).
+    func downloadGuide(to destination: URL, progress: @escaping @Sendable (Int64, Int64) -> Void = { _, _ in }) async throws {
         var request = URLRequest(url: try url("/xmltv.php"))
         request.timeoutInterval = 300
-        let (tmp, response) = try await URLSession.shared.download(for: request)
+        let watcher = DownloadWatcher(onProgress: progress)
+        let (tmp, response) = try await URLSession.shared.download(for: request, delegate: watcher)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw XtreamError.guideUnreadable
         }
@@ -144,6 +146,20 @@ struct XtreamClient {
         guard let user = creds.username.addingPercentEncoding(withAllowedCharacters: allowed),
               let pass = creds.password.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
         return URL(string: "\(base)/live/\(user)/\(pass)/\(channel.id).\(hls ? "m3u8" : "ts")")
+    }
+}
+
+/// Reports how much of a download has come in (for "Refreshing EPG 45%").
+final class DownloadWatcher: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let onProgress: @Sendable (Int64, Int64) -> Void
+    private var observation: NSKeyValueObservation?
+
+    init(onProgress: @escaping @Sendable (Int64, Int64) -> Void) { self.onProgress = onProgress }
+
+    func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) {
+        observation = task.progress.observe(\.completedUnitCount) { [onProgress] p, _ in
+            onProgress(p.completedUnitCount, p.totalUnitCount)
+        }
     }
 }
 
