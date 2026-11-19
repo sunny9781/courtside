@@ -57,7 +57,9 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   instead of one very long one.
 
 ## Open items
-- 1.81 Apple TV timeline EPG: merged without the check.yml build (gh had no login in that session); unconfirmed on the TV.
+- 1.83 Apple TV EPG: rows 124/176 pt, wrapped titles, sport colour also from today's team names and the channel's
+  category. Builds (check.yml passed); look on the TV not yet confirmed. Note: gh only works once the repo is attached
+  to the session (add_repo, push).
 - iPhone Home "Live Now" blue bar: unexplained; ask for a screenshot if it's still there.
 - Chromecast crashes: Android now saves crash details (shown once on next start, and in Settings › General).
 - Apple TV hasn't got a Lite mode (not needed so far).
