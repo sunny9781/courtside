@@ -8,6 +8,9 @@ struct TVHomeView: View {
     @FocusState private var sidebarFocus: TVNav.HomeSelection?
     /// Focus is on the games (or league chips) on the right: the left column shrinks to icons and counts.
     @State private var inPane = false
+    /// The games on the right (pressing down from the tabs lands on the first one).
+    @FocusState private var gameFocus: String?
+    @State private var firstGame: String?
 
     /// The row to land on when coming down from the tabs: the selected sport (or Live Now).
     private var sidebarTarget: TVNav.HomeSelection {
@@ -33,7 +36,7 @@ struct TVHomeView: View {
                     // Coming back from the games lands on the sport you left, not the row beside it.
                     .defaultFocus($sidebarFocus, sidebarTarget, priority: .userInitiated)
                     .zIndex(0)
-                TVGamesPane(inPane: $inPane)
+                TVGamesPane(inPane: $inPane, focusedGame: $gameFocus)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .focusSection()
                     .zIndex(1)
@@ -42,8 +45,10 @@ struct TVHomeView: View {
             // The navigation container adds wide side margins of its own; use the full width instead.
             .ignoresSafeArea(.container, edges: .horizontal)
             .onChange(of: sidebarFocus) { if sidebarFocus != nil { inPane = false } }
-            // Pressing down from Home / EPG / Settings starts on the left column.
-            .defaultFocus($sidebarFocus, sidebarTarget, priority: .userInitiated)
+            // Pressing down from the tabs lands on the first game (left goes to the sports); with no games, on the left
+            // column as before.
+            .defaultFocus($gameFocus, firstGame, priority: .userInitiated)
+            .onPreferenceChange(TVFirstGameKey.self) { firstGame = $0 }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { gameID in
                 TVGameView(gameID: gameID)
@@ -222,7 +227,7 @@ struct TVGamesPane: View {
     @EnvironmentObject var nav: TVNav
     /// Set while focus is on a game card or league chip here.
     @Binding var inPane: Bool
-    @FocusState private var focusedGame: String?
+    var focusedGame: FocusState<String?>.Binding
     @AppStorage(Prefs.hiddenSports) private var hiddenSports = ""
     @AppStorage(Prefs.sportOrder) private var sportOrder = ""
     /// Width available for the cards, so they stretch to fill the row (like the Mac) instead of leaving a gap.
@@ -385,7 +390,7 @@ struct TVGamesPane: View {
                             TVGameRow(game: game)
                         }
                         .buttonStyle(TVRowButtonStyle())
-                        .focused($focusedGame, equals: game.id)
+                        .focused(focusedGame, equals: game.id)
                         .tvEdgeJump(.right, to: .epg)
                     }
                 }
@@ -400,7 +405,7 @@ struct TVGamesPane: View {
                                 TVGameRow(game: game)
                             }
                             .buttonStyle(TVRowButtonStyle())
-                            .focused($focusedGame, equals: game.id)
+                            .focused(focusedGame, equals: game.id)
                             .tvEdgeJump(.right, to: .epg)
                         }
                     }
@@ -418,7 +423,7 @@ struct TVGamesPane: View {
                                 TVGameRow(game: game)
                             }
                             .buttonStyle(TVRowButtonStyle())
-                            .focused($focusedGame, equals: game.id)
+                            .focused(focusedGame, equals: game.id)
                             .tvEdgeJump(.right, to: .epg)
                         }
                     }
@@ -427,8 +432,9 @@ struct TVGamesPane: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .onChange(of: nav.homeSelection) { showFinished = true; showLater = false; showRedZone = false }
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { paneWidth = $0 }
-            .onChange(of: focusedGame) { if focusedGame != nil || focusedChip != nil { inPane = true } }
-            .onChange(of: focusedChip) { if focusedGame != nil || focusedChip != nil { inPane = true } }
+            .onChange(of: focusedGame.wrappedValue) { if focusedGame.wrappedValue != nil || focusedChip != nil { inPane = true } }
+            .onChange(of: focusedChip) { if focusedGame.wrappedValue != nil || focusedChip != nil { inPane = true } }
+            .preference(key: TVFirstGameKey.self, value: open.first?.games.first?.id ?? (showFinished ? finished.first?.id : nil))
             .padding(.vertical, 20)
         }
         // Runs to the bottom of the screen, under the now-playing bar (the last row can scroll clear of it).
@@ -661,4 +667,10 @@ struct TVSportChannels: View {
         // Runs to the bottom of the screen, under the now-playing bar (the last row can scroll clear of it).
         .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : TVLayout.margin, for: .scrollContent)
     }
+}
+
+/// The first game on Home's right-hand side, where pressing down from the tabs lands.
+struct TVFirstGameKey: PreferenceKey {
+    static let defaultValue: String? = nil
+    static func reduce(value: inout String?, nextValue: () -> String?) { value = value ?? nextValue() }
 }

@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.92", date: "2026-11-18", time: "23:20", title: "Home focus, bigger now-playing bar", changes: [
+            Change(text: "Home: pressing down from the tabs lands on the first game instead of the sports list; press left to get to the sports.", apps: tv),
+            Change(text: "The now-playing bar along the bottom is bigger (about the height of a game-screen row), with the channel's logo and larger text.", apps: tv)
+        ]),
         Release(version: "1.91", date: "2026-11-18", time: "23:05", title: "", changes: [
             Change(text: "Game screen: press left on the categories to go back to Home, where you were (same as Back).", apps: tv)
         ]),

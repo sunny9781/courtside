@@ -12,7 +12,7 @@ enum TVLayout {
     /// Height of the player in the bottom-left corner plus equal gaps above and below it: the left panels stop this
     /// far from the bottom while something plays, so they sit on top of the player.
     /// The one-line now-playing bar along the very bottom of the screen, under the player.
-    static let barHeight: CGFloat = 40
+    static let barHeight: CGFloat = 72   // about a game-screen row
     /// (The panels' lists add their own 20-point padding at the end, so no extra gap here: the space above the player
     /// matches the space to its left.)
     static let playerInset: CGFloat = playerWidth * 9 / 16 + margin + barHeight

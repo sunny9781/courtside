@@ -63,20 +63,21 @@ struct TVNowPlayingBar: View {
             Color.clear.frame(height: TVLayout.margin)
             Rectangle().fill(Theme.raised).frame(height: 2)
             HStack(spacing: 18) {
-                Image(systemName: "speaker.wave.2.fill").font(.system(size: 17)).foregroundStyle(Theme.accent)
-                Text(channel.name).font(.system(size: 20, weight: .semibold)).foregroundStyle(Theme.soft).lineLimit(1)
+                Image(systemName: "speaker.wave.2.fill").font(.system(size: 22)).foregroundStyle(Theme.accent)
+                TVChannelIcon(url: channel.icon, size: 44)
+                Text(channel.name).font(.system(size: 24, weight: .semibold)).foregroundStyle(Theme.soft).lineLimit(1)
                 if !controller.resolution.isEmpty { TVBadge(text: controller.resolution) }
                 if controller.frameRate > 0 { TVBadge(text: PlaybackController.fpsLabel(controller.frameRate)) }
                 if !controller.audio.isEmpty { TVBadge(text: controller.audio) }
-                Text(title).font(.system(size: 22, weight: .bold)).foregroundStyle(Theme.text).lineLimit(1)
+                Text(title).font(.system(size: 26, weight: .bold)).foregroundStyle(Theme.text).lineLimit(1)
                 if let now {
                     if !now.title.isEmpty && now.title != title {
-                        Text(now.title).font(.system(size: 20)).foregroundStyle(Theme.soft).lineLimit(1)
+                        Text(now.title).font(.system(size: 23)).foregroundStyle(Theme.soft).lineLimit(1)
                     }
                     Text("\(now.start.formatted(date: .omitted, time: .shortened)) – \(now.end.formatted(date: .omitted, time: .shortened))")
-                        .font(.system(size: 19)).foregroundStyle(Theme.muted).fixedSize()
+                        .font(.system(size: 22)).foregroundStyle(Theme.muted).fixedSize()
                     ProgressView(value: min(max(Date().timeIntervalSince(now.start) / max(now.end.timeIntervalSince(now.start), 1), 0), 1))
-                        .tint(Theme.accent).frame(width: 160)
+                        .tint(Theme.accent).frame(width: 200)
                 }
                 Spacer(minLength: 0)
             }
