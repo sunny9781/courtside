@@ -385,6 +385,7 @@ struct TVGamesPane: View {
                         }
                         .buttonStyle(TVRowButtonStyle())
                         .focused($focusedGame, equals: game.id)
+                        .tvEdgeJump(.right, to: .epg)
                     }
                 }
 
@@ -399,6 +400,7 @@ struct TVGamesPane: View {
                             }
                             .buttonStyle(TVRowButtonStyle())
                             .focused($focusedGame, equals: game.id)
+                            .tvEdgeJump(.right, to: .epg)
                         }
                     }
                 }
@@ -416,6 +418,7 @@ struct TVGamesPane: View {
                             }
                             .buttonStyle(TVRowButtonStyle())
                             .focused($focusedGame, equals: game.id)
+                            .tvEdgeJump(.right, to: .epg)
                         }
                     }
                 }

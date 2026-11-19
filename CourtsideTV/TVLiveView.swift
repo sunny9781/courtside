@@ -254,6 +254,8 @@ struct TVLiveView: View {
         // Use the full width: no Apple TV side insets on top of our own small margin.
         .ignoresSafeArea(.container, edges: .horizontal)
         .onExitCommand(perform: path.isEmpty ? nil : { path.removeLast() })
+        // The categories sit at the left edge: pressing left on them goes to Home.
+        .tvEdgeJump(.left, to: .home)
     }
 
     private func categoryRow(_ entry: Entry, count: Int? = nil, symbol: String? = nil) -> some View {
