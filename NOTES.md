@@ -34,8 +34,10 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Top bar: connections pill, EPG refresh, version/update button (one press checks and installs).
 - Player in the bottom-left corner; left panels (sports, EPG categories, game stream categories, settings sections)
   sit on top of it; a one-line now-playing bar runs along the very bottom; pages on the right scroll under the bar.
-- Home: sports sidebar (groups: live scores / channel sports / nothing today) + EPG-style list of games (one line per
-  game; upcoming grey). Channel-only sports (pickleball) show channels grouped by category.
+- Home: sports sidebar (groups: live scores / channel sports / nothing today) + score cards (1.95, both TVs; replaced
+  the one-line game rows): status + 4K + stream count on top, then each team (logo, name, score). As many per row as
+  fit (Apple TV `TVScoreCard.minWidth` 400 pt, Android `CARD_MIN_WIDTH` 200 dp); right on the last card of a row jumps
+  to the EPG. Channel-only sports (pickleball) show channels grouped by category (`channelSportGroups` in Shared).
 - Game screen: mini EPG, categories left ("All" first, with group headings), streams right; first non-4K stream autoplays.
 - EPG (Apple TV, 1.81): timeline guide (option C mock-up): 2.5 h from the last half hour, cells coloured by sport
   (`TVGuide.sport` guesses from title, then channel name), orange now line, past part darker; the focused row opens to
@@ -60,7 +62,12 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   error before one): close it, wait 1 s, open the same URL on VLC; that URL then skips the HDR player for the session.
   Settings › Playback › "4K with the HDR player" (`hdrPlayerFor4K`, default on). `wantsHDRPlayer` in AppModel picks
   4K by name/category/measured quality. The 1.80 AVPlayer/HLS path is gone. KSPlayer logs are set to panic (URLs).
-- Home game rows (both TVs, 1.87): stream count back (4K tag + count + TV icon, "None" in red), STREAMS heading.
+- Mac + iPhone (1.95): no Live Now (`startingSport`: favourite with something live, else any live), folds via
+  `HomeFolds` (Later today, RedZone), EPG colours from `Shared/GuideColour.swift` (moved out of TVGuide), sound tags
+  (iPhone AVPlayer: `AVEngine.soundLabel` from the audio format), EPG download status in the top bar / top of Home,
+  Settings sections Account/Playback/General/Hidden/Changelog, Connection log (`Shared/ConnLog.swift`, shared by the
+  Apple apps; Android has its own ConnLog.kt). iPhone: two cards per row; sideways on an EPG category =
+  `IOSGuideTimeline`. Mac: finished games open by default; channel sports as `MacSportChannels`.
 - Android Lite mode (1.94): Settings › Lite mode section, only when `settings.slowDevice` (not NVIDIA). Master switch
   plus one Flag per option, least → most effect: liteSettle (350 ms), liteFoldFinished, liteNoLogos, liteNoScores,
   liteNoAutoplay, liteNoCorner. Defaults follow the old `lite` pref. Drawing code reads them via `Perf` (settings ref).
