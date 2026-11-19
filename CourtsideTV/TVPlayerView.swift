@@ -33,6 +33,8 @@ struct TVPlayerView: View {
     }
 
     var body: some View {
+        // A button the size of the screen: the remote's centre button reliably reaches it (a tap gesture didn't).
+        Button { toggleDetails() } label: {
         ZStack {
             Color.black.ignoresSafeArea()
             TVVideoSurface(view: controller.view)
@@ -64,7 +66,8 @@ struct TVPlayerView: View {
                     .transition(.opacity)
             }
         }
-        .focusable()
+        }
+        .buttonStyle(TVBareButtonStyle())
         .focused($focused)
         .onMoveCommand { direction in
             switch direction {
@@ -79,7 +82,6 @@ struct TVPlayerView: View {
             controller.togglePause()
             poke()
         }
-        .onTapGesture { toggleDetails() }
         .onExitCommand { model.closePlayer() }
         .onAppear {
             focused = true
@@ -360,4 +362,9 @@ enum DisplayMatcher {
         guard let manager, manager.preferredDisplayCriteria != nil else { return }
         manager.preferredDisplayCriteria = nil
     }
+}
+
+/// A button with no look of its own (the full-screen player).
+struct TVBareButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View { configuration.label }
 }
