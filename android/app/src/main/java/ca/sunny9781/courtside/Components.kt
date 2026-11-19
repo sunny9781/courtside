@@ -71,7 +71,7 @@ object Theme {
     val playerWidth = 240.dp
     /** Height the player in the top-right corner takes; pages leave this much room above their right-hand part. */
     /** The one-line now-playing bar along the very bottom of the screen. */
-    val barHeight = 30.dp
+    val barHeight = 36.dp   // about a game-screen row (like the Apple TV app)
     /** The player and its gaps, plus the bar under it: how far the left panels stop from the bottom. */
     val stripHeight = playerWidth * 9 / 16 + margin * 2 + barHeight
 }
@@ -130,7 +130,10 @@ fun TvButton(
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     shape: Shape = RoundedCornerShape(10.dp),
-    focusedScale: Float = 1.04f,
+    // Rows don't zoom when focused (it pushed a logo or the start of a name off the left edge); tabs still do.
+    focusedScale: Float = 1f,
+    /** The fill when focused (the Apple TV look); Transparent for rows that draw their own focus (the EPG guide). */
+    focusedFill: Color = Theme.text,
     onFocus: (() -> Unit)? = null,
     background: Color = Color.Transparent,
     /** Holding the select button down (instead of clicking). */
@@ -162,7 +165,7 @@ fun TvButton(
             .clip(shape)
             .background(
                 when {
-                    focused -> Theme.text
+                    focused -> focusedFill
                     selected -> Theme.raised
                     else -> background
                 }
@@ -399,3 +402,17 @@ private fun SmallLogo(url: String, size: Dp, modifier: Modifier) {
     AsyncImage(model = if (failed) url else smallLogo(url, size), contentDescription = null, contentScale = ContentScale.Fit,
         modifier = modifier, onError = { if (!failed) failed = true })
 }
+
+/**
+ * A shortcut at the edge of a screen: this remote key (a direction with nothing more to move to) runs `action`
+ * instead (right on a Home game opens the EPG; left on the EPG or game-screen categories goes back to Home).
+ */
+fun Modifier.onEdgeKey(keyCode: Int, enabled: () -> Boolean = { true }, action: () -> Unit): Modifier =
+    this.onPreviewKeyEvent { e ->
+        val k = e.nativeKeyEvent
+        if (k.keyCode != keyCode || !enabled()) false
+        else {
+            if (k.action == android.view.KeyEvent.ACTION_DOWN && k.repeatCount == 0) action()
+            true
+        }
+    }

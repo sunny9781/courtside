@@ -299,7 +299,7 @@ fun TopBar(model: AppModel) {
             .flushOn(settle, androidx.compose.ui.focus.FocusDirection.Down).enterAt { tabs[model.tab] },
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             for (tab in Tab.entries) {
-                TvButton(onClick = { settle.now { model.tab = tab } }, selected = model.tab == tab, shape = RoundedCornerShape(20.dp),
+                TvButton(onClick = { settle.now { model.tab = tab } }, selected = model.tab == tab, shape = RoundedCornerShape(20.dp), focusedScale = 1.04f,
                     onFocus = { if (model.tab != tab) settle.later { model.tab = tab } else settle.cancel() }, modifier = Modifier.tracked(tabs, tab)) { focused ->
                     Row(Modifier.padding(horizontal = 18.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -435,18 +435,19 @@ fun NowPlayingBar(model: AppModel, item: NowPlaying, modifier: Modifier = Modifi
         Box(Modifier.fillMaxWidth().height(1.dp).background(Theme.border))
         Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            Icon(Icons.Filled.GraphicEq, null, tint = Theme.accent, modifier = Modifier.size(11.dp))
-            Label(channel.name, size = 11.sp, weight = FontWeight.SemiBold, color = Theme.soft)
+            Icon(Icons.Filled.GraphicEq, null, tint = Theme.accent, modifier = Modifier.size(13.dp))
+            if (!Perf.lite) ChannelIcon(channel.icon, 22.dp)
+            Label(channel.name, size = 13.sp, weight = FontWeight.SemiBold, color = Theme.soft)
             if (Playback.resolution.isNotEmpty()) Badge(Playback.resolution)
             if (Playback.frameRate > 0) Badge(Playback.fpsLabel(Playback.frameRate))
             if (Playback.audio.isNotEmpty()) Badge(Playback.audio)
-            Label(title, size = 12.sp, weight = FontWeight.Bold, modifier = Modifier.weight(1f, fill = false))
+            Label(title, size = 14.sp, weight = FontWeight.Bold, modifier = Modifier.weight(1f, fill = false))
             if (now != null) {
-                if (now.title.isNotEmpty() && now.title != title) Label(now.title, size = 11.sp, color = Theme.soft,
+                if (now.title.isNotEmpty() && now.title != title) Label(now.title, size = 13.sp, color = Theme.soft,
                     modifier = Modifier.weight(1f, fill = false))
-                Label("${clockTime(now.start)} – ${clockTime(now.end)}", size = 11.sp, color = Theme.muted)
+                Label("${clockTime(now.start)} – ${clockTime(now.end)}", size = 13.sp, color = Theme.muted)
                 val total = (now.end - now.start).toFloat()
-                ProgressLine(if (total > 0) (System.currentTimeMillis() - now.start) / total else 0f, false, width = 90.dp)
+                ProgressLine(if (total > 0) (System.currentTimeMillis() - now.start) / total else 0f, false, width = 100.dp)
             }
         }
     }
@@ -468,6 +469,10 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
     val focus = remember { FocusRequester() }
     var showInfo by remember { mutableStateOf(true) }
     var poke by remember { mutableIntStateOf(0) }
+    // The stream information panel: the remote's centre button shows it (and hides it again).
+    var showDetails by remember { mutableStateOf(false) }
+    var detailsTick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(detailsTick) { if (showDetails) { delay(8000); showDetails = false } }
     var flip by remember { mutableStateOf<String?>(null) }
     var flipTick by remember { mutableIntStateOf(0) }
     var tried by remember { mutableStateOf(setOf(item.channel.id)) }
@@ -531,8 +536,10 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
                     KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE -> {
                         Playback.togglePause(); poke++; true
                     }
-                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_DPAD_LEFT,
-                    KeyEvent.KEYCODE_DPAD_RIGHT -> { poke++; true }
+                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                        showDetails = !showDetails; detailsTick++; poke++; true
+                    }
+                    KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> { poke++; true }
                     else -> false
                 }
             }
@@ -556,6 +563,7 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
                 Label(it, size = 14.sp, weight = FontWeight.SemiBold)
             }
         }
+        if (showDetails) StreamDetails(model, item, pos, Modifier.align(Alignment.TopEnd).padding(top = 30.dp, end = 40.dp))
         if (showInfo) {
             Row(
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth()
@@ -589,6 +597,13 @@ fun HomeScreen(model: AppModel) {
     val side = remember { FocusTargets() }
     val pane = remember { FocusTargets() }
     var lastGame by remember { mutableStateOf(back) }
+    // Pressing down from the tabs lands on the first game (left goes to the sports); with no games, on the sports.
+    var firstGame by remember { mutableStateOf<String?>(null) }
+    // Live Now isn't listed any more (each sport shows its live games): it stands for the first sport.
+    val sports = model.orderedSports()
+    LaunchedEffect(model.homeSelection, sports.firstOrNull()) {
+        if (model.homeSelection == HomeSelection.LiveNow) sports.firstOrNull()?.let { model.homeSelection = HomeSelection.OfSport(it) }
+    }
 
     // Back from a game: focus goes to its card.
     LaunchedEffect(Unit) {
@@ -601,20 +616,22 @@ fun HomeScreen(model: AppModel) {
     }
 
     // The sports on top of the player (the same width), the games to the right.
-    Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { side[sidebarKey(model.homeSelection)] }) {
+    Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin)
+        .enterAt { firstGame?.let { "game:$it" }?.takeIf { it in pane.live }?.let { pane[it] } ?: side[sidebarKey(model.homeSelection)] }) {
         SportList(model, side, compact = false,
             modifier = Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).focusRequester(model.leftPanel)
                 .enterAt { side[sidebarKey(model.homeSelection)] })
         Spacer(Modifier.width(16.dp))
         GamesPane(model, pane, onOpen = { lastGame = it; model.openGameId = it }, onFocusGame = { lastGame = it },
+            onFirst = { firstGame = it },
             modifier = Modifier.weight(1f).enterAt { pane["game:$lastGame"] })
     }
 }
 
 private fun sidebarKey(s: HomeSelection): String = when (s) {
-    is HomeSelection.LiveNow -> "live"
+    is HomeSelection.LiveNow -> ""
     is HomeSelection.OfSport -> s.sport.name
-    is HomeSelection.OfLeague -> League.all.firstOrNull { it.id == s.leagueId }?.sport?.name ?: "live"
+    is HomeSelection.OfLeague -> League.all.firstOrNull { it.id == s.leagueId }?.sport?.name ?: ""
 }
 
 private fun selectedSport(s: HomeSelection): Sport? = when (s) {
@@ -641,15 +658,14 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
     Column(modifier.fillMaxHeight().flushOn(settle, androidx.compose.ui.focus.FocusDirection.Right)
         .verticalScroll(rememberScrollState()).padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        val shown = sports.flatMap { model.games(it) }
-        SportRow(targets, "live", Icons.Filled.Sensors, "Live Now", shown.count { it.state == GameState.LIVE }, shown.size,
-            "${model.games.size} today", compact, selected = model.homeSelection == HomeSelection.LiveNow,
-            onFocus = { choose(HomeSelection.LiveNow, false) }) { choose(HomeSelection.LiveNow, true) }
-        // Live Now | sports with live scores | sports that are channels (pickleball) | sports with nothing today.
+        // Sports with live scores | sports that are channels (pickleball) | sports with nothing today. (No Live Now row:
+        // each sport already shows its live games.)
         val home = model.home
+        var firstGroup = true
         for (group in listOf(home.scoreSports, home.channelSports, home.emptySports)) {
             if (group.isEmpty()) continue
-            Box(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp).height(1.dp).background(Theme.border))
+            if (!firstGroup) Box(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp).height(1.dp).background(Theme.border))
+            firstGroup = false
             for (sport in group) {
                 val games = model.games(sport)
                 val channelOnly = sport in home.channelSports
@@ -732,7 +748,7 @@ private fun sortedGames(games: List<Game>) = games.sortedWith(
 
 @Composable
 private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -> Unit, onFocusGame: (String) -> Unit,
-                      modifier: Modifier) {
+                      onFirst: (String?) -> Unit = {}, modifier: Modifier) {
     val selection = model.homeSelection
     val sport = selectedSport(selection)
     val sections: List<PaneSection> = when (selection) {
@@ -764,7 +780,12 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
         .filter { it.games.isNotEmpty() }
     val later = sections.flatMap { it.games.filter { g -> isLater(g) } }
     val finished = sections.flatMap { it.games.filter { g -> g.state == GameState.FINISHED } }
-    var showFinished by remember(selection) { mutableStateOf(false) }
+    // Finished games show by default; Lite mode folds them (less to draw).
+    var showFinished by remember(selection) { mutableStateOf(!Perf.lite) }
+    val first = open.firstOrNull()?.games?.firstOrNull()?.id ?: if (showFinished) finished.firstOrNull()?.id else null
+    SideEffect { onFirst(first) }
+    // Right on a game (the screen's right edge) jumps to the EPG.
+    val toEpg = Modifier.onEdgeKey(KeyEvent.KEYCODE_DPAD_RIGHT) { model.tab = Tab.EPG }
     var showLater by remember(selection) { mutableStateOf(false) }
     // NFL RedZone: while any NFL game is live, its channels sit in a folder at the top of Live Now and Football.
     val nflLive = selection.let { it is HomeSelection.LiveNow || selectedSport(it) == Sport.FOOTBALL ||
@@ -827,7 +848,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             items(section.games, key = { "${section.id}:${it.id}" }, contentType = { "game" }) { game ->
                 val main = model.mainStreams(game.id)
                 GameRow(game, main.size, main.any { it.is4K }, showLeague = false,
-                    modifier = Modifier.tracked(targets, "game:${game.id}"),
+                    modifier = Modifier.tracked(targets, "game:${game.id}").then(toEpg),
                     onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
             }
         }
@@ -838,7 +859,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             if (showLater) items(later, key = { "l:${it.id}" }, contentType = { "game" }) { game ->
                 val main = model.mainStreams(game.id)
                 GameRow(game, main.size, main.any { it.is4K }, showLeague = false,
-                    modifier = Modifier.tracked(targets, "game:${game.id}"),
+                    modifier = Modifier.tracked(targets, "game:${game.id}").then(toEpg),
                     onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
             }
         }
@@ -858,7 +879,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             if (showFinished) items(finished, key = { "f:${it.id}" }, contentType = { "game" }) { game ->
                 val main = model.mainStreams(game.id)
                 GameRow(game, main.size, main.any { it.is4K }, showLeague = false,
-                    modifier = Modifier.tracked(targets, "game:${game.id}"),
+                    modifier = Modifier.tracked(targets, "game:${game.id}").then(toEpg),
                     onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
             }
         }
@@ -880,8 +901,9 @@ private fun FoldRow(title: String, open: Boolean, modifier: Modifier, onClick: (
 }
 
 private val STATUS_WIDTH = 125.dp
-private val TEAM_WIDTH = 175.dp
-private val SCORE_WIDTH = 26.dp
+private val TEAM_WIDTH = 182.dp
+/** Room for three digits (basketball scores over 99). */
+private val SCORE_WIDTH = 34.dp
 
 /**
  * A game as an EPG row, all on one line: when (or LIVE and the clock), the teams with their scores, and how many
@@ -892,7 +914,7 @@ private fun GameRow(game: Game, streams: Int, has4K: Boolean, showLeague: Boolea
                     onClick: () -> Unit) {
     // Only plain values come in (not the whole app model), so when the scores update, a row whose game didn't
     // change isn't drawn again.
-    TvButton(onClick = onClick, onFocus = onFocus, focusedScale = 1.02f, modifier = modifier.fillMaxWidth()) { focused ->
+    TvButton(onClick = onClick, onFocus = onFocus, modifier = modifier.fillMaxWidth()) { focused ->
         val text = when {
             focused -> Theme.bg
             game.state == GameState.UPCOMING -> Theme.muted
@@ -1142,6 +1164,8 @@ fun GameScreen(model: AppModel, gameId: String) {
         horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         // Categories, on top of the player.
         LazyColumn(Modifier.width(Theme.playerWidth).fillMaxHeight().padding(bottom = topInset(model)).focusRequester(model.leftPanel)
+            // Left on the categories (the screen's left edge) goes back to Home, like Back.
+            .onEdgeKey(KeyEvent.KEYCODE_DPAD_LEFT) { model.closeGame() }
             .flushOn(catSettle, androidx.compose.ui.focus.FocusDirection.Right).enterAt { cats["cat:$selected"] },
             verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             items(categories, key = { it.first }) { (name, streams) ->
@@ -1340,5 +1364,30 @@ private fun StreamCell(model: AppModel, m: StreamMatch, previewing: Boolean, mod
                 if (fps != null && fps > 0) Badge(Playback.fpsLabel(fps))
             }
         }
+    }
+}
+
+/** Full screen, the centre button: the channel (which stream of how many), what's on now and next, the picture and sound. */
+@Composable
+private fun StreamDetails(model: AppModel, item: NowPlaying, pos: Int, modifier: Modifier) {
+    val nn = model.nowNext(item.channel)
+    @Composable
+    fun row(label: String, value: String) = Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Label(label, size = 11.sp, weight = FontWeight.SemiBold, color = Theme.muted, modifier = Modifier.width(64.dp))
+        Label(value, size = 12.sp, maxLines = 2)
+    }
+    val video = buildList {
+        if (Playback.resolution.isNotEmpty()) add(Playback.resolution)
+        if (Playback.frameRate > 0) add(Playback.fpsLabel(Playback.frameRate))
+    }
+    Column(modifier.width(380.dp).clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.82f)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Label("Stream information", size = 10.sp, weight = FontWeight.Bold, color = Theme.accent)
+        row("Channel", if (item.lineup.size > 1) "${item.channel.name} · $pos of ${item.lineup.size}" else item.channel.name)
+        row("Now", nn.now?.let { "${it.title}  (${clockTime(it.start)} – ${clockTime(it.end)})" } ?: model.playerTitle(item))
+        nn.next?.let { row("Next", "${clockTime(it.start)}  ${it.title}") }
+        row("Video", if (video.isEmpty()) "Waiting for the picture…" else video.joinToString(" · "))
+        row("Sound", Playback.audio.ifEmpty { "–" })
+        item.channel.number?.let { row("Number", "$it") }
     }
 }

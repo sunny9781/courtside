@@ -15,6 +15,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,6 +55,14 @@ fun EpgScreen(model: AppModel) {
     }
     var flipped by remember(hits) { mutableStateOf(setOf<String>()) }
     var focusedChannel by remember { mutableStateOf<Int?>(null) }
+    // The guide's clock: moves the time line (and the guide's start) along every minute.
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) { delay(60_000 - System.currentTimeMillis() % 60_000 + 50); now = System.currentTimeMillis() }
+    }
+    val start = Guide.windowStart(now)
+    // Left on the categories (the screen's left edge) goes to Home; not while typing in Filter.
+    var filterFocused by remember { mutableStateOf(false) }
     var lastRow by remember { mutableStateOf<String?>(null) }
     var pathMoves by remember { mutableIntStateOf(0) }
 
@@ -193,13 +202,16 @@ fun EpgScreen(model: AppModel) {
         Box(Modifier.size(1.dp).focusRequester(holder).focusProperties { canFocus = holding[0] }
             .focusable())
         LazyColumn(Modifier.width(CATEGORY_WIDTH).fillMaxHeight().padding(bottom = topInset(model)).focusRequester(model.leftPanel)
+            .onEdgeKey(android.view.KeyEvent.KEYCODE_DPAD_LEFT, enabled = { !filterFocused }) { model.tab = Tab.HOME }
             .flushOn(settle, androidx.compose.ui.focus.FocusDirection.Right).enterAt { if (justBack()) rows[returnRow()] else cats["cat:$categoryTarget"] },
             verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             // One search for categories and channels; results show on the right.
             // Enter (or Search) on the keyboard closes it and goes to the first result.
             item(key = "filter") {
-                Field("Filter", search, { search = it }, width = CATEGORY_WIDTH) {
-                    hits.firstOrNull()?.let { h -> h.channels.firstOrNull()?.let { rows.focus("h:${h.id}:${it.id}") } }
+                Box(Modifier.onFocusChanged { filterFocused = it.hasFocus }) {
+                    Field("Filter", search, { search = it }, width = CATEGORY_WIDTH) {
+                        hits.firstOrNull()?.let { h -> h.channels.firstOrNull()?.let { rows.focus("h:${h.id}:${it.id}") } }
+                    }
                 }
             }
             item(key = "group") {
@@ -260,18 +272,12 @@ fun EpgScreen(model: AppModel) {
         }
         }
 
-        val nameWidth = nameWidthFor(if (searching) hits.flatMap { it.channels } else channels)
         // The schedule runs to the bottom of the screen, under the now-playing bar beside the player.
         Column(Modifier.weight(1f).fillMaxHeight()) { BehindPlayerBar(model) {
-            LazyColumn(Modifier.fillMaxSize().enterAt { rows[lastRow] }, verticalArrangement = Arrangement.spacedBy(2.dp),
+            LazyColumn(Modifier.fillMaxSize().enterAt { rows[lastRow] }, verticalArrangement = Arrangement.spacedBy(3.dp),
                 contentPadding = PaddingValues(top = 6.dp, bottom = 6.dp + barInset(model))) {
                 item(key = "header") {
-                    Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
-                        Label(if (searching) "Results for “$hitsFor”" else (selected?.name ?: ""), size = 10.sp,
-                            weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(nameWidth))
-                        Label("NOW", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(NOW_WIDTH).padding(start = COLUMN_GAP))
-                        Label("NEXT", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(NEXT_WIDTH))
-                    }
+                    GuideHeader(if (searching) "Results for “$hitsFor”" else (selected?.name ?: ""), start, now)
                 }
                 if (searching) {
                     if (hits.isEmpty()) item(key = "none") {
@@ -284,15 +290,15 @@ fun EpgScreen(model: AppModel) {
                         }
                         if (open) items(hit.channels, key = { "h:${hit.id}:${it.id}" }, contentType = { "channel" }) { ch ->
                             val k = "h:${hit.id}:${ch.id}"
-                            ChannelRow(model, ch, ch.id == playing?.id, Modifier.tracked(rows, k), onLongClick = { holdChannel(ch) },
-                                nameWidth = nameWidth, onFocus = { focusedChannel = ch.id; lastRow = k }) { click(ch, hit.channels) }
+                            GuideRow(model, ch, ch.id == playing?.id, start, now, Modifier.tracked(rows, k), onLongClick = { holdChannel(ch) },
+                                onFocus = { focusedChannel = ch.id; lastRow = k }) { click(ch, hit.channels) }
                         }
                     }
                 } else {
                     items(channels, key = { "c:${it.id}" }, contentType = { "channel" }) { ch ->
                         val k = "c:${ch.id}"
-                        ChannelRow(model, ch, ch.id == playing?.id, Modifier.tracked(rows, k), onLongClick = { holdChannel(ch) },
-                            nameWidth = nameWidth, onFocus = { focusedChannel = ch.id; lastRow = k }) { click(ch, channels) }
+                        GuideRow(model, ch, ch.id == playing?.id, start, now, Modifier.tracked(rows, k), onLongClick = { holdChannel(ch) },
+                            onFocus = { focusedChannel = ch.id; lastRow = k }) { click(ch, channels) }
                     }
                 }
             }
@@ -451,6 +457,206 @@ private fun HitHeader(hit: EpgSearch.Hit, open: Boolean, onClick: () -> Unit) {
                 if (hit.path.isNotEmpty()) Label(hit.path, size = 10.sp, color = color.copy(alpha = 0.6f))
             }
             Label("${hit.channels.size}", size = 11.sp, color = color.copy(alpha = 0.6f))
+        }
+    }
+}
+
+// MARK: Timeline guide (like the Apple TV app since 1.81)
+
+/**
+ * The EPG's timeline: a channel column, then two and a half hours of programmes laid out by time, coloured by sport
+ * (or the channel's own colour), with a line at the current time and what's already been on a shade darker.
+ */
+internal object Guide {
+    const val SPAN = 150 * 60_000L
+    val channelWidth = 110.dp
+    val rowHeight = 46.dp
+
+    /** The guide starts at the last half hour, so up to 30 minutes of what's on is behind the line. */
+    fun windowStart(now: Long): Long = now - now % (30 * 60_000L)
+
+    fun fill(sport: Sport): androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color(when (sport) {
+        Sport.BASKETBALL -> 0xFF8A4214; Sport.HOCKEY -> 0xFF22508F; Sport.FOOTBALL -> 0xFF267040
+        Sport.SOCCER -> 0xFF177375; Sport.MOTORSPORT -> 0xFF8A2532; Sport.CRICKET -> 0xFF75600F
+        Sport.BASEBALL -> 0xFF76305A; Sport.FIGHTING -> 0xFF6A4A2E; Sport.TENNIS -> 0xFF557018
+        Sport.GOLF -> 0xFF3A6430; Sport.RUGBY -> 0xFF52408A; Sport.AUSSIE_RULES -> 0xFF7A5016
+        Sport.LACROSSE -> 0xFF2E5F7A; Sport.PICKLEBALL -> 0xFF687A16
+    })
+
+    /** Channels whose sport can't be told still get a colour of their own (the same one every time), like UHF. */
+    private val channelFills = longArrayOf(0xFF5B3A8C, 0xFF2C5D8A, 0xFF7A3B5E, 0xFF2F6F6A, 0xFF6E5320, 0xFF3E5C2E, 0xFF803A2A, 0xFF46508A)
+
+    fun fill(title: String, channel: Channel, games: List<Game>): androidx.compose.ui.graphics.Color {
+        sport(title, channel, games)?.let { return fill(it) }
+        var h = 5381L
+        for (b in channel.name.toByteArray()) h = (h * 33 + (b.toLong() and 0xFF)) and 0xFFFFFFFFL
+        return androidx.compose.ui.graphics.Color(channelFills[(h % channelFills.size).toInt()])
+    }
+
+    private val words: List<Pair<Sport, List<String>>> = listOf(
+        Sport.BASKETBALL to listOf("nba", "wnba", "basketball", "ncaab", "euroleague", "march madness"),
+        Sport.HOCKEY to listOf("nhl", "hockey", "hockey night", "ahl", "ohl", "whl", "khl", "stanley cup"),
+        Sport.FOOTBALL to listOf("nfl", "cfl", "ncaaf", "college football", "super bowl", "redzone", "red zone", "grey cup"),
+        Sport.BASEBALL to listOf("mlb", "baseball", "world series"),
+        Sport.SOCCER to listOf("soccer", "epl", "premier league", "champions league", "europa league", "conference league", "la liga",
+            "laliga", "serie a", "bundesliga", "ligue 1", "mls", "uefa", "fifa", "fa cup", "world cup", "eredivisie"),
+        Sport.FIGHTING to listOf("ufc", "boxing", "mma", "wwe", "aew", "pfl", "fight night"),
+        Sport.TENNIS to listOf("tennis", "atp", "wta", "wimbledon"),
+        Sport.MOTORSPORT to listOf("f1", "formula 1", "formula one", "nascar", "indycar", "motogp", "grand prix", "motorsport"),
+        Sport.GOLF to listOf("golf", "pga", "lpga"),
+        Sport.RUGBY to listOf("rugby", "six nations", "urc"),
+        Sport.AUSSIE_RULES to listOf("afl"),
+        Sport.LACROSSE to listOf("lacrosse", "nll", "pll"),
+        Sport.CRICKET to listOf("cricket", "ipl", "bbl", "t20", "odi", "test match", "psl"),
+        Sport.PICKLEBALL to listOf("pickleball", "ppa"),
+    )
+    private val cache = HashMap<String, Sport?>()
+    private val teamCache = HashMap<String, Sport?>()
+    private var teams: Map<String, Sport> = emptyMap()
+    private var teamsFrom: List<Game>? = null
+
+    /** Lower case, letters and digits only, single spaces, a space at each end (so whole words match). */
+    private fun normalized(text: String): String =
+        " " + text.lowercase().map { if (it.isLetterOrDigit()) it else ' ' }.joinToString("").split(' ').filter { it.isNotEmpty() }.joinToString(" ") + " "
+
+    private fun guess(text: String): Sport? {
+        if (cache.containsKey(text)) return cache[text]
+        val clean = normalized(text)
+        val found = words.firstOrNull { (_, list) -> list.any { clean.contains(" $it ") } }?.first
+        if (cache.size > 4000) cache.clear()
+        cache[text] = found
+        return found
+    }
+
+    /** Team names from today's scoreboard ("raptors", "toronto raptors"); a nickname two sports share is left out. */
+    private fun team(title: String, games: List<Game>): Sport? {
+        if (teamsFrom !== games) {
+            val map = HashMap<String, Sport>()
+            val clash = HashSet<String>()
+            for (g in games) {
+                if (g.league.isEvent) continue
+                for (t in listOf(g.away, g.home)) for (n in listOf(t.name, t.nickname, t.shortName)) {
+                    val key = normalized(n).trim()
+                    if (key.length < 4) continue
+                    val had = map[key]
+                    if (had != null && had != g.league.sport) clash.add(key)
+                    map[key] = g.league.sport
+                }
+            }
+            clash.forEach { map.remove(it) }
+            teams = map
+            teamsFrom = games
+            teamCache.clear()
+        }
+        if (teamCache.containsKey(title)) return teamCache[title]
+        val clean = normalized(title)
+        val found = teams.entries.firstOrNull { clean.contains(" ${it.key} ") }?.value
+        if (teamCache.size > 4000) teamCache.clear()
+        teamCache[title] = found
+        return found
+    }
+
+    /** From the title, else a team playing today, else the channel's name ("NBA TV"), else its category. */
+    fun sport(title: String, channel: Channel, games: List<Game>): Sport? =
+        guess(title) ?: team(title, games) ?: guess(channel.name) ?: guess(channel.categoryName)
+
+    fun left(ms: Long): String {
+        val m = (ms / 60_000).coerceAtLeast(0)
+        return if (m >= 60) "${m / 60}h ${m % 60}m left" else "${m}m left"
+    }
+}
+
+/** Times along the top of the guide, with the current time in a pill over the line. */
+@Composable
+private fun GuideHeader(title: String, start: Long, now: Long) {
+    Row(Modifier.fillMaxWidth().height(18.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Label(title, size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(Guide.channelWidth))
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).fillMaxHeight()) {
+            val perMs = maxWidth.value / Guide.SPAN
+            for (i in 0 until 5) {
+                Label(clockTime(start + i * 30 * 60_000L), size = 10.sp, color = Theme.muted,
+                    modifier = Modifier.offset(x = (i * 30 * 60_000L * perMs).dp))
+            }
+            Box(Modifier.offset(x = ((now - start) * perMs).dp - 14.dp)
+                .background(Theme.accent, androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(horizontal = 5.dp, vertical = 1.dp)) {
+                Label(clockTime(now).replace(" AM", "").replace(" PM", "").replace(" am", "").replace(" pm", ""),
+                    size = 9.sp, weight = FontWeight.Bold, color = Theme.onAccent)
+            }
+        }
+    }
+}
+
+/**
+ * One channel in the timeline guide: the channel (logo, name over up to three lines, its tags), then its programmes
+ * by time. Every row is the same height; the one you're on turns its channel and what's on now white.
+ */
+@Composable
+internal fun GuideRow(model: AppModel, channel: Channel, playing: Boolean, start: Long, now: Long, modifier: Modifier,
+                      onLongClick: (() -> Unit)? = null, onFocus: () -> Unit, onClick: () -> Unit) {
+    val end = start + Guide.SPAN
+    val programmes = model.guide[channel.epgId].orEmpty().filter { it.end > start && it.start < end }
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
+    TvButton(onClick = onClick, onFocus = onFocus, onLongClick = onLongClick, focusedFill = androidx.compose.ui.graphics.Color.Transparent,
+        modifier = modifier.fillMaxWidth().height(Guide.rowHeight)) { focused ->
+        Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            // The channel.
+            val color = if (focused) Theme.bg else if (playing) Theme.accent else Theme.text
+            Row(Modifier.width(Guide.channelWidth).fillMaxHeight().background(if (focused) Theme.text else Theme.card, shape)
+                .padding(horizontal = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                if (!Perf.lite) ChannelIcon(channel.icon, 20.dp)
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Label(channel.name, size = 10.sp, weight = FontWeight.SemiBold, color = color, maxLines = 3,
+                            modifier = Modifier.weight(1f, fill = false))
+                        if (playing) Icon(Icons.Filled.GraphicEq, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(9.dp))
+                        if (model.isFavoriteChannel(channel.id))
+                            Icon(Icons.Filled.Favorite, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(8.dp))
+                    }
+                    // Always shown, so nothing moves as you go up and down.
+                    val quality = model.measuredQuality[channel.id]
+                    val fps = model.measuredFrameRate[channel.id]
+                    val sound = model.measuredAudio[channel.id]
+                    if (!quality.isNullOrEmpty() || (fps != null && fps > 0) || !sound.isNullOrEmpty())
+                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            if (!quality.isNullOrEmpty()) Badge(quality, fill = if (quality == "4K") Theme.accent else Theme.raised,
+                                color = if (quality == "4K") Theme.onAccent else Theme.soft)
+                            if (fps != null && fps > 0) Badge(Playback.fpsLabel(fps), fill = Theme.raised, color = Theme.soft)
+                            if (!sound.isNullOrEmpty()) Badge(sound, fill = Theme.raised, color = Theme.soft)
+                        }
+                }
+            }
+            // The programmes, by time.
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.weight(1f).fillMaxHeight()) {
+                val perMs = maxWidth.value / Guide.SPAN
+                if (programmes.isEmpty()) {
+                    Box(Modifier.fillMaxSize().background(Theme.card, shape).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
+                        Label("No guide information", size = 10.sp, color = Theme.muted)
+                    }
+                }
+                for (p in programmes) {
+                    val s = maxOf(p.start, start)
+                    val e = minOf(p.end, end)
+                    val width = ((e - s) * perMs - 2f).coerceAtLeast(0f)
+                    val isNow = p.start <= now && p.end > now
+                    val lit = focused && isNow
+                    val elapsed = ((now - s) * perMs).coerceIn(0f, width)
+                    val sub = if (lit) androidx.compose.ui.graphics.Color(0xFF4A4F5C) else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.78f)
+                    Box(Modifier.offset(x = ((s - start) * perMs).dp).width(width.dp).fillMaxHeight().clip(shape)
+                        .background(if (lit) Theme.text else Guide.fill(p.title, channel, model.games))
+                        .then(if (lit) Modifier.outline(true, Theme.accent, shape) else Modifier)) {
+                        // What's already been on is a shade darker.
+                        Box(Modifier.width(elapsed.dp).fillMaxHeight()
+                            .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = if (lit) 0.07f else 0.28f)))
+                        Column(Modifier.fillMaxHeight().padding(horizontal = 6.dp), verticalArrangement = Arrangement.Center) {
+                            Label(if (lit) "${clockTime(p.start)} – ${clockTime(p.end)}   ${Guide.left(p.end - now)}" else clockTime(p.start),
+                                size = 8.sp, color = sub)
+                            Label(p.title, size = 10.sp, weight = if (lit) FontWeight.Bold else FontWeight.SemiBold,
+                                color = if (lit) Theme.bg else Theme.text, maxLines = 2)
+                        }
+                    }
+                }
+                Box(Modifier.offset(x = ((now - start) * perMs).dp - 1.dp).width(2.dp).fillMaxHeight().background(Theme.accent))
+            }
         }
     }
 }

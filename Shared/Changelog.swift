@@ -74,6 +74,14 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.93", date: "2026-11-18", time: "23:55", title: "Android TV catches up with Apple TV", changes: [
+            Change(text: "EPG: a timeline: two and a half hours of programmes laid out by time, every show coloured (by sport, or the channel's own colour), an orange line at the current time and what's already been on a shade darker. The channel column is narrow, with names over up to three lines and the quality, frame rate and sound tags always shown; every row is the same height.", apps: android),
+            Change(text: "Home: the Live Now row is gone (each sport already shows its live games); Home opens on your first sport, and pressing down from the tabs lands on the first game (left goes to the sports).", apps: android),
+            Change(text: "Home: scores over 99 fit. Finished games are shown by default (Lite mode still folds them).", apps: android),
+            Change(text: "Shortcuts at the screen's edges: right on a Home game opens the EPG; left on the EPG's categories goes to Home; left on the game screen's categories goes back to Home.", apps: android),
+            Change(text: "Full screen: press the centre button for stream information (channel, which stream of how many, what's on now and next, resolution, frame rate, sound); press it again to hide it.", apps: android),
+            Change(text: "Rows no longer zoom in when you're on them, so a logo or the start of a name isn't cut off. The now-playing bar is bigger, with the channel's logo.", apps: android)
+        ]),
         Release(version: "1.92", date: "2026-11-18", time: "23:20", title: "Home focus, bigger now-playing bar", changes: [
             Change(text: "Home: pressing down from the tabs lands on the first game instead of the sports list; press left to get to the sports.", apps: tv),
             Change(text: "The now-playing bar along the bottom is bigger (about the height of a game-screen row), with the channel's logo and larger text.", apps: tv),
