@@ -503,7 +503,6 @@ enum TVGuide {
     static let channelWidth: CGFloat = 330
     static let span: TimeInterval = 150 * 60
     static let rowHeight: CGFloat = 92
-    static let openHeight: CGFloat = 136
     static let gap: CGFloat = 8
 
     /// The guide starts at the last half hour, so up to 30 minutes of what's on is behind the line.
@@ -702,8 +701,8 @@ struct TVGuideRow: View {
                 }
             }
         }
-        .frame(height: focused ? TVGuide.openHeight : TVGuide.rowHeight)
-        .animation(.easeOut(duration: 0.15), value: focused)
+        // The row you're on stays the same height (no growing as you move).
+        .frame(height: TVGuide.rowHeight)
     }
 
     private var tile: some View {
@@ -770,9 +769,9 @@ struct TVGuideRow: View {
                 .foregroundStyle(sub)
                 .lineLimit(1)
                 Text(p.title)
-                    .font(.system(size: focused ? 23 : 20, weight: focused ? .bold : .semibold))
+                    .font(.system(size: 20, weight: focused ? .bold : .semibold))
                     .foregroundStyle(lit ? Theme.bg : Theme.text)
-                    .lineLimit(focused ? 3 : 2)
+                    .lineLimit(2)
                     .minimumScaleFactor(0.85)
                     .fixedSize(horizontal: false, vertical: true)
             }
