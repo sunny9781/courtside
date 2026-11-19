@@ -183,7 +183,7 @@ struct TVSettingsView: View {
                 refreshHours = next(after: refreshHours, in: [1, 3, 6, 12, 24])
             }
             action("Refresh now", detail: model.savedAt.map { "Last downloaded \($0.formatted(date: .abbreviated, time: .shortened))" },
-                   value: model.downloadingChannels ? "Downloading…" : nil) {
+                   value: model.refreshWaiting ? "After this stream" : (model.downloadingChannels || model.guideDownloading ? "Refreshing…" : nil)) {
                 Task { await model.refresh(force: true) }
             }
             info("Version", version)

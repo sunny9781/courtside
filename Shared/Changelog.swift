@@ -74,6 +74,17 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.79", date: "2026-11-18", time: "20:15", title: "Live Now by league, NFL RedZone, Apple TV catches up", changes: [
+            Change(text: "Live Now: games are under a heading per league (NBA, NCAA, NFL...) instead of the league on every line.", apps: tvAndroid),
+            Change(text: "While an NFL game is live, the RedZone channels sit in a folder at the top of Live Now and Football (NFL RedZone · 2); click it to show them.", apps: tvAndroid),
+            Change(text: "Home: each score sits between its team's name and logo, lined up around the @, and the GAME heading sits over the @.", apps: tvAndroid),
+            Change(text: "Home: upcoming games show just the time they start.", apps: tvAndroid),
+            Change(text: "Home: games starting more than 2 hours from now fold into one row (Later today · 18), like finished games.", apps: tv),
+            Change(text: "EPG, game screen and channel sports: the same fixed columns everywhere (channel, now, next). Text that doesn't fit scrolls inside its column on the row you're on.", apps: tv),
+            Change(text: "The top bar shows when the EPG was downloaded as plain text (no refresh button; it refreshes by itself, or from Settings › General). While it downloads: Refreshing EPG with a percentage and a progress bar.", apps: tv),
+            Change(text: "Channels and the guide never download while a stream plays: a refresh waits until the stream stops, and starting a stream pauses a guide download. The channel list downloads one request at a time. All so only one connection is ever in use.", apps: [.tv, .mac, .ios]),
+            Change(text: "The gap above the player in the corner matches the gap beside it.", apps: tv)
+        ], titleApps: [.tv, .android]),
         Release(version: "1.78", date: "2026-11-18", time: "13:30", title: "Smooth switch to the corner, fixed EPG columns", changes: [
             Change(text: "Full screen and the corner player are now one video that just changes size, so going between them is instant: no black flash, no wait, and no more stopping when you leave full screen. (The corner player has square corners now.)", apps: android),
             Change(text: "EPG, game screen and channel sports: the same fixed columns everywhere (channel, now, next). Text that doesn't fit scrolls inside its column on the row you're on.", apps: android),

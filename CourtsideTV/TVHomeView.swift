@@ -222,6 +222,8 @@ struct TVGamesPane: View {
     /// Width available for the cards, so they stretch to fill the row (like the Mac) instead of leaving a gap.
     @State private var paneWidth: CGFloat = 1300
     @State private var showFinished = false
+    @State private var showLater = false
+    @State private var showRedZone = false
     @FocusState private var focusedChip: TVNav.HomeSelection?
 
     struct PaneSection: Identifiable {
@@ -236,12 +238,12 @@ struct TVGamesPane: View {
         _ = (hiddenSports, sportOrder)
         switch nav.homeSelection {
         case .liveNow:
-            // Only games that are live right now, all in one grid (each card names its league), in your sport order,
-            // so games from different sports share a row.
-            let games = orderedSports(model: model).flatMap { sport in
-                sortedGames(model.games(for: sport).filter { $0.state == .live })
+            // Only games that are live right now, under a heading per league (NBA, NCAA, NFL...), in your sport order.
+            return orderedSports(model: model).flatMap { model.leagues(for: $0) }.compactMap { league in
+                let live = model.games.filter { $0.league.id == league.id && $0.state == .live }
+                return live.isEmpty ? nil
+                    : PaneSection(id: league.id, title: league.name, symbol: nil, league: league, games: sortedGames(live))
             }
-            return games.isEmpty ? [] : [PaneSection(id: "live", title: "", symbol: nil, league: nil, games: games)]
         case .sport(let sport):
             return model.leagues(for: sport).compactMap { league in
                 let games = model.games.filter { $0.league.id == league.id }
@@ -263,15 +265,48 @@ struct TVGamesPane: View {
         }
     }
 
-    /// The sections with only the games that are live or coming up; finished ones are folded (below).
+    /// Games starting more than 2 hours from now fold into "Later today · 18", like finished ones, so a busy day
+    /// mostly shows what's live or about to start.
+    private func isLater(_ g: Game) -> Bool {
+        g.state == .upcoming && (g.start ?? .distantPast) > Date().addingTimeInterval(2 * 3600)
+    }
+
+    /// The sections with only the games that are live or about to start; finished and later ones are folded (below).
     private var open: [PaneSection] {
         sections.compactMap { s in
-            let games = s.games.filter { $0.state != .finished }
+            let games = s.games.filter { $0.state != .finished && !isLater($0) }
             return games.isEmpty ? nil : PaneSection(id: s.id, title: s.title, symbol: s.symbol, league: s.league, games: games)
         }
     }
 
+    private var later: [Game] { sections.flatMap { $0.games.filter(isLater) } }
     private var finished: [Game] { sections.flatMap { $0.games.filter { $0.state == .finished } } }
+
+    /// NFL RedZone: while any NFL game is live, its channels sit in a folder at the top of Live Now and Football.
+    private var redZone: [Channel] {
+        let here: Bool
+        switch nav.homeSelection {
+        case .liveNow: here = true
+        case .sport(let s): here = s == .football
+        case .league(let id): here = id == "nfl"
+        }
+        guard here, model.games.contains(where: { $0.league.id == "nfl" && $0.state == .live }) else { return [] }
+        return model.redZoneChannels()
+    }
+
+    private func fold(_ title: String, open: Bool, toggle: @escaping () -> Void) -> some View {
+        Button(action: toggle) {
+            HStack(spacing: 14) {
+                Image(systemName: open ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 20, weight: .semibold))
+                Text(title).font(.system(size: 23, weight: .semibold))
+                Spacer()
+            }
+            .foregroundStyle(Theme.muted)
+        }
+        .buttonStyle(TVRowButtonStyle())
+        .padding(.top, 12)
+    }
 
     var body: some View {
         // A sport with channels but no live scores (pickleball): its channels as an EPG list, not score cards.
@@ -292,14 +327,33 @@ struct TVGamesPane: View {
                 }
                 HStack(spacing: 0) {
                     Text("STATUS").frame(width: TVGameRow.statusWidth, alignment: .leading)
-                    Text("GAME").frame(maxWidth: .infinity, alignment: .leading)
+                    // Over the "@" between the two teams.
+                    Text("GAME").frame(width: TVGameRow.teamWidth * 2 + 56, alignment: .center)
+                    Spacer(minLength: 0)
                 }
                 .font(.system(size: 19, weight: .bold))
                 .foregroundStyle(Theme.muted)
                 .padding(.horizontal, 22)
 
+                let redZone = redZone
+                if !redZone.isEmpty {
+                    fold("NFL RedZone · \(redZone.count)", open: showRedZone) { showRedZone.toggle() }
+                    if showRedZone {
+                        let playing = model.pinned?.channel.id
+                        ForEach(redZone) { channel in
+                            Button {
+                                if channel.id == playing { model.play(channel, lineup: redZone) } else { model.pin(channel, lineup: redZone) }
+                            } label: {
+                                TVChannelRow(channel: channel, playing: channel.id == playing, showNext: false)
+                            }
+                            .buttonStyle(TVRowButtonStyle())
+                        }
+                    }
+                }
+
                 if open.isEmpty {
-                    Text(finished.isEmpty || nav.homeSelection == .liveNow ? emptyMessage : "Nothing live or coming up.")
+                    Text(nav.homeSelection == .liveNow || (finished.isEmpty && later.isEmpty) ? emptyMessage
+                         : (later.isEmpty ? "Nothing live or coming up." : "Nothing in the next 2 hours."))
                         .font(.system(size: 26))
                         .foregroundStyle(Theme.muted)
                         .padding(22)
@@ -320,35 +374,38 @@ struct TVGamesPane: View {
                         Button {
                             nav.homePath.append(game.id)
                         } label: {
-                            TVGameRow(game: game, showLeague: nav.homeSelection == .liveNow)
+                            TVGameRow(game: game)
                         }
                         .buttonStyle(TVRowButtonStyle())
                         .focused($focusedGame, equals: game.id)
                     }
                 }
 
+                if !later.isEmpty {
+                    fold("Later today · \(later.count)", open: showLater) { showLater.toggle() }
+                    if showLater {
+                        ForEach(later) { game in
+                            Button {
+                                nav.homePath.append(game.id)
+                            } label: {
+                                TVGameRow(game: game)
+                            }
+                            .buttonStyle(TVRowButtonStyle())
+                            .focused($focusedGame, equals: game.id)
+                        }
+                    }
+                }
+
                 // Finished games fold into one row at the bottom ("Finished · 6", click to show them), so a page
                 // mostly shows the games that are live or coming up.
                 if !finished.isEmpty {
-                    Button {
-                        showFinished.toggle()
-                    } label: {
-                        HStack(spacing: 14) {
-                            Image(systemName: showFinished ? "chevron.down" : "chevron.right")
-                                .font(.system(size: 20, weight: .semibold))
-                            Text("Finished · \(finished.count)").font(.system(size: 23, weight: .semibold))
-                            Spacer()
-                        }
-                        .foregroundStyle(Theme.muted)
-                    }
-                    .buttonStyle(TVRowButtonStyle())
-                    .padding(.top, 12)
+                    fold("Finished · \(finished.count)", open: showFinished) { showFinished.toggle() }
                     if showFinished {
                         ForEach(finished) { game in
                             Button {
                                 nav.homePath.append(game.id)
                             } label: {
-                                TVGameRow(game: game, showLeague: sections.count > 1)
+                                TVGameRow(game: game)
                             }
                             .buttonStyle(TVRowButtonStyle())
                             .focused($focusedGame, equals: game.id)
@@ -357,7 +414,7 @@ struct TVGamesPane: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .onChange(of: nav.homeSelection) { showFinished = false }
+            .onChange(of: nav.homeSelection) { showFinished = false; showLater = false; showRedZone = false }
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { paneWidth = $0 }
             .onChange(of: focusedGame) { if focusedGame != nil || focusedChip != nil { inPane = true } }
             .onChange(of: focusedChip) { if focusedGame != nil || focusedChip != nil { inPane = true } }
@@ -463,17 +520,19 @@ struct TVGameRow: View {
     @Environment(\.isFocused) private var focused
     let game: Game
     var showLeague = false
-    static let statusWidth: CGFloat = 300
+    static let statusWidth: CGFloat = 230
 
-    static let teamWidth: CGFloat = 400
-    static let scoreWidth: CGFloat = 52
+    static let teamWidth: CGFloat = 330
+    static let scoreWidth: CGFloat = 46
 
     var body: some View {
         let has4K = model.mainStreams(game.id).contains(where: \.is4K)
         let text: Color = focused ? Theme.bg
             : (game.state == .upcoming ? Theme.muted : (game.state == .finished ? Theme.soft : Theme.text))
         HStack(spacing: 0) {
-            Text(showLeague ? "\(game.headerText) · \(game.league.name)" : game.headerText)
+            // Upcoming: just the start time (the row is already grey).
+            let status = game.state == .upcoming ? game.startText : game.headerText
+            Text(showLeague ? "\(status) · \(game.league.name)" : status)
                 .font(.system(size: 21, weight: .bold))
                 .foregroundStyle(focused ? Theme.bg : (game.state == .live ? Theme.accent : Theme.muted))
                 .lineLimit(1)
@@ -485,21 +544,21 @@ struct TVGameRow: View {
                         Text(game.eventDetail).font(.system(size: 21)).foregroundStyle(text.opacity(0.75)).lineLimit(1)
                     }
                 } else {
-                    // Lined up around the "@" on every row: the first team's score, name and logo end at the "@",
-                    // the second team's logo, name and score start after it.
+                    // Lined up around the "@" on every row: name, score, logo | @ | logo, score, name, so each score
+                    // sits between its team's name and logo.
                     HStack(spacing: 12) {
-                        score(game.away, alignment: .leading)
                         Text(name(game.away)).font(.system(size: 24, weight: .semibold)).foregroundStyle(text).lineLimit(1)
                             .frame(maxWidth: .infinity, alignment: .trailing)
+                        score(game.away, alignment: .trailing)
                         TVTeamLogo(team: game.away, size: 30)
                     }
                     .frame(width: Self.teamWidth)
                     Text("@").font(.system(size: 21)).foregroundStyle(text.opacity(0.6))
                     HStack(spacing: 12) {
                         TVTeamLogo(team: game.home, size: 30)
+                        score(game.home, alignment: .leading)
                         Text(name(game.home)).font(.system(size: 24, weight: .semibold)).foregroundStyle(text).lineLimit(1)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                        score(game.home, alignment: .trailing)
                     }
                     .frame(width: Self.teamWidth)
                 }

@@ -13,12 +13,12 @@ enum TVLayout {
     /// far from the bottom while something plays, so they sit on top of the player.
     /// The one-line now-playing bar along the very bottom of the screen, under the player.
     static let barHeight: CGFloat = 40
-    static let playerInset: CGFloat = playerWidth * 9 / 16 + margin * 2 + barHeight
+    /// (The panels' lists add their own 20-point padding at the end, so no extra gap here: the space above the player
+    /// matches the space to its left.)
+    static let playerInset: CGFloat = playerWidth * 9 / 16 + margin + barHeight
 
-    /// A channel-name column wide enough for the longest name on one line (within reason), the same for every row.
-    static func nameWidth(_ channels: [Channel]) -> CGFloat {
-        min(max(CGFloat(channels.map(\.name.count).max() ?? 0) * 13 + 90, 408), 820)
-    }
+    /// The channel column: the same fixed width on every screen (long names scroll on the row you're on).
+    static func nameWidth(_ channels: [Channel]) -> CGFloat { TVChannelRow.channelWidth }
     static let corner: CGFloat = 20
 }
 
@@ -310,4 +310,45 @@ struct TVVideoSurface: UIViewRepresentable {
         return container
     }
     func updateUIView(_ uiView: UIView, context: Context) {}
+}
+
+/// One line of text in a fixed column. On the row you're on (`active`), text too long for the column slides along
+/// inside it and back; otherwise it ends in "…". Like the Android TV app's EPG.
+struct TVScrollingText: View {
+    let text: String
+    let font: Font
+    var active: Bool
+    @State private var textWidth: CGFloat = 0
+    @State private var boxWidth: CGFloat = 0
+    @State private var offset: CGFloat = 0
+
+    var body: some View {
+        Group {
+            if active {
+                Text(text).font(font).lineLimit(1).fixedSize()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { textWidth = $0 }
+                    .offset(x: offset)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { boxWidth = $0 }
+                    .clipped()
+                    .task(id: "\(text)|\(Int(textWidth))|\(Int(boxWidth))") {
+                        offset = 0
+                        let distance = textWidth - boxWidth
+                        guard distance > 1 else { return }
+                        let seconds = Double(distance) / 70
+                        while !Task.isCancelled {
+                            try? await Task.sleep(for: .seconds(1.2))
+                            guard !Task.isCancelled else { break }
+                            withAnimation(.linear(duration: seconds)) { offset = -distance }
+                            try? await Task.sleep(for: .seconds(seconds + 1.2))
+                            guard !Task.isCancelled else { break }
+                            offset = 0
+                        }
+                    }
+            } else {
+                Text(text).font(font).lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
 }

@@ -102,7 +102,7 @@ struct TVLiveView: View {
         if model.channels.isEmpty {
             VStack(spacing: 20) {
                 if model.isLoading || model.downloadingChannels { ProgressView() }
-                Text(model.downloadingChannels ? "Downloading channels…" : (model.errorMessage ?? "No channels yet."))
+                Text(model.downloadingChannels || model.guideDownloading ? "Refreshing EPG…" : (model.errorMessage ?? "No channels yet."))
                     .font(.system(size: 28))
                     .foregroundStyle(Theme.muted)
             }
@@ -328,9 +328,10 @@ struct TVLiveView: View {
             LazyVStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 0) {
                     Text(searching ? "Results for \u{201C}\(search.trimmingCharacters(in: .whitespaces))\u{201D}" : (selected?.name ?? ""))
-                        .frame(width: nameWidth + 22, alignment: .leading)
-                    Text("NOW").frame(maxWidth: .infinity, alignment: .leading)
-                    Text("NEXT").frame(width: 360, alignment: .leading)
+                        .frame(width: nameWidth, alignment: .leading)
+                    Text("NOW").padding(.leading, 24).frame(width: TVChannelRow.nowWidth, alignment: .leading)
+                    Text("NEXT").frame(width: TVChannelRow.nextWidth, alignment: .leading)
+                    Spacer(minLength: 0)
                 }
                 .font(.system(size: 19, weight: .bold))
                 .foregroundStyle(Theme.muted)
@@ -442,13 +443,13 @@ struct TVChannelRow: View {
         let quality = (badge?.isEmpty == false ? badge : nil) ?? model.measuredQuality[channel.id]
         let fps = model.measuredFrameRate[channel.id] ?? 0
         let sound = model.measuredAudio[channel.id]
+        // Fixed columns on every screen (channel, now, next), one line each; on the row you're on, text that doesn't
+        // fit scrolls inside its column.
         HStack(spacing: 0) {
             HStack(spacing: 16) {
                 TVChannelIcon(url: channel.icon, size: 48)
-                Text(channel.name)
-                    .font(.system(size: 23, weight: .semibold))
+                TVScrollingText(text: channel.name, font: .system(size: 23, weight: .semibold), active: focused)
                     .foregroundStyle(playing && !focused ? Theme.accent : (focused ? Theme.bg : Theme.text))
-                    .lineLimit(nameWidth == nil ? 2 : 1)
                 if playing {
                     Image(systemName: "speaker.wave.2.fill")
                         .font(.system(size: 18))
@@ -460,25 +461,23 @@ struct TVChannelRow: View {
                         .foregroundStyle(Theme.accent)
                 }
             }
-            .frame(width: nameWidth ?? 408, alignment: .leading)
+            .frame(width: Self.channelWidth, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text(now?.title ?? "–")
-                    .font(.system(size: 22, weight: .medium))
-                    .lineLimit(1)
+                TVScrollingText(text: now?.title ?? "–", font: .system(size: 22, weight: .medium), active: focused)
                 if let now {
                     ProgressView(value: progress(now))
-                        .frame(maxWidth: 360)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 24)
+            .frame(width: Self.nowWidth, alignment: .leading)
 
             if showNext {
-                Text(next.map { "\($0.start.formatted(date: .omitted, time: .shortened))  \($0.title)" } ?? "")
-                    .font(.system(size: 21))
+                TVScrollingText(text: next.map { "\($0.start.formatted(date: .omitted, time: .shortened))  \($0.title)" } ?? "",
+                                font: .system(size: 21), active: focused)
                     .opacity(0.65)
-                    .lineLimit(1)
-                    .frame(width: 360, alignment: .leading)
+                    .padding(.trailing, 24)
+                    .frame(width: Self.nextWidth, alignment: .leading)
             }
             // What it really played at, once it has (resolution, frame rate, sound).
             HStack(spacing: 8) {
@@ -489,9 +488,15 @@ struct TVChannelRow: View {
                 if fps > 0 { TVBadge(text: PlaybackController.fpsLabel(fps)) }
                 if let sound { TVBadge(text: sound) }
             }
-            .frame(width: showNext ? nil : 400, alignment: .leading)
+            .frame(width: showNext ? nil : Self.nextWidth, alignment: .leading)
+            Spacer(minLength: 0)
         }
     }
+
+    /// The same column widths on every screen: channel (with its logo), what's on now, what's next.
+    static let channelWidth: CGFloat = 420
+    static let nowWidth: CGFloat = 580
+    static let nextWidth: CGFloat = 420
 
     private func progress(_ p: Programme) -> Double {
         let total = p.end.timeIntervalSince(p.start)
