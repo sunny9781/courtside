@@ -95,7 +95,19 @@ struct TVPlayerView: View {
         .onChange(of: controller.audio) { model.recordAudio(item.channel.id, controller.audio) }
         .onChange(of: controller.frameRate) {
             model.recordFrameRate(item.channel.id, controller.frameRate)
-            if matchFrameRate { DisplayMatcher.match(frameRate: controller.frameRate, height: controller.resolution) }
+            // Apple's player (4K) says exactly what the TV should switch to, HDR included (below).
+            if matchFrameRate && !controller.usesApplePlayer {
+                DisplayMatcher.match(frameRate: controller.frameRate, height: controller.resolution)
+            }
+        }
+        // 4K on Apple's player: switch the TV to the stream's own frame rate and dynamic range (HDR10, Dolby Vision,
+        // HLG), like other apps do, so HDR shows as HDR. The Apple TV's Match Content settings still decide.
+        .onChange(of: controller.displayCriteria) {
+            if let criteria = controller.displayCriteria { DisplayMatcher.apply(criteria) }
+        }
+        .onAppear {
+            // Already playing in the corner: switch now.
+            if let criteria = controller.displayCriteria { DisplayMatcher.apply(criteria) }
         }
         .onDisappear {
             hideTask?.cancel()
@@ -107,8 +119,7 @@ struct TVPlayerView: View {
     // MARK: Playback
 
     private func start() {
-        guard let url = model.streamURL(for: item.channel, hls: !PlaybackController.usesVLC) else { return }
-        controller.play(url, bufferMs: bufferMs)
+        model.startStream(item.channel, on: controller, bufferMs: bufferMs)
         poke()
     }
 
@@ -274,6 +285,11 @@ enum DisplayMatcher {
                                              width: size.0, height: size.1, extensions: nil,
                                              formatDescriptionOut: &format) == noErr, let format else { return }
         manager.preferredDisplayCriteria = AVDisplayCriteria(refreshRate: Float(fps), formatDescription: format)
+    }
+
+    static func apply(_ criteria: AVDisplayCriteria) {
+        guard let manager, manager.isDisplayCriteriaMatchingEnabled else { return }
+        manager.preferredDisplayCriteria = criteria
     }
 
     static func reset() {
