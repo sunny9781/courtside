@@ -61,8 +61,9 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   Settings › Playback › "4K with the HDR player" (`hdrPlayerFor4K`, default on). `wantsHDRPlayer` in AppModel picks
   4K by name/category/measured quality. The 1.80 AVPlayer/HLS path is gone. KSPlayer logs are set to panic (URLs).
 - Home game rows (both TVs, 1.87): stream count back (4K tag + count + TV icon, "None" in red), STREAMS heading.
-- Android Lite mode (default on except Nvidia Shield): no corner player (channels open full screen, Back stops),
-  no live scores (games load once at open), no logos, no zoom.
+- Android Lite mode (1.94): Settings › Lite mode section, only when `settings.slowDevice` (not NVIDIA). Master switch
+  plus one Flag per option, least → most effect: liteSettle (350 ms), liteFoldFinished, liteNoLogos, liteNoScores,
+  liteNoAutoplay, liteNoCorner. Defaults follow the old `lite` pref. Drawing code reads them via `Perf` (settings ref).
 - Android streams open TS first (HLS fallback): HLS made the provider count extra connections while flipping.
 - Android full screen always uses SurfaceView (no HDR switch; the TV's Match content setting decides HDR). The video
   renderer forces a fresh decoder on every surface change (handover garbled 4K on Chromecast).
