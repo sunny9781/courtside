@@ -502,8 +502,8 @@ struct TVChannelRow: View {
 enum TVGuide {
     static let channelWidth: CGFloat = 330
     static let span: TimeInterval = 150 * 60
-    static let rowHeight: CGFloat = 62
-    static let openHeight: CGFloat = 116
+    static let rowHeight: CGFloat = 124
+    static let openHeight: CGFloat = 176
     static let gap: CGFloat = 8
 
     /// The guide starts at the last half hour, so up to 30 minutes of what's on is behind the line.
@@ -535,7 +535,7 @@ enum TVGuide {
 
     private static let words: [(Sport, [String])] = [
         (.basketball, ["nba", "wnba", "basketball", "ncaab", "euroleague", "march madness"]),
-        (.hockey, ["nhl", "hockey", "ahl", "ohl", "whl", "khl", "stanley cup"]),
+        (.hockey, ["nhl", "hockey", "hockey night", "ahl", "ohl", "whl", "khl", "stanley cup"]),
         (.football, ["nfl", "cfl", "ncaaf", "college football", "super bowl", "redzone", "red zone", "grey cup"]),
         (.baseball, ["mlb", "baseball", "world series"]),
         (.soccer, ["soccer", "epl", "premier league", "champions league", "europa league", "conference league", "la liga",
@@ -553,16 +553,57 @@ enum TVGuide {
 
     @MainActor private static var cache: [String: Sport?] = [:]
 
-    /// The sport a programme is about, from its title, else from the channel's name ("NBA TV").
-    @MainActor static func sport(title: String, channel: String) -> Sport? {
+    /// The sport a programme is about: from its title (league or sport words, or a team playing today), else the
+    /// channel's name ("NBA TV"), else the channel's category ("USA | NHL").
+    @MainActor static func sport(title: String, channel: Channel, games: [Game]) -> Sport? {
         if let hit = guess(title) { return hit }
-        return guess(channel)
+        if let hit = team(title, games: games) { return hit }
+        if let hit = guess(channel.name) { return hit }
+        return guess(channel.categoryName)
+    }
+
+    @MainActor private static var teams: [String: Sport] = [:]
+    @MainActor private static var teamsFrom = -1
+    @MainActor private static var teamCache: [String: Sport?] = [:]
+
+    /// Team names from the scoreboard ("raptors", "toronto raptors") and their sport; a nickname two sports share
+    /// ("kings", "panthers") is left out.
+    @MainActor private static func team(_ title: String, games: [Game]) -> Sport? {
+        if teamsFrom != games.count {
+            var map: [String: Sport] = [:]
+            var clash: Set<String> = []
+            for g in games where !g.isEvent {
+                for t in [g.away, g.home] {
+                    for n in [t.name, t.nickname, t.shortName] {
+                        let key = normalized(n).trimmingCharacters(in: .whitespaces)
+                        guard key.count >= 4 else { continue }
+                        if let had = map[key], had != g.league.sport { clash.insert(key) }
+                        map[key] = g.league.sport
+                    }
+                }
+            }
+            for k in clash { map[k] = nil }
+            teams = map
+            teamsFrom = games.count
+            teamCache = [:]
+        }
+        if let hit = teamCache[title] { return hit }
+        let clean = normalized(title)
+        let found = teams.first { clean.contains(" \($0.key) ") }?.value
+        if teamCache.count > 4000 { teamCache.removeAll() }
+        teamCache[title] = found
+        return found
+    }
+
+    /// Lower case, letters and digits only, single spaces, with a space at each end (so whole words match).
+    private static func normalized(_ text: String) -> String {
+        let letters = String(text.lowercased().map { $0.isLetter || $0.isNumber ? $0 : " " })
+        return " " + letters.split(separator: " ").joined(separator: " ") + " "
     }
 
     @MainActor private static func guess(_ text: String) -> Sport? {
         if let hit = cache[text] { return hit }
-        let letters = String(text.lowercased().map { $0.isLetter || $0.isNumber ? $0 : " " })
-        let clean = " " + letters.split(separator: " ").joined(separator: " ") + " "
+        let clean = normalized(text)
         let found = words.first { entry in entry.1.contains { clean.contains(" \($0) ") } }?.0
         if cache.count > 4000 { cache.removeAll() }
         cache[text] = found
@@ -661,10 +702,12 @@ struct TVGuideRow: View {
         let fps = model.measuredFrameRate[channel.id] ?? 0
         let sound = model.measuredAudio[channel.id]
         return HStack(spacing: 14) {
-            TVChannelIcon(url: channel.icon, size: 40)
-            VStack(alignment: .leading, spacing: 8) {
+            TVChannelIcon(url: channel.icon, size: 56)
+            VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 10) {
-                    TVScrollingText(text: channel.name, font: .system(size: 22, weight: .semibold), active: focused)
+                    Text(channel.name)
+                        .font(.system(size: 23, weight: .semibold))
+                        .lineLimit(2)
                         .foregroundStyle(playing && !focused ? Theme.accent : (focused ? Theme.bg : Theme.text))
                     if playing {
                         Image(systemName: "speaker.wave.2.fill")
@@ -701,39 +744,31 @@ struct TVGuideRow: View {
         let width = max(e.timeIntervalSince(s) * perSecond - TVGuide.gap / 2, 0)
         let isNow = p.start <= now && p.end > now
         let lit = focused && isNow
-        let sport = TVGuide.sport(title: p.title, channel: channel.name)
+        let sport = TVGuide.sport(title: p.title, channel: channel, games: model.games)
         let sub = lit ? Color(hex: 0x4A4F5C) : Color.white.opacity(0.78)
         let elapsed = min(max(now.timeIntervalSince(s) * perSecond, 0), width)
         ZStack(alignment: .leading) {
             RoundedRectangle(cornerRadius: 10).fill(lit ? Theme.text : TVGuide.fill(sport))
             // What's already been on is a shade darker.
             Rectangle().fill(Color.black.opacity(lit ? 0.07 : 0.28)).frame(width: elapsed)
-            if focused {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 12) {
-                        Text(isNow ? "\(TVGuide.time(p.start)) – \(TVGuide.time(p.end))" : TVGuide.time(p.start))
-                        if isNow { Text(TVGuide.left(p.end.timeIntervalSince(now))) }
-                    }
-                    .font(.system(size: 18))
-                    .foregroundStyle(sub)
-                    .lineLimit(1)
-                    TVScrollingText(text: p.title, font: .system(size: 24, weight: .bold), active: lit)
-                        .foregroundStyle(lit ? Theme.bg : Theme.text)
+            // Times on top, then the title over up to two lines (three on the row you're on).
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 12) {
+                    Text(focused && isNow ? "\(TVGuide.time(p.start)) – \(TVGuide.time(p.end))" : TVGuide.time(p.start))
+                    if focused && isNow { Text(TVGuide.left(p.end.timeIntervalSince(now))) }
                 }
-                .padding(.horizontal, 14)
-            } else {
-                HStack(spacing: 10) {
-                    Text(TVGuide.time(p.start))
-                        .font(.system(size: 17))
-                        .foregroundStyle(sub)
-                        .fixedSize()
-                    Text(p.title)
-                        .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(Theme.text)
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, 12)
+                .font(.system(size: 18))
+                .foregroundStyle(sub)
+                .lineLimit(1)
+                Text(p.title)
+                    .font(.system(size: focused ? 25 : 22, weight: focused ? .bold : .semibold))
+                    .foregroundStyle(lit ? Theme.bg : Theme.text)
+                    .lineLimit(focused ? 3 : 2)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(.horizontal, 12)
+            .frame(maxHeight: .infinity, alignment: .center)
         }
         .frame(width: width, height: height, alignment: .leading)
         .clipShape(RoundedRectangle(cornerRadius: 10))
