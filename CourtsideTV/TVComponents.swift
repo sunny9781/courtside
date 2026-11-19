@@ -46,7 +46,8 @@ struct TVRowButtonStyle: ButtonStyle {
                     RoundedRectangle(cornerRadius: 16)
                         .fill(focused ? Theme.text : (selected ? Theme.raised : Color.clear))
                 )
-                .scaleEffect(focused ? 1.03 : (configuration.isPressed ? 0.98 : 1))
+                // No zoom on the focused row (it pushed the start of the row, a logo or a name, off the left edge).
+                .scaleEffect(configuration.isPressed ? 0.98 : 1)
                 .animation(.easeOut(duration: 0.15), value: focused)
         }
     }

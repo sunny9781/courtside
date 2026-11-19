@@ -227,7 +227,8 @@ struct TVGamesPane: View {
     @AppStorage(Prefs.sportOrder) private var sportOrder = ""
     /// Width available for the cards, so they stretch to fill the row (like the Mac) instead of leaving a gap.
     @State private var paneWidth: CGFloat = 1300
-    @State private var showFinished = false
+    /// Finished games start open on Apple TV (Android folds them in Lite mode only).
+    @State private var showFinished = true
     @State private var showLater = false
     @State private var showRedZone = false
     @FocusState private var focusedChip: TVNav.HomeSelection?
@@ -424,7 +425,7 @@ struct TVGamesPane: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .onChange(of: nav.homeSelection) { showFinished = false; showLater = false; showRedZone = false }
+            .onChange(of: nav.homeSelection) { showFinished = true; showLater = false; showRedZone = false }
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { paneWidth = $0 }
             .onChange(of: focusedGame) { if focusedGame != nil || focusedChip != nil { inPane = true } }
             .onChange(of: focusedChip) { if focusedGame != nil || focusedChip != nil { inPane = true } }
