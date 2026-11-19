@@ -104,26 +104,34 @@ enum TVRemoteHold {
 
 struct TVPlayPauseHold: UIViewRepresentable {
     let action: () -> Void
+    /// A short press (only once it's clear it isn't a hold, so a hold never also counts as a short press).
+    var tap: (() -> Void)? = nil
 
     func makeUIView(context: Context) -> HoldView {
         let view = HoldView()
         view.action = action
+        view.tap = tap
         view.isUserInteractionEnabled = false
         return view
     }
 
     func updateUIView(_ view: HoldView, context: Context) {
         view.action = action
+        view.tap = tap
     }
 
     final class HoldView: UIView {
         var action: (() -> Void)?
+        var tap: (() -> Void)?
         private var recognizer: UILongPressGestureRecognizer?
+        private var tapRecognizer: UITapGestureRecognizer?
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
             if let recognizer { recognizer.view?.removeGestureRecognizer(recognizer) }
+            if let tapRecognizer { tapRecognizer.view?.removeGestureRecognizer(tapRecognizer) }
             recognizer = nil
+            tapRecognizer = nil
             guard let window else { return }
             let hold = UILongPressGestureRecognizer(target: self, action: #selector(held(_:)))
             hold.allowedPressTypes = [NSNumber(value: UIPress.PressType.playPause.rawValue)]
@@ -131,6 +139,17 @@ struct TVPlayPauseHold: UIViewRepresentable {
             hold.cancelsTouchesInView = false
             window.addGestureRecognizer(hold)
             recognizer = hold
+            let press = UITapGestureRecognizer(target: self, action: #selector(tapped))
+            press.allowedPressTypes = [NSNumber(value: UIPress.PressType.playPause.rawValue)]
+            press.cancelsTouchesInView = false
+            press.require(toFail: hold)
+            window.addGestureRecognizer(press)
+            tapRecognizer = press
+        }
+
+        @objc private func tapped() {
+            guard !TVRemoteHold.justHeld else { return }
+            tap?()
         }
 
         @objc private func held(_ g: UILongPressGestureRecognizer) {
