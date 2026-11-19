@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.91", date: "2026-11-18", time: "23:05", title: "", changes: [
+            Change(text: "Game screen: press left on the categories to go back to Home, where you were (same as Back).", apps: tv)
+        ]),
         Release(version: "1.90", date: "2026-11-18", time: "22:50", title: "Stream information", changes: [
             Change(text: "Full screen: click the remote's centre button for stream information: the channel (and which stream of how many), what's on now and next, resolution, frame rate and sound. Click again to hide it.", apps: tv),
             Change(text: "Home, game screen and lists: the row you're on no longer zooms in, so a logo or the start of a name isn't cut off on the left.", apps: tv),

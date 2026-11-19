@@ -60,6 +60,8 @@ struct TVGameView: View {
         HStack(alignment: .top, spacing: TVLayout.playerGap) {
             if let game {
                 categoryList
+                    // Left on the categories (the screen's left edge) goes back, like Back.
+                    .onMoveCommand { if $0 == .left, !nav.homePath.isEmpty { nav.homePath.removeLast() } }
                     .frame(width: TVLayout.sidebar)
                     .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : TVLayout.margin)
                     .focusSection()
