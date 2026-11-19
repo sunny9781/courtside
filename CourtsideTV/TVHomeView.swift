@@ -330,6 +330,7 @@ struct TVGamesPane: View {
                     // Over the "@" between the two teams.
                     Text("GAME").frame(width: TVGameRow.teamWidth * 2 + 56, alignment: .center)
                     Spacer(minLength: 0)
+                    Text("STREAMS")
                 }
                 .font(.system(size: 19, weight: .bold))
                 .foregroundStyle(Theme.muted)
@@ -526,7 +527,7 @@ struct TVGameRow: View {
     static let scoreWidth: CGFloat = 46
 
     var body: some View {
-        let has4K = model.mainStreams(game.id).contains(where: \.is4K)
+        let main = model.mainStreams(game.id)
         let text: Color = focused ? Theme.bg
             : (game.state == .upcoming ? Theme.muted : (game.state == .finished ? Theme.soft : Theme.text))
         HStack(spacing: 0) {
@@ -564,8 +565,14 @@ struct TVGameRow: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            // Just a 4K tag; the number of streams isn't shown (less to draw).
-            if has4K { TVBadge(text: "4K", fill: Theme.accent, color: Theme.onAccent) }
+            // 4K tag and the number of streams (back in 1.83).
+            HStack(spacing: 8) {
+                if main.contains(where: \.is4K) { TVBadge(text: "4K", fill: Theme.accent, color: Theme.onAccent) }
+                Text(main.isEmpty ? "None" : "\(main.count)")
+                    .font(.system(size: 21, weight: .semibold))
+                    .foregroundStyle(main.isEmpty && !focused ? Theme.danger : text)
+                if !main.isEmpty { Image(systemName: "play.tv").font(.system(size: 18)).foregroundStyle(text) }
+            }
         }
     }
 

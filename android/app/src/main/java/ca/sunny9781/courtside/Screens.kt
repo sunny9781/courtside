@@ -786,6 +786,8 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
                 Box(Modifier.width(TEAM_WIDTH * 2 + 22.dp), contentAlignment = Alignment.Center) {
                     Label("GAME", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted)
                 }
+                Spacer(Modifier.weight(1f))
+                Label("STREAMS", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted)
             }
         }
         if (redZone.isNotEmpty()) {
@@ -823,7 +825,8 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             // Same content type: switching sports reuses the rows already built (new text, same row) instead of
             // building new ones.
             items(section.games, key = { "${section.id}:${it.id}" }, contentType = { "game" }) { game ->
-                GameRow(game, model.mainStreams(game.id).any { it.is4K }, showLeague = false,
+                val main = model.mainStreams(game.id)
+                GameRow(game, main.size, main.any { it.is4K }, showLeague = false,
                     modifier = Modifier.tracked(targets, "game:${game.id}"),
                     onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
             }
@@ -833,7 +836,8 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
                 FoldRow("Later today · ${later.size}", showLater, Modifier.tracked(targets, "later")) { showLater = !showLater }
             }
             if (showLater) items(later, key = { "l:${it.id}" }, contentType = { "game" }) { game ->
-                GameRow(game, model.mainStreams(game.id).any { it.is4K }, showLeague = false,
+                val main = model.mainStreams(game.id)
+                GameRow(game, main.size, main.any { it.is4K }, showLeague = false,
                     modifier = Modifier.tracked(targets, "game:${game.id}"),
                     onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
             }
@@ -852,7 +856,8 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
                 }
             }
             if (showFinished) items(finished, key = { "f:${it.id}" }, contentType = { "game" }) { game ->
-                GameRow(game, model.mainStreams(game.id).any { it.is4K }, showLeague = false,
+                val main = model.mainStreams(game.id)
+                GameRow(game, main.size, main.any { it.is4K }, showLeague = false,
                     modifier = Modifier.tracked(targets, "game:${game.id}"),
                     onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
             }
@@ -883,7 +888,7 @@ private val SCORE_WIDTH = 26.dp
  * streams it has. Upcoming games are grey and finished ones a little dimmer, so live games stand out in white.
  */
 @Composable
-private fun GameRow(game: Game, has4K: Boolean, showLeague: Boolean, modifier: Modifier, onFocus: () -> Unit,
+private fun GameRow(game: Game, streams: Int, has4K: Boolean, showLeague: Boolean, modifier: Modifier, onFocus: () -> Unit,
                     onClick: () -> Unit) {
     // Only plain values come in (not the whole app model), so when the scores update, a row whose game didn't
     // change isn't drawn again.
@@ -939,8 +944,13 @@ private fun GameRow(game: Game, has4K: Boolean, showLeague: Boolean, modifier: M
                     }
                 }
             }
-            // Just a 4K tag; the number of streams isn't shown here any more (less to draw).
-            if (has4K) Badge("4K", fill = Theme.accent, color = Theme.onAccent)
+            // 4K tag and the number of streams (back in 1.83).
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                if (has4K) Badge("4K", fill = Theme.accent, color = Theme.onAccent)
+                Label(if (streams == 0) "None" else "$streams", size = 12.sp, weight = FontWeight.SemiBold,
+                    color = if (streams == 0 && !focused) Theme.losing else text)
+                if (streams > 0) Icon(Icons.Filled.LiveTv, null, tint = text, modifier = Modifier.size(12.dp))
+            }
         }
     }
 }
