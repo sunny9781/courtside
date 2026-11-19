@@ -39,12 +39,14 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Game screen: mini EPG, categories left ("All" first, with group headings), streams right; first non-4K stream autoplays.
 - EPG (Apple TV, 1.81): timeline guide (option C mock-up): 2.5 h from the last half hour, cells coloured by sport
   (`TVGuide.sport` guesses from title, then channel name), orange now line, past part darker; the focused row opens to
-  two lines (times, time left, title; tags under the channel). Android still uses the columns below; port once settled.
+  two lines (times, time left, title; tags under the channel). Android has it too since 1.93 (`Guide`/`GuideRow` in Epg.kt: channel 110 dp, rows 46 dp).
 - EPG: no what's-playing panel (the bottom bar shows it); Done/Enter in Filter jumps to the first result.
 - Settings sections (both TVs): Account, General, Hidden, Changelog.
-- Apple TV (1.88/1.89): Home has no Live Now row (opens on the first sport; Android still has it); score column
+- Apple TV (1.88/1.89): Home has no Live Now row (opens on the first sport; Android too since 1.93); score column
   66 pt (3-digit scores). EPG channel column 220 pt, names wrap (3 lines), tags always shown, rows 92 pt, no expanding.
-  Edge shortcuts: right on a Home game → EPG, left on EPG categories → Home (`tvEdgeJump`).
+  Edge shortcuts: right on a Home game → EPG, left on EPG categories → Home, left on game-screen categories → back
+  (`tvEdgeJump`; Android `onEdgeKey`, 1.93). Full screen centre button: stream info panel (both TVs). Rows don't zoom on
+  focus (Android TvButton default focusedScale 1f; tabs 1.04). Finished games open (Android Lite folds them).
 - Corner player to full screen: click it; Android also hold Back, Apple TV hold Play/Pause (tvOS keeps hold-Back).
 - Apple TV shell ignores all safe areas (own 20pt margin); the now-playing bar sits on the screen's bottom edge.
 - EPG: favourites (hold select / heart) listed first; Hide via hold; Settings › Hidden lists hidden sports, leagues,
