@@ -49,23 +49,32 @@ final class PlaybackController: ObservableObject {
 
     #if canImport(VLCKitSPM)
     private let player = VLCMediaPlayer()
+    #if os(tvOS) && canImport(KSPlayer)
+    /// Apple TV: 4K channels play with the HDR player (KSPlayer, see HDRPlayer), in the same view, so HDR reaches the
+    /// TV as HDR (VLC turns it into a dark standard-range picture). Everything else stays on VLC.
+    private let hdr = HDRPlayer()
+    /// Streams the HDR player couldn't show this session: they go straight to VLC next time.
+    private var hdrFailed: Set<URL> = []
+    #endif
     #if os(tvOS)
-    /// Apple TV: 4K channels play with Apple's own player, in the same view, so HDR reaches the TV as HDR (VLC turns
-    /// it into a dark standard-range picture). Everything else stays on VLC.
-    private let apple = AVPlayer()
-    private let appleLayer = AVPlayerLayer()
-    /// The current stream plays with Apple's player.
-    @Published private(set) var usesApplePlayer = false
+    /// The current stream plays with the HDR player.
+    @Published private(set) var usesHDRPlayer = false
     /// What the TV should switch to for it (frame rate, HDR), from the stream itself; applied in full screen.
     @Published private(set) var displayCriteria: AVDisplayCriteria?
-    /// The same channel for VLC, if Apple's player can't show it.
-    private var fallbackURL: URL?
-    private var appleOpenedAt = Date.distantPast
     #endif
     #else
     private let player = AVPlayer()
     private let playerLayer = AVPlayerLayer()
     #endif
+
+    /// Apple TV has the HDR player (KSPlayer) for 4K.
+    static var hasHDRPlayer: Bool {
+        #if os(tvOS) && canImport(KSPlayer)
+        return true
+        #else
+        return false
+        #endif
+    }
 
     init() {
         view = PlatformView()
@@ -77,12 +86,6 @@ final class PlaybackController: ObservableObject {
         #endif
         #if canImport(VLCKitSPM)
         player.drawable = view
-        #if os(tvOS)
-        appleLayer.player = apple
-        appleLayer.videoGravity = .resizeAspect
-        appleLayer.isHidden = true
-        view.layer.addSublayer(appleLayer)
-        #endif
         #else
         playerLayer.player = player
         playerLayer.videoGravity = .resizeAspect
@@ -103,8 +106,9 @@ final class PlaybackController: ObservableObject {
     /// The next stream, waiting for the old one's connection to close (see open).
     private var pendingOpen: DispatchWorkItem?
 
-    /// `applePlayer`: play with Apple's player (Apple TV, 4K channels), falling back to `fallback` on VLC.
-    func play(_ url: URL, bufferMs: Int, applePlayer: Bool = false, fallback: URL? = nil) {
+    /// `hdrPlayer`: play with the HDR player (Apple TV, 4K channels), falling back to VLC on the same stream if it
+    /// shows nothing.
+    func play(_ url: URL, bufferMs: Int, hdrPlayer: Bool = false) {
         if url == currentURL, status != .idle, status != .ended {
             if case .failed = status {} else {
                 if status == .paused { togglePause() }
@@ -112,15 +116,14 @@ final class PlaybackController: ObservableObject {
             }
         }
         freezeWatch.reset()
-        #if canImport(VLCKitSPM) && os(tvOS)
-        wantApple = applePlayer
-        fallbackURL = applePlayer ? fallback : nil
+        #if os(tvOS) && canImport(KSPlayer)
+        wantHDR = hdrPlayer && !hdrFailed.contains(url)
         #endif
         open(url, bufferMs: bufferMs, quiet: false)
     }
 
-    #if canImport(VLCKitSPM) && os(tvOS)
-    private var wantApple = false
+    #if os(tvOS) && canImport(KSPlayer)
+    private var wantHDR = false
     #endif
 
     /// Starts the stream again without showing it: keeps the resolution and frame rate shown as they were.
@@ -144,26 +147,25 @@ final class PlaybackController: ObservableObject {
         // before opening the next, so switching (or flipping quickly through channels) never counts as two.
         // Flipping fast only opens the channel you stop on.
         pendingOpen?.cancel()
+        #if os(tvOS) && canImport(KSPlayer)
+        let closingHDR = hdr.isOpen
+        #else
+        let closingHDR = false
+        #endif
         let hadStream = closeCurrent()
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.currentURL == url else { return }
             self.pendingOpen = nil
             #if canImport(VLCKitSPM)
-            #if os(tvOS)
-            self.usesApplePlayer = self.wantApple
-            self.appleLayer.isHidden = !self.wantApple
+            #if os(tvOS) && canImport(KSPlayer)
+            self.usesHDRPlayer = self.wantHDR
             self.displayCriteria = nil
-            if self.wantApple {
-                self.appleLayer.frame = self.view.bounds
-                let item = AVPlayerItem(url: url)
-                item.preferredForwardBufferDuration = Double(bufferMs) / 1000
-                self.apple.replaceCurrentItem(with: item)
-                self.apple.play()
-                self.appleOpenedAt = Date()
-                Task { @MainActor [weak self] in
-                    let criteria = try? await item.asset.load(.preferredDisplayCriteria)
-                    if let self, self.apple.currentItem === item { self.displayCriteria = criteria }
+            if self.wantHDR {
+                self.hdr.onDisplayCriteria = { [weak self] criteria in
+                    guard let self, self.usesHDRPlayer else { return }
+                    self.displayCriteria = criteria
                 }
+                self.hdr.open(url, bufferMs: bufferMs, in: self.view)
                 return
             }
             #endif
@@ -179,7 +181,8 @@ final class PlaybackController: ObservableObject {
             #endif
         }
         pendingOpen = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + (hadStream ? 0.4 : 0), execute: work)
+        // The HDR player's connection closes from its own thread: give it a little longer.
+        DispatchQueue.main.asyncAfter(deadline: .now() + (closingHDR ? 1.0 : (hadStream ? 0.4 : 0)), execute: work)
         startPolling()
     }
 
@@ -188,10 +191,9 @@ final class PlaybackController: ObservableObject {
     private func closeCurrent() -> Bool {
         #if canImport(VLCKitSPM)
         var had = false
-        #if os(tvOS)
-        if apple.currentItem != nil {
-            apple.pause()
-            apple.replaceCurrentItem(with: nil)
+        #if os(tvOS) && canImport(KSPlayer)
+        if hdr.isOpen {
+            hdr.close()
             displayCriteria = nil
             had = true
         }
@@ -213,14 +215,18 @@ final class PlaybackController: ObservableObject {
     func reload(bufferMs: Int) {
         guard let url = currentURL else { return }
         currentURL = nil
+        #if os(tvOS) && canImport(KSPlayer)
+        play(url, bufferMs: bufferMs, hdrPlayer: wantHDR)
+        #else
         play(url, bufferMs: bufferMs)
+        #endif
     }
 
     func togglePause() {
         #if canImport(VLCKitSPM)
-        #if os(tvOS)
-        if usesApplePlayer {
-            if apple.rate > 0 { apple.pause() } else { apple.play() }
+        #if os(tvOS) && canImport(KSPlayer)
+        if usesHDRPlayer {
+            hdr.togglePause()
             return
         }
         #endif
@@ -237,6 +243,9 @@ final class PlaybackController: ObservableObject {
         pendingOpen = nil
         closeCurrent()
         currentURL = nil
+        #if os(tvOS)
+        usesHDRPlayer = false
+        #endif
         status = .idle
         onChange?()
     }
@@ -252,9 +261,9 @@ final class PlaybackController: ObservableObject {
         // Between closing one stream and opening the next there's nothing to look at.
         if pendingOpen != nil { return }
         #if canImport(VLCKitSPM)
-        #if os(tvOS)
-        if usesApplePlayer {
-            pollApple()
+        #if os(tvOS) && canImport(KSPlayer)
+        if usesHDRPlayer {
+            pollHDR()
             return
         }
         #endif
@@ -310,53 +319,42 @@ final class PlaybackController: ObservableObject {
         #endif
     }
 
-    #if canImport(VLCKitSPM) && os(tvOS)
-    /// Apple's player (4K channels): its state, size and frame rate; if it hasn't shown a picture after 8 seconds (or
-    /// fails), the same channel opens on VLC instead.
-    private func pollApple() {
-        if appleLayer.frame != view.bounds {
-            CATransaction.begin()
-            CATransaction.setDisableActions(true)
-            appleLayer.frame = view.bounds
-            CATransaction.commit()
-        }
-        guard let item = apple.currentItem else { return }
-        let noPicture = item.presentationSize.height == 0
-        if item.status == .failed || (noPicture && Date().timeIntervalSince(appleOpenedAt) > 8) {
-            if let fallback = fallbackURL {
-                fallbackURL = nil
-                wantApple = false
-                open(fallback, bufferMs: lastBufferMs, quiet: false)
-            } else {
-                status = .failed("This stream couldn't be opened. Try another stream for this game.")
+    #if os(tvOS) && canImport(KSPlayer)
+    /// The HDR player (4K channels): its state, size, frame rate and sound. If it shows no picture within 7 seconds
+    /// (or fails before showing one), it is closed and, once its connection is gone, the same stream opens on VLC.
+    private func pollHDR() {
+        let noPicture = !hdr.hasShownPicture
+        if noPicture && (hdr.state == .failed || Date().timeIntervalSince(hdr.openedAt) > 7) {
+            if let url = currentURL {
+                hdrFailed.insert(url)
+                wantHDR = false
+                open(url, bufferMs: lastBufferMs, quiet: false)   // closes the HDR player first
             }
             return
         }
-        switch item.status {
-        case .readyToPlay:
-            switch apple.timeControlStatus {
-            case .playing: status = .playing
-            case .paused: status = .paused
-            default: status = .buffering
-            }
-        default:
-            status = .opening
+        switch hdr.state {
+        case .opening: status = .opening
+        case .buffering: status = .buffering
+        case .playing: status = .playing
+        case .paused: status = .paused
+        case .ended: status = .ended
+        case .failed: status = .failed("This stream couldn't be opened. Try another stream for this game.")
         }
-        if item.presentationSize.height > 0 { resolution = Self.label(item.presentationSize.height) }
+        let height = hdr.videoHeight
+        if height > 0 { resolution = Self.label(height) }
         let watching = !resolution.isEmpty && (status == .playing || status == .buffering)
-        switch freezeWatch.check(progress: item.currentTime().seconds, watching: watching) {
+        switch freezeWatch.check(progress: hdr.time, watching: watching) {
         case .restart: restartQuietly()
         case .skip: onRepeatedFreezing?()
         case .none: break
         }
         if status == .playing {
             playingPolls += 1
-            if playingPolls >= 4 && frameRate == 0,
-               let track = item.tracks.first(where: { $0.assetTrack?.mediaType == .video }), track.currentVideoFrameRate > 0 {
-                var fps = Double(track.currentVideoFrameRate)
-                if fps > 61 { fps /= 2 }
-                frameRate = fps
+            if playingPolls >= 4 && frameRate == 0 {
+                let fps = hdr.frameRate
+                if fps > 0 { frameRate = fps }
             }
+            if playingPolls >= 4 && audio.isEmpty, let sound = hdr.sound { audio = sound }
         }
     }
     #endif

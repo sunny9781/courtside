@@ -43,6 +43,16 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Apple TV shell ignores all safe areas (own 20pt margin); the now-playing bar sits on the screen's bottom edge.
 - EPG: favourites (hold select / heart) listed first; Hide via hold; Settings › Hidden lists hidden sports, leagues,
   categories, channels. Hidden sports/leagues are switched off (not fetched, not matched).
+- Apple TV playback (1.86): VLCKit 3.6 for everything except 4K channels, which play with KSPlayer
+  (kingslay/KSPlayer, pinned by revision 3df1658 = tag 5.6.2, product KSPlayerUI so FFmpegKit comes along; GPL build:
+  KSPlayer itself is a closed binary framework, fine for this public repo; the paid LGPL build is the alternative).
+  `CourtsideTV/HDRPlayer.swift` wraps KSPlayerLayer with KSMEPlayer only (no AVPlayer second try = no second
+  connection), on the same TS URL VLC uses. `HDROptions.updateVideo` hands AVDisplayCriteria (HDR + fps) to
+  PlaybackController.displayCriteria; TVPlayerView applies it in full screen only. No picture within 7 s (or an
+  error before one): close it, wait 1 s, open the same URL on VLC; that URL then skips the HDR player for the session.
+  Settings › Playback › "4K with the HDR player" (`hdrPlayerFor4K`, default on). `wantsHDRPlayer` in AppModel picks
+  4K by name/category/measured quality. The 1.80 AVPlayer/HLS path is gone. KSPlayer logs are set to panic (URLs).
+- Home game rows (both TVs, 1.86): stream count back (4K tag + count + TV icon, "None" in red), STREAMS heading.
 - Android Lite mode (default on except Nvidia Shield): no corner player (channels open full screen, Back stops),
   no live scores (games load once at open), no logos, no zoom.
 - Android streams open TS first (HLS fallback): HLS made the provider count extra connections while flipping.
@@ -61,6 +71,8 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   instead of one very long one.
 
 ## Open items
+- 1.86 Apple TV HDR player (KSPlayer): unconfirmed on the TV (HDR badge in full screen, 1/2 connections, 4K <-> normal
+  switching, sound/fps tags from KSPlayer track info).
 - 1.83 Apple TV EPG: rows 124/176 pt, wrapped titles, sport colour also from today's team names and the channel's
   category. Builds (check.yml passed); look on the TV not yet confirmed. Note: gh only works once the repo is attached
   to the session (add_repo, push).

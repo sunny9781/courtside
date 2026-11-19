@@ -860,17 +860,25 @@ final class AppModel: ObservableObject {
     }
     #endif
 
-    /// Apple TV: whether to play a channel with Apple's own player instead of VLC. Off (1.81): Apple's player only takes
-    /// HLS with H.264 in TS segments, and 4K HDR channels are HEVC, so it failed, fell back to VLC after 8 seconds and
-    /// left the provider counting two connections. The path stays for a provider that sends fMP4 HLS, or until
-    /// VLCKit 4 (HDR10 output) replaces VLCKit 3.6.
-    func wantsApplePlayer(_ channel: Channel) -> Bool { false }
+    /// Apple TV: whether to play a channel with the HDR player (KSPlayer: FFmpeg reads the same TS stream VLC would,
+    /// VideoToolbox decodes, HDR10 / HLG / Dolby Vision reach the TV as HDR). VLCKit 3 turns HDR into a dark standard
+    /// picture. 4K channels only; on by default, Settings › Playback can turn it off.
+    func wantsHDRPlayer(_ channel: Channel) -> Bool {
+        #if os(tvOS)
+        guard PlaybackController.hasHDRPlayer,
+              UserDefaults.standard.object(forKey: Prefs.hdrPlayerFor4K) as? Bool ?? true else { return false }
+        return CategoryGrouping.isUHD(channel.name) || CategoryGrouping.isUHD(channel.categoryName)
+            || measuredQuality[channel.id] == "4K"
+        #else
+        return false
+        #endif
+    }
 
-    /// Starts `channel` on the shared player: Apple's player for 4K on Apple TV (VLC if it can't), VLC otherwise.
+    /// Starts `channel` on the shared player: the HDR player for 4K on Apple TV (VLC if it shows nothing), VLC
+    /// otherwise. Both read the same TS stream, so the provider only ever sees one connection.
     func startStream(_ channel: Channel, on controller: PlaybackController, bufferMs: Int) {
-        let apple = wantsApplePlayer(channel)
-        guard let url = streamURL(for: channel, hls: apple || !PlaybackController.usesVLC) else { return }
-        controller.play(url, bufferMs: bufferMs, applePlayer: apple, fallback: apple ? streamURL(for: channel, hls: false) : nil)
+        guard let url = streamURL(for: channel, hls: !PlaybackController.usesVLC) else { return }
+        controller.play(url, bufferMs: bufferMs, hdrPlayer: wantsHDRPlayer(channel))
     }
 
     func streamURL(for channel: Channel, hls: Bool) -> URL? {
