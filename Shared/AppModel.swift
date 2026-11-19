@@ -217,6 +217,7 @@ final class AppModel: ObservableObject {
         accountTask?.cancel()
         CredentialStore.delete()
         try? FileManager.default.removeItem(at: Self.guideFile)
+        try? FileManager.default.removeItem(at: Self.savedGuideFile)
         try? FileManager.default.removeItem(at: Self.channelsFile)
         savedAt = nil
         credentials = nil
@@ -365,6 +366,10 @@ final class AppModel: ObservableObject {
         errorMessage = nil
         defer { isLoading = false }
 
+        // Today's scores start downloading straight away; nothing below waits for them until step 3.
+        let fetching = League.active
+        async let gamesTask = ScheduleClient().schedule(for: fetching)
+
         // 1. Saved channels, instantly.
         var stale = true
         if channels.isEmpty, let data = try? Data(contentsOf: Self.channelsFile),
@@ -377,8 +382,8 @@ final class AppModel: ObservableObject {
             stale = false
         }
 
-        let fetching = League.active
-        async let gamesTask = ScheduleClient().schedule(for: fetching)
+        // The saved guide right after the saved channels, so the EPG fills in without waiting for today's scores.
+        if guide.isEmpty, !channels.isEmpty { await loadSavedGuide() }
 
         // 2. Channels from the provider only when the saved copy is too old (or you asked), and never while a stream
         // plays (that would be a second connection): then it waits until the stream stops.
@@ -621,6 +626,78 @@ final class AppModel: ObservableObject {
         guide[channel.epgID]?.first { $0.start <= date && $0.end > date }
     }
 
+    /// The small saved guide: only the programmes the app shows, already read, so opening the app doesn't have to
+    /// read the provider's whole XMLTV file again. Kept next to channels.json.
+    nonisolated static var savedGuideFile: URL {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        return caches.appendingPathComponent("Courtside", isDirectory: true).appendingPathComponent("guide.json")
+    }
+
+    private struct SavedGuide: Codable {
+        let savedAt: Date
+        let programmes: [String: [Programme]]
+    }
+
+    /// From an hour ago to the end of what Settings shows ahead.
+    private var guideWindow: (from: Date, to: Date) {
+        let hours = Double(max(UserDefaults.standard.integer(forKey: Prefs.guideHours), 2))
+        return (Date().addingTimeInterval(-3600), Date().addingTimeInterval(hours * 3600))
+    }
+
+    /// The saved copy also covers the time until the next refresh, so it's still complete when the app reopens later.
+    private var savedGuideEnd: Date { guideWindow.to.addingTimeInterval(refreshInterval) }
+
+    nonisolated private static func trimmed(_ all: [String: [Programme]], wanted: Set<String>,
+                                            from: Date, to: Date) -> [String: [Programme]] {
+        var out: [String: [Programme]] = [:]
+        for (id, list) in all where wanted.contains(id) {
+            let kept = list.filter { $0.start < to && $0.end > from }
+            if !kept.isEmpty { out[id] = kept }
+        }
+        return out
+    }
+
+    nonisolated private static func writeSavedGuide(_ programmes: [String: [Programme]], savedAt: Date) -> Bool {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .secondsSince1970
+        guard let data = try? encoder.encode(SavedGuide(savedAt: savedAt, programmes: programmes)) else { return false }
+        try? FileManager.default.createDirectory(at: savedGuideFile.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        return (try? data.write(to: savedGuideFile, options: .atomic)) != nil
+    }
+
+    /// Shows the saved guide (no download). Returns false when there's none to show.
+    @discardableResult
+    private func loadSavedGuide() async -> Bool {
+        let wanted = Set(channels.map(\.epgID).filter { !$0.isEmpty })
+        guard !wanted.isEmpty else { return false }
+        let (from, to) = guideWindow
+        let end = savedGuideEnd
+        let json = Self.savedGuideFile
+        let xml = Self.guideFile
+        let loaded: (guide: [String: [Programme]], savedAt: Date?)? = await Task.detached(priority: .userInitiated) {
+            if let data = try? Data(contentsOf: json) {
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .secondsSince1970
+                if let saved = try? decoder.decode(SavedGuide.self, from: data) {
+                    return (Self.trimmed(saved.programmes, wanted: wanted, from: from, to: to), saved.savedAt)
+                }
+            }
+            // Older versions kept only the provider's whole file: read it this once and save the small copy.
+            guard FileManager.default.fileExists(atPath: xml.path),
+                  let all = try? XtreamClient.parseGuide(file: xml, wanted: wanted, from: from, to: end) else { return nil }
+            let date = (try? xml.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            if Self.writeSavedGuide(all, savedAt: date ?? Date()) { try? FileManager.default.removeItem(at: xml) }
+            return (Self.trimmed(all, wanted: wanted, from: from, to: to), date)
+        }.value
+        // A download that finished in the meantime is newer: keep it.
+        guard let loaded, !loaded.guide.isEmpty, guide.isEmpty else { return false }
+        guide = loaded.guide
+        guideUpdated = loaded.savedAt
+        await rematch()
+        return true
+    }
+
     /// Shows the saved guide instantly, and downloads a fresh one when asked or when there's no saved guide.
     func loadGuide(download: Bool = true) async {
         guard let creds = credentials else { return }
@@ -629,27 +706,17 @@ final class AppModel: ObservableObject {
             guideStatus = "Your provider doesn't link its channels to a guide."
             return
         }
-        let hours = Double(max(UserDefaults.standard.integer(forKey: Prefs.guideHours), 2))
-        let from = Date().addingTimeInterval(-3600)
-        let to = Date().addingTimeInterval(hours * 3600)
-        let file = Self.guideFile
-
-        let haveFile = FileManager.default.fileExists(atPath: file.path)
-        if haveFile, (guide.isEmpty || !download),
-           let cached = try? await Task.detached(priority: .userInitiated, operation: {
-               try XtreamClient.parseGuide(file: file, wanted: wanted, from: from, to: to)
-           }).value {
-            guide = cached
-            guideUpdated = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
-            await rematch()
-            if !download { return }   // the saved guide is recent enough
-        }
+        if guide.isEmpty { await loadSavedGuide() }
+        if !download && !guide.isEmpty { return }   // the saved guide is recent enough
 
         if streamOpen {
             guidePending = true
             refreshWaiting = true
             return
         }
+        let (from, to) = guideWindow
+        let end = savedGuideEnd
+        let file = Self.guideFile
         guideStatus = "Updating the guide…"
         guideDownloading = true
         guideProgress = nil
@@ -662,9 +729,12 @@ final class AppModel: ObservableObject {
                     self?.guideProgress = total > 0 ? min(1, Double(read) / Double(total)) : nil
                 }
             }
-            let fresh = try await Task.detached(priority: .utility, operation: {
-                try XtreamClient.parseGuide(file: file, wanted: wanted, from: from, to: to)
-            }).value
+            let fresh = try await Task.detached(priority: .utility) { () throws -> [String: [Programme]] in
+                let all = try XtreamClient.parseGuide(file: file, wanted: wanted, from: from, to: end)
+                // Keep only the small copy: the provider's file is large and only needed once.
+                if Self.writeSavedGuide(all, savedAt: Date()) { try? FileManager.default.removeItem(at: file) }
+                return Self.trimmed(all, wanted: wanted, from: from, to: to)
+            }.value
             guide = fresh
             guideUpdated = Date()
             guideStatus = nil

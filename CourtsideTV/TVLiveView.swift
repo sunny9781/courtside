@@ -502,8 +502,8 @@ struct TVChannelRow: View {
 enum TVGuide {
     static let channelWidth: CGFloat = 330
     static let span: TimeInterval = 150 * 60
-    static let rowHeight: CGFloat = 62
-    static let openHeight: CGFloat = 116
+    static let rowHeight: CGFloat = 92
+    static let openHeight: CGFloat = 136
     static let gap: CGFloat = 8
 
     /// The guide starts at the last half hour, so up to 30 minutes of what's on is behind the line.
@@ -512,30 +512,39 @@ enum TVGuide {
         return Date(timeIntervalSinceReferenceDate: (t / 1800).rounded(.down) * 1800)
     }
 
-    /// A dark shade per sport (white text reads on all of them); anything else is neutral.
-    static func fill(_ sport: Sport?) -> Color {
+    /// A shade per sport (white text reads on all of them).
+    static func fill(_ sport: Sport) -> Color {
         switch sport {
-        case .basketball: return Color(hex: 0x6A3512)
-        case .hockey: return Color(hex: 0x1C3D6B)
-        case .football: return Color(hex: 0x1F5634)
-        case .soccer: return Color(hex: 0x14585A)
-        case .motorsport: return Color(hex: 0x6B1D27)
-        case .cricket: return Color(hex: 0x574510)
-        case .baseball: return Color(hex: 0x5A2440)
-        case .fighting: return Color(hex: 0x4A3424)
-        case .tennis: return Color(hex: 0x3F5414)
-        case .golf: return Color(hex: 0x2B4A22)
-        case .rugby: return Color(hex: 0x3D2F5A)
-        case .aussieRules: return Color(hex: 0x5A3A12)
-        case .lacrosse: return Color(hex: 0x24465A)
-        case .pickleball: return Color(hex: 0x4E5A12)
-        case nil: return Color(hex: 0x262B36)
+        case .basketball: return Color(hex: 0x8A4214)
+        case .hockey: return Color(hex: 0x22508F)
+        case .football: return Color(hex: 0x267040)
+        case .soccer: return Color(hex: 0x177375)
+        case .motorsport: return Color(hex: 0x8A2532)
+        case .cricket: return Color(hex: 0x75600F)
+        case .baseball: return Color(hex: 0x76305A)
+        case .fighting: return Color(hex: 0x6A4A2E)
+        case .tennis: return Color(hex: 0x557018)
+        case .golf: return Color(hex: 0x3A6430)
+        case .rugby: return Color(hex: 0x52408A)
+        case .aussieRules: return Color(hex: 0x7A5016)
+        case .lacrosse: return Color(hex: 0x2E5F7A)
+        case .pickleball: return Color(hex: 0x687A16)
         }
+    }
+
+    /// Channels whose sport can't be told still get a colour of their own (the same one every time), like UHF.
+    private static let channelFills: [UInt32] = [0x5B3A8C, 0x2C5D8A, 0x7A3B5E, 0x2F6F6A, 0x6E5320, 0x3E5C2E, 0x803A2A, 0x46508A]
+
+    @MainActor static func fill(title: String, channel: Channel, games: [Game]) -> Color {
+        if let s = sport(title: title, channel: channel, games: games) { return fill(s) }
+        var h: UInt32 = 5381
+        for b in channel.name.utf8 { h = (h &* 33) &+ UInt32(b) }
+        return Color(hex: channelFills[Int(h % UInt32(channelFills.count))])
     }
 
     private static let words: [(Sport, [String])] = [
         (.basketball, ["nba", "wnba", "basketball", "ncaab", "euroleague", "march madness"]),
-        (.hockey, ["nhl", "hockey", "ahl", "ohl", "whl", "khl", "stanley cup"]),
+        (.hockey, ["nhl", "hockey", "hockey night", "ahl", "ohl", "whl", "khl", "stanley cup"]),
         (.football, ["nfl", "cfl", "ncaaf", "college football", "super bowl", "redzone", "red zone", "grey cup"]),
         (.baseball, ["mlb", "baseball", "world series"]),
         (.soccer, ["soccer", "epl", "premier league", "champions league", "europa league", "conference league", "la liga",
@@ -553,16 +562,57 @@ enum TVGuide {
 
     @MainActor private static var cache: [String: Sport?] = [:]
 
-    /// The sport a programme is about, from its title, else from the channel's name ("NBA TV").
-    @MainActor static func sport(title: String, channel: String) -> Sport? {
+    /// The sport a programme is about: from its title (league or sport words, or a team playing today), else the
+    /// channel's name ("NBA TV"), else the channel's category ("USA | NHL").
+    @MainActor static func sport(title: String, channel: Channel, games: [Game]) -> Sport? {
         if let hit = guess(title) { return hit }
-        return guess(channel)
+        if let hit = team(title, games: games) { return hit }
+        if let hit = guess(channel.name) { return hit }
+        return guess(channel.categoryName)
+    }
+
+    @MainActor private static var teams: [String: Sport] = [:]
+    @MainActor private static var teamsFrom = -1
+    @MainActor private static var teamCache: [String: Sport?] = [:]
+
+    /// Team names from the scoreboard ("raptors", "toronto raptors") and their sport; a nickname two sports share
+    /// ("kings", "panthers") is left out.
+    @MainActor private static func team(_ title: String, games: [Game]) -> Sport? {
+        if teamsFrom != games.count {
+            var map: [String: Sport] = [:]
+            var clash: Set<String> = []
+            for g in games where !g.isEvent {
+                for t in [g.away, g.home] {
+                    for n in [t.name, t.nickname, t.shortName] {
+                        let key = normalized(n).trimmingCharacters(in: .whitespaces)
+                        guard key.count >= 4 else { continue }
+                        if let had = map[key], had != g.league.sport { clash.insert(key) }
+                        map[key] = g.league.sport
+                    }
+                }
+            }
+            for k in clash { map[k] = nil }
+            teams = map
+            teamsFrom = games.count
+            teamCache = [:]
+        }
+        if let hit = teamCache[title] { return hit }
+        let clean = normalized(title)
+        let found = teams.first { clean.contains(" \($0.key) ") }?.value
+        if teamCache.count > 4000 { teamCache.removeAll() }
+        teamCache[title] = found
+        return found
+    }
+
+    /// Lower case, letters and digits only, single spaces, with a space at each end (so whole words match).
+    private static func normalized(_ text: String) -> String {
+        let letters = String(text.lowercased().map { $0.isLetter || $0.isNumber ? $0 : " " })
+        return " " + letters.split(separator: " ").joined(separator: " ") + " "
     }
 
     @MainActor private static func guess(_ text: String) -> Sport? {
         if let hit = cache[text] { return hit }
-        let letters = String(text.lowercased().map { $0.isLetter || $0.isNumber ? $0 : " " })
-        let clean = " " + letters.split(separator: " ").joined(separator: " ") + " "
+        let clean = normalized(text)
         let found = words.first { entry in entry.1.contains { clean.contains(" \($0) ") } }?.0
         if cache.count > 4000 { cache.removeAll() }
         cache[text] = found
@@ -661,10 +711,12 @@ struct TVGuideRow: View {
         let fps = model.measuredFrameRate[channel.id] ?? 0
         let sound = model.measuredAudio[channel.id]
         return HStack(spacing: 14) {
-            TVChannelIcon(url: channel.icon, size: 40)
-            VStack(alignment: .leading, spacing: 8) {
+            TVChannelIcon(url: channel.icon, size: 46)
+            VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 10) {
-                    TVScrollingText(text: channel.name, font: .system(size: 22, weight: .semibold), active: focused)
+                    Text(channel.name)
+                        .font(.system(size: 23, weight: .semibold))
+                        .lineLimit(2)
                         .foregroundStyle(playing && !focused ? Theme.accent : (focused ? Theme.bg : Theme.text))
                     if playing {
                         Image(systemName: "speaker.wave.2.fill")
@@ -701,39 +753,31 @@ struct TVGuideRow: View {
         let width = max(e.timeIntervalSince(s) * perSecond - TVGuide.gap / 2, 0)
         let isNow = p.start <= now && p.end > now
         let lit = focused && isNow
-        let sport = TVGuide.sport(title: p.title, channel: channel.name)
+        let colour = TVGuide.fill(title: p.title, channel: channel, games: model.games)
         let sub = lit ? Color(hex: 0x4A4F5C) : Color.white.opacity(0.78)
         let elapsed = min(max(now.timeIntervalSince(s) * perSecond, 0), width)
         ZStack(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 10).fill(lit ? Theme.text : TVGuide.fill(sport))
+            RoundedRectangle(cornerRadius: 10).fill(lit ? Theme.text : colour)
             // What's already been on is a shade darker.
             Rectangle().fill(Color.black.opacity(lit ? 0.07 : 0.28)).frame(width: elapsed)
-            if focused {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 12) {
-                        Text(isNow ? "\(TVGuide.time(p.start)) – \(TVGuide.time(p.end))" : TVGuide.time(p.start))
-                        if isNow { Text(TVGuide.left(p.end.timeIntervalSince(now))) }
-                    }
-                    .font(.system(size: 18))
-                    .foregroundStyle(sub)
-                    .lineLimit(1)
-                    TVScrollingText(text: p.title, font: .system(size: 24, weight: .bold), active: lit)
-                        .foregroundStyle(lit ? Theme.bg : Theme.text)
+            // Times on top, then the title over up to two lines (three on the row you're on).
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 12) {
+                    Text(focused && isNow ? "\(TVGuide.time(p.start)) – \(TVGuide.time(p.end))" : TVGuide.time(p.start))
+                    if focused && isNow { Text(TVGuide.left(p.end.timeIntervalSince(now))) }
                 }
-                .padding(.horizontal, 14)
-            } else {
-                HStack(spacing: 10) {
-                    Text(TVGuide.time(p.start))
-                        .font(.system(size: 17))
-                        .foregroundStyle(sub)
-                        .fixedSize()
-                    Text(p.title)
-                        .font(.system(size: 21, weight: .semibold))
-                        .foregroundStyle(Theme.text)
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, 12)
+                .font(.system(size: 16))
+                .foregroundStyle(sub)
+                .lineLimit(1)
+                Text(p.title)
+                    .font(.system(size: focused ? 23 : 20, weight: focused ? .bold : .semibold))
+                    .foregroundStyle(lit ? Theme.bg : Theme.text)
+                    .lineLimit(focused ? 3 : 2)
+                    .minimumScaleFactor(0.85)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(.horizontal, 12)
+            .frame(maxHeight: .infinity, alignment: .center)
         }
         .frame(width: width, height: height, alignment: .leading)
         .clipShape(RoundedRectangle(cornerRadius: 10))

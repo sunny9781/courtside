@@ -74,11 +74,23 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
-        Release(version: "1.83", date: "2026-11-18", time: "20:49", title: "Real HDR for 4K", changes: [
+        Release(version: "1.86", date: "2026-11-18", time: "21:17", title: "Real HDR for 4K", changes: [
             Change(text: "4K channels play on a new HDR player (FFmpeg with the Apple TV's own decoder), so HDR shows as HDR: in full screen the TV switches into HDR and the channel's frame rate, like other apps. Everything else stays on VLC.", apps: tv),
             Change(text: "It uses the same stream as VLC, so it's still one connection. If a 4K channel shows no picture within a few seconds, it closes and the channel opens with VLC instead.", apps: tv),
             Change(text: "4K channels show an HDR10, HLG or Dolby Vision tag next to the quality, frame rate and sound.", apps: tv),
             Change(text: "Settings › Playback › HDR player for 4K turns it off.", apps: tv)
+        ]),
+        Release(version: "1.85", date: "2026-11-18", time: "21:25", title: "EPG ready faster", changes: [
+            Change(text: "EPG: after reopening or updating the app, the saved guide shows straight away instead of after today's scores load.", apps: all),
+            Change(text: "The guide is saved as a small copy with only the programmes the app shows, so it no longer reads the provider's whole guide file every time it opens (it's also much less for the Apple TV to clear when it needs space).", apps: all)
+        ]),
+        Release(version: "1.84", date: "2026-11-18", time: "21:10", title: "Every show in colour", changes: [
+            Change(text: "EPG: every programme is coloured now. Games keep their sport's colour (brighter than before); everything else takes its channel's own colour, the same each time.", apps: tv),
+            Change(text: "EPG: rows are a bit smaller again (between 1.81 and 1.83), still with titles over two lines.", apps: tv)
+        ]),
+        Release(version: "1.83", date: "2026-11-18", time: "20:55", title: "Bigger EPG rows, more colour", changes: [
+            Change(text: "EPG: rows are twice as tall, with programme titles over two lines (three on the row you're on) and bigger channel logos.", apps: tv),
+            Change(text: "EPG: more programmes get their sport's colour: games are also recognised by today's team names (\"Bucks at Heat\"), and by the channel's category when the title and channel name don't say.", apps: tv)
         ]),
         Release(version: "1.82", date: "2026-11-18", time: "20:45", title: "4K back to one connection", changes: [
             Change(text: "4K channels play with VLC again, like everything else: Apple's player can't play this provider's 4K HDR streams, so it gave up after 8 seconds and the switch counted as two connections. The 4K with Apple's player setting is gone.", apps: tv)

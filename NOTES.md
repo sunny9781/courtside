@@ -45,7 +45,7 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   categories, channels. Hidden sports/leagues are switched off (not fetched, not matched).
 - Android Lite mode (default on except Nvidia Shield): no corner player (channels open full screen, Back stops),
   no live scores (games load once at open), no logos, no zoom.
-- Apple TV playback (1.83): VLCKit 3.6 for everything except 4K channels, which play on `CourtsideTV/HDREngine.swift`
+- Apple TV playback (1.86): VLCKit 3.6 for everything except 4K channels, which play on `CourtsideTV/HDREngine.swift`
   (KSPlayer 5.6.2 GPL build: a binary xcframework with a tvOS slice, + FFmpegKit 9; linked only into CourtsideTV, so
   `#if os(tvOS) && canImport(KSPlayer)`). It reads the same TS URL as VLC (one connection), passes the video's
   frame rate + format to `displayCriteria` (applied only in full screen by TVPlayerView; KSPlayer's own TV switch is
@@ -57,6 +57,10 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Android full screen always uses SurfaceView (no HDR switch; the TV's Match content setting decides HDR). The video
   renderer forces a fresh decoder on every surface change (handover garbled 4K on Chromecast).
 
+- Apple guide (1.85): parsed guide saved as Caches/Courtside/guide.json (wanted channels, up to guide hours + refresh
+  interval ahead); the raw guide.xml is deleted after parsing. `refresh()` loads it right after saved channels, while
+  ESPN downloads (Android does the same via Cache.kt). tvOS can still purge Caches (no persistent storage there).
+
 ## Working preferences (Sunny)
 - Report how long each request took.
 - Always tell Sunny when a release is actually published (after the main runs finish), not just merged.
@@ -65,9 +69,11 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   instead of one very long one.
 
 ## Open items
-- 1.83 Apple TV HDR player: unconfirmed on the TV (HDR badge in full screen, 1/2 connections, 4K ↔ normal switching,
+- 1.86 Apple TV HDR player: unconfirmed on the TV (HDR badge in full screen, 1/2 connections, 4K ↔ normal switching,
   sound/fps tags from KSPlayer's track info).
-- 1.81 Apple TV timeline EPG: merged without the check.yml build (gh had no login in that session); unconfirmed on the TV.
+- 1.83 Apple TV EPG: rows 124/176 pt, wrapped titles, sport colour also from today's team names and the channel's
+  category. Builds (check.yml passed); look on the TV not yet confirmed. Note: gh only works once the repo is attached
+  to the session (add_repo, push).
 - iPhone Home "Live Now" blue bar: unexplained; ask for a screenshot if it's still there.
 - Chromecast crashes: Android now saves crash details (shown once on next start, and in Settings › General).
 - Apple TV hasn't got a Lite mode (not needed so far).
