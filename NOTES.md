@@ -71,8 +71,9 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   instead of one very long one.
 
 ## Open items
-- 1.87 Apple TV HDR player (KSPlayer): unconfirmed on the TV (HDR badge in full screen, 1/2 connections, 4K <-> normal
-  switching, sound/fps tags from KSPlayer track info).
+- 1.87 Apple TV HDR player (KSPlayer): HDR badge confirmed on the TV in full screen. Still to confirm: 1/2 connections,
+  4K <-> normal switching, fps/sound tags. First build after 1.87 downloads KSPlayer + FFmpegKit git history (~2.5 GB,
+  one time; later builds reuse build-tv/SourcePackages).
 - 1.83 Apple TV EPG: rows 124/176 pt, wrapped titles, sport colour also from today's team names and the channel's
   category. Builds (check.yml passed); look on the TV not yet confirmed. Note: gh only works once the repo is attached
   to the session (add_repo, push).
