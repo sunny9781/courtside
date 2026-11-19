@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.82", date: "2026-11-18", time: "20:45", title: "4K back to one connection", changes: [
+            Change(text: "4K channels play with VLC again, like everything else: Apple's player can't play this provider's 4K HDR streams, so it gave up after 8 seconds and the switch counted as two connections. The 4K with Apple's player setting is gone.", apps: tv)
+        ]),
         Release(version: "1.81", date: "2026-11-18", time: "20:45", title: "New EPG: a timeline", changes: [
             Change(text: "EPG: channels now show two and a half hours of programmes laid out by time, coloured by sport (basketball orange, hockey blue, football green, soccer teal, motorsport red...), with an orange line at the current time and what's already been on a shade darker.", apps: tv),
             Change(text: "EPG: the channel you're on opens up to two lines: start and end times, time left, the full title, and the stream's quality, frame rate and sound under the channel's name.", apps: tv)
