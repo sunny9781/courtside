@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.84", date: "2026-11-18", time: "21:20", title: "EPG ready faster", changes: [
+            Change(text: "EPG: after reopening or updating the app, the saved guide shows straight away instead of after today's scores load.", apps: all),
+            Change(text: "The guide is saved as a small copy with only the programmes the app shows, so it no longer reads the provider's whole guide file every time it opens (it's also much less for the Apple TV to clear when it needs space).", apps: all)
+        ]),
         Release(version: "1.83", date: "2026-11-18", time: "20:55", title: "Bigger EPG rows, more colour", changes: [
             Change(text: "EPG: rows are twice as tall, with programme titles over two lines (three on the row you're on) and bigger channel logos.", apps: tv),
             Change(text: "EPG: more programmes get their sport's colour: games are also recognised by today's team names (\"Bucks at Heat\"), and by the channel's category when the title and channel name don't say.", apps: tv)

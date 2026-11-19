@@ -29,7 +29,7 @@ struct Channel: Identifiable, Hashable, Codable {
     let icon: URL?
 }
 
-struct Programme: Hashable {
+struct Programme: Hashable, Codable {
     let title: String
     let start: Date
     let end: Date
