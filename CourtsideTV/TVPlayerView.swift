@@ -95,12 +95,12 @@ struct TVPlayerView: View {
         .onChange(of: controller.audio) { model.recordAudio(item.channel.id, controller.audio) }
         .onChange(of: controller.frameRate) {
             model.recordFrameRate(item.channel.id, controller.frameRate)
-            // Apple's player (4K) says exactly what the TV should switch to, HDR included (below).
-            if matchFrameRate && !controller.usesApplePlayer {
+            // The 4K player says exactly what the TV should switch to, HDR included (below).
+            if matchFrameRate && !controller.usesHDREngine {
                 DisplayMatcher.match(frameRate: controller.frameRate, height: controller.resolution)
             }
         }
-        // 4K on Apple's player: switch the TV to the stream's own frame rate and dynamic range (HDR10, Dolby Vision,
+        // 4K player: switch the TV to the stream's own frame rate and dynamic range (HDR10, Dolby Vision,
         // HLG), like other apps do, so HDR shows as HDR. The Apple TV's Match Content settings still decide.
         .onChange(of: controller.displayCriteria) {
             if let criteria = controller.displayCriteria { DisplayMatcher.apply(criteria) }
@@ -239,6 +239,9 @@ struct TVPlayerView: View {
             }
             if !controller.audio.isEmpty {
                 TVBadge(text: controller.audio)
+            }
+            if !controller.dynamicRange.isEmpty {
+                TVBadge(text: controller.dynamicRange)
             }
         }
         .padding(.horizontal, 80)

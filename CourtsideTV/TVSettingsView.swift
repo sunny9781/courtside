@@ -5,6 +5,7 @@ struct TVSettingsView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
     @AppStorage(Prefs.matchFrameRate) private var matchFrameRate = true
+    @AppStorage(Prefs.hdrPlayer4K) private var hdrPlayer4K = true
     @AppStorage(Prefs.guideGrouped) private var grouped = true
     @AppStorage(Prefs.hideSD) private var hideSD = true
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
@@ -169,6 +170,11 @@ struct TVSettingsView: View {
                           ? "Switches your TV to each stream's frame rate (50 or 60 fps) for smoother motion."
                           : "Also turn on Settings › Video and Audio › Match Content › Match Frame Rate on the Apple TV."),
                    $matchFrameRate)
+            if PlaybackController.hasHDREngine {
+                toggle("HDR player for 4K",
+                       detail: "4K channels show HDR as HDR (the TV switches into HDR in full screen). Off: 4K plays with VLC like everything else, in standard range.",
+                       $hdrPlayer4K)
+            }
             action("Buffer", detail: "More buffer means fewer stalls but a longer delay behind live.",
                    value: "\(bufferMs / 1000) s") {
                 bufferMs = next(after: bufferMs, in: [1000, 2000, 3000, 5000])

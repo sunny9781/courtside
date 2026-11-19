@@ -11,6 +11,8 @@
 		C0A200000000000000000011 /* VLCKitSPM in Frameworks */ = {isa = PBXBuildFile; productRef = C0A200000000000000000012 /* VLCKitSPM */; };
 		C0A300000000000000000011 /* VLCKitSPM in Frameworks */ = {isa = PBXBuildFile; productRef = C0A300000000000000000012 /* VLCKitSPM */; };
 		C0A400000000000000000003 /* GoogleCastDynamic in Frameworks */ = {isa = PBXBuildFile; productRef = C0A400000000000000000002 /* GoogleCastDynamic */; };
+		C0A500000000000000000003 /* KSPlayer in Frameworks */ = {isa = PBXBuildFile; productRef = C0A500000000000000000002 /* KSPlayer */; };
+		C0A600000000000000000003 /* FFmpegKit in Frameworks */ = {isa = PBXBuildFile; productRef = C0A600000000000000000002 /* FFmpegKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -59,6 +61,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				C0A200000000000000000011 /* VLCKitSPM in Frameworks */,
+				C0A500000000000000000003 /* KSPlayer in Frameworks */,
+				C0A600000000000000000003 /* FFmpegKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -144,6 +148,8 @@
 			name = CourtsideTV;
 			packageProductDependencies = (
 				C0A200000000000000000012 /* VLCKitSPM */,
+				C0A500000000000000000002 /* KSPlayer */,
+				C0A600000000000000000002 /* FFmpegKit */,
 			);
 			productName = CourtsideTV;
 			productReference = C0A200000000000000000001 /* CourtsideTV.app */;
@@ -207,6 +213,8 @@
 			packageReferences = (
 				5149E61D30A8AD4C0043DA0E /* XCRemoteSwiftPackageReference "vlckit-spm" */,
 				C0A400000000000000000001 /* XCRemoteSwiftPackageReference "google-cast-ios-sdk" */,
+				C0A500000000000000000001 /* XCRemoteSwiftPackageReference "KSPlayer" */,
+				C0A600000000000000000001 /* XCRemoteSwiftPackageReference "FFmpegKit" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C0A100000000000000000006 /* Products */;
@@ -521,6 +529,22 @@
 				minimumVersion = 4.8.6;
 			};
 		};
+		C0A500000000000000000001 /* XCRemoteSwiftPackageReference "KSPlayer" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/kingslay/KSPlayer";
+			requirement = {
+				kind = exactVersion;
+				version = 5.6.2;
+			};
+		};
+		C0A600000000000000000001 /* XCRemoteSwiftPackageReference "FFmpegKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/kingslay/FFmpegKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 9.0.2;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -543,6 +567,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C0A400000000000000000001 /* XCRemoteSwiftPackageReference "google-cast-ios-sdk" */;
 			productName = GoogleCastDynamic;
+		};
+		C0A500000000000000000002 /* KSPlayer */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0A500000000000000000001 /* XCRemoteSwiftPackageReference "KSPlayer" */;
+			productName = KSPlayer;
+		};
+		C0A600000000000000000002 /* FFmpegKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C0A600000000000000000001 /* XCRemoteSwiftPackageReference "FFmpegKit" */;
+			productName = FFmpegKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

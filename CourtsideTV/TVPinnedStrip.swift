@@ -68,6 +68,7 @@ struct TVNowPlayingBar: View {
                 if !controller.resolution.isEmpty { TVBadge(text: controller.resolution) }
                 if controller.frameRate > 0 { TVBadge(text: PlaybackController.fpsLabel(controller.frameRate)) }
                 if !controller.audio.isEmpty { TVBadge(text: controller.audio) }
+                if !controller.dynamicRange.isEmpty { TVBadge(text: controller.dynamicRange) }
                 Text(title).font(.system(size: 22, weight: .bold)).foregroundStyle(Theme.text).lineLimit(1)
                 if let now {
                     if !now.title.isEmpty && now.title != title {
