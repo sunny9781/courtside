@@ -790,6 +790,25 @@ final class AppModel: ObservableObject {
     }
     #endif
 
+    /// Apple TV: 4K channels play with Apple's own player (as HLS), which sends HDR to the TV as HDR; VLC turns it into
+    /// a dark standard-range picture. On by default; Settings › Playback can turn it off.
+    func wantsApplePlayer(_ channel: Channel) -> Bool {
+        #if os(tvOS)
+        guard UserDefaults.standard.object(forKey: Prefs.appleFor4K) as? Bool ?? true else { return false }
+        return CategoryGrouping.isUHD(channel.name) || CategoryGrouping.isUHD(channel.categoryName)
+            || measuredQuality[channel.id] == "4K"
+        #else
+        return false
+        #endif
+    }
+
+    /// Starts `channel` on the shared player: Apple's player for 4K on Apple TV (VLC if it can't), VLC otherwise.
+    func startStream(_ channel: Channel, on controller: PlaybackController, bufferMs: Int) {
+        let apple = wantsApplePlayer(channel)
+        guard let url = streamURL(for: channel, hls: apple || !PlaybackController.usesVLC) else { return }
+        controller.play(url, bufferMs: bufferMs, applePlayer: apple, fallback: apple ? streamURL(for: channel, hls: false) : nil)
+    }
+
     func streamURL(for channel: Channel, hls: Bool) -> URL? {
         guard let creds = credentials else { return nil }
         return XtreamClient(creds: creds).streamURL(for: channel, hls: hls)

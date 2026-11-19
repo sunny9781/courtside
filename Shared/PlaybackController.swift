@@ -49,6 +49,19 @@ final class PlaybackController: ObservableObject {
 
     #if canImport(VLCKitSPM)
     private let player = VLCMediaPlayer()
+    #if os(tvOS)
+    /// Apple TV: 4K channels play with Apple's own player, in the same view, so HDR reaches the TV as HDR (VLC turns
+    /// it into a dark standard-range picture). Everything else stays on VLC.
+    private let apple = AVPlayer()
+    private let appleLayer = AVPlayerLayer()
+    /// The current stream plays with Apple's player.
+    @Published private(set) var usesApplePlayer = false
+    /// What the TV should switch to for it (frame rate, HDR), from the stream itself; applied in full screen.
+    @Published private(set) var displayCriteria: AVDisplayCriteria?
+    /// The same channel for VLC, if Apple's player can't show it.
+    private var fallbackURL: URL?
+    private var appleOpenedAt = Date.distantPast
+    #endif
     #else
     private let player = AVPlayer()
     private let playerLayer = AVPlayerLayer()
@@ -64,6 +77,12 @@ final class PlaybackController: ObservableObject {
         #endif
         #if canImport(VLCKitSPM)
         player.drawable = view
+        #if os(tvOS)
+        appleLayer.player = apple
+        appleLayer.videoGravity = .resizeAspect
+        appleLayer.isHidden = true
+        view.layer.addSublayer(appleLayer)
+        #endif
         #else
         playerLayer.player = player
         playerLayer.videoGravity = .resizeAspect
@@ -84,7 +103,8 @@ final class PlaybackController: ObservableObject {
     /// The next stream, waiting for the old one's connection to close (see open).
     private var pendingOpen: DispatchWorkItem?
 
-    func play(_ url: URL, bufferMs: Int) {
+    /// `applePlayer`: play with Apple's player (Apple TV, 4K channels), falling back to `fallback` on VLC.
+    func play(_ url: URL, bufferMs: Int, applePlayer: Bool = false, fallback: URL? = nil) {
         if url == currentURL, status != .idle, status != .ended {
             if case .failed = status {} else {
                 if status == .paused { togglePause() }
@@ -92,8 +112,16 @@ final class PlaybackController: ObservableObject {
             }
         }
         freezeWatch.reset()
+        #if canImport(VLCKitSPM) && os(tvOS)
+        wantApple = applePlayer
+        fallbackURL = applePlayer ? fallback : nil
+        #endif
         open(url, bufferMs: bufferMs, quiet: false)
     }
+
+    #if canImport(VLCKitSPM) && os(tvOS)
+    private var wantApple = false
+    #endif
 
     /// Starts the stream again without showing it: keeps the resolution and frame rate shown as they were.
     private func restartQuietly() {
@@ -121,6 +149,24 @@ final class PlaybackController: ObservableObject {
             guard let self, self.currentURL == url else { return }
             self.pendingOpen = nil
             #if canImport(VLCKitSPM)
+            #if os(tvOS)
+            self.usesApplePlayer = self.wantApple
+            self.appleLayer.isHidden = !self.wantApple
+            self.displayCriteria = nil
+            if self.wantApple {
+                self.appleLayer.frame = self.view.bounds
+                let item = AVPlayerItem(url: url)
+                item.preferredForwardBufferDuration = Double(bufferMs) / 1000
+                self.apple.replaceCurrentItem(with: item)
+                self.apple.play()
+                self.appleOpenedAt = Date()
+                Task { @MainActor [weak self] in
+                    let criteria = try? await item.asset.load(.preferredDisplayCriteria)
+                    if let self, self.apple.currentItem === item { self.displayCriteria = criteria }
+                }
+                return
+            }
+            #endif
             let media = VLCMedia(url: url)
             media.addOption(":network-caching=\(bufferMs)")
             self.player.media = media
@@ -141,7 +187,16 @@ final class PlaybackController: ObservableObject {
     @discardableResult
     private func closeCurrent() -> Bool {
         #if canImport(VLCKitSPM)
-        guard player.media != nil else { return false }
+        var had = false
+        #if os(tvOS)
+        if apple.currentItem != nil {
+            apple.pause()
+            apple.replaceCurrentItem(with: nil)
+            displayCriteria = nil
+            had = true
+        }
+        #endif
+        guard player.media != nil else { return had }
         player.stop()
         player.media = nil
         return true
@@ -163,6 +218,12 @@ final class PlaybackController: ObservableObject {
 
     func togglePause() {
         #if canImport(VLCKitSPM)
+        #if os(tvOS)
+        if usesApplePlayer {
+            if apple.rate > 0 { apple.pause() } else { apple.play() }
+            return
+        }
+        #endif
         if player.isPlaying { player.pause() } else { player.play() }
         #else
         if player.rate > 0 { player.pause() } else { player.play() }
@@ -191,6 +252,12 @@ final class PlaybackController: ObservableObject {
         // Between closing one stream and opening the next there's nothing to look at.
         if pendingOpen != nil { return }
         #if canImport(VLCKitSPM)
+        #if os(tvOS)
+        if usesApplePlayer {
+            pollApple()
+            return
+        }
+        #endif
         switch player.state {
         case .opening:
             status = .opening
@@ -242,6 +309,57 @@ final class PlaybackController: ObservableObject {
         if item.presentationSize.height > 0 { resolution = Self.label(item.presentationSize.height) }
         #endif
     }
+
+    #if canImport(VLCKitSPM) && os(tvOS)
+    /// Apple's player (4K channels): its state, size and frame rate; if it hasn't shown a picture after 8 seconds (or
+    /// fails), the same channel opens on VLC instead.
+    private func pollApple() {
+        if appleLayer.frame != view.bounds {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            appleLayer.frame = view.bounds
+            CATransaction.commit()
+        }
+        guard let item = apple.currentItem else { return }
+        let noPicture = item.presentationSize.height == 0
+        if item.status == .failed || (noPicture && Date().timeIntervalSince(appleOpenedAt) > 8) {
+            if let fallback = fallbackURL {
+                fallbackURL = nil
+                wantApple = false
+                open(fallback, bufferMs: lastBufferMs, quiet: false)
+            } else {
+                status = .failed("This stream couldn't be opened. Try another stream for this game.")
+            }
+            return
+        }
+        switch item.status {
+        case .readyToPlay:
+            switch apple.timeControlStatus {
+            case .playing: status = .playing
+            case .paused: status = .paused
+            default: status = .buffering
+            }
+        default:
+            status = .opening
+        }
+        if item.presentationSize.height > 0 { resolution = Self.label(item.presentationSize.height) }
+        let watching = !resolution.isEmpty && (status == .playing || status == .buffering)
+        switch freezeWatch.check(progress: item.currentTime().seconds, watching: watching) {
+        case .restart: restartQuietly()
+        case .skip: onRepeatedFreezing?()
+        case .none: break
+        }
+        if status == .playing {
+            playingPolls += 1
+            if playingPolls >= 4 && frameRate == 0,
+               let track = item.tracks.first(where: { $0.assetTrack?.mediaType == .video }), track.currentVideoFrameRate > 0 {
+                var fps = Double(track.currentVideoFrameRate)
+                if fps > 61 { fps /= 2 }
+                frameRate = fps
+            }
+        }
+    }
+    #endif
 
     #if canImport(VLCKitSPM)
     /// The audio track as "Stereo", "5.1 Dolby" and so on, from VLC's track details.

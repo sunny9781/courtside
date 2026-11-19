@@ -17,6 +17,7 @@ enum Prefs {
     static let measuredQuality = "measuredQuality"
     static let measuredFrameRate = "measuredFrameRate"
     static let matchFrameRate = "matchFrameRate"
+    static let appleFor4K = "appleFor4K"           // Apple TV: 4K channels play with Apple's player (real HDR); default on
     static let hideAdult = "hideAdult"             // old "Adult categories" switch: read once, to keep them for someone who turned it on
     static let adultHandled = "adultHandled"       // adult category ids already put in Hidden once, newline-separated
     static let pinnedVideoHeight = "pinnedVideoHeight" // Mac: height of the pinned player's video (dragged)

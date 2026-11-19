@@ -30,10 +30,9 @@ struct TVPinnedStrip: View {
         .buttonStyle(.card)
         .disabled(nav.tabsFocused)
         .task(id: "\(item.channel.id)|\(model.nowPlaying == nil)") {
-            guard model.nowPlaying == nil, !DemoData.isOn,
-                  let url = model.streamURL(for: item.channel, hls: !PlaybackController.usesVLC) else { return }
+            guard model.nowPlaying == nil, !DemoData.isOn else { return }
             // Back from full screen this is the same stream, and play() carries on without reconnecting.
-            controller.play(url, bufferMs: bufferMs)
+            model.startStream(item.channel, on: controller, bufferMs: bufferMs)
             model.checkConnectionsSoon()
         }
         .onChange(of: controller.resolution) {

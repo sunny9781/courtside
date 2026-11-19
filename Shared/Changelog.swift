@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.80", date: "2026-11-18", time: "20:30", title: "Real HDR for 4K", changes: [
+            Change(text: "4K channels play with Apple's own player, which sends HDR to the TV as HDR (the TV shows its HDR sign, like other apps), so 4K HDR is no longer dark. Everything else still plays with VLC. If a 4K channel won't start this way within 8 seconds, it plays the old way.", apps: tv),
+            Change(text: "Settings › Playback › 4K with Apple's player: on by default; turn it off to play 4K like everything else.", apps: tv),
+            Change(text: "Game screen and EPG: each stream fits on one row again: channel logos are no longer cut off on the left, and a long channel name scrolls inside its own column instead of running over what's on.", apps: tv)
+        ]),
         Release(version: "1.79", date: "2026-11-18", time: "20:15", title: "Live Now by league, NFL RedZone, Apple TV catches up", changes: [
             Change(text: "Live Now: games are under a heading per league (NBA, NCAA, NFL...) instead of the league on every line.", apps: tvAndroid),
             Change(text: "While an NFL game is live, the RedZone channels sit in a folder at the top of Live Now and Football (NFL RedZone · 2); click it to show them.", apps: tvAndroid),

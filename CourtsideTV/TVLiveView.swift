@@ -462,6 +462,7 @@ struct TVChannelRow: View {
                 }
             }
             .frame(width: Self.channelWidth, alignment: .leading)
+            .clipped()
 
             VStack(alignment: .leading, spacing: 6) {
                 TVScrollingText(text: now?.title ?? "–", font: .system(size: 22, weight: .medium), active: focused)
@@ -470,7 +471,9 @@ struct TVChannelRow: View {
                 }
             }
             .padding(.horizontal, 24)
-            .frame(width: Self.nowWidth, alignment: .leading)
+            // Up to its full width, narrower where the screen has less room (the game screen), so a row never runs
+            // off the screen.
+            .frame(minWidth: 0, maxWidth: Self.nowWidth, alignment: .leading)
 
             if showNext {
                 TVScrollingText(text: next.map { "\($0.start.formatted(date: .omitted, time: .shortened))  \($0.title)" } ?? "",
@@ -488,7 +491,7 @@ struct TVChannelRow: View {
                 if fps > 0 { TVBadge(text: PlaybackController.fpsLabel(fps)) }
                 if let sound { TVBadge(text: sound) }
             }
-            .frame(width: showNext ? nil : Self.nextWidth, alignment: .leading)
+            .fixedSize()
             Spacer(minLength: 0)
         }
     }

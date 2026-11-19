@@ -328,7 +328,8 @@ struct TVScrollingText: View {
                 Text(text).font(font).lineLimit(1).fixedSize()
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { textWidth = $0 }
                     .offset(x: offset)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // minWidth 0: the column keeps its own width, however long the text (it scrolls inside it).
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { boxWidth = $0 }
                     .clipped()
                     .task(id: "\(text)|\(Int(textWidth))|\(Int(boxWidth))") {
@@ -347,7 +348,7 @@ struct TVScrollingText: View {
                     }
             } else {
                 Text(text).font(font).lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
             }
         }
     }
