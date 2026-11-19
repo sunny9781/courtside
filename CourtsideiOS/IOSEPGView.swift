@@ -14,6 +14,8 @@ struct IOSEPGView: View {
     @State private var hits: [EPGSearch.Hit] = []
     /// Result groups opened or closed by hand (otherwise they follow Hit.startsOpen).
     @State private var flipped: Set<String> = []
+    /// Compact height = the phone is sideways: a category's channels show as a timeline.
+    @Environment(\.verticalSizeClass) private var verticalSize
 
     /// What's in the pinned player.
     private var playing: Channel? { model.pinned?.channel }
@@ -59,8 +61,18 @@ struct IOSEPGView: View {
         }
     }
 
-    /// One level: the top (nil), a group, or a category's channels ("cat:<id>").
+    /// One level: the top (nil), a group, or a category's channels ("cat:<id>"). Sideways, a category is a timeline.
+    @ViewBuilder
     private func page(_ id: String?) -> some View {
+        if verticalSize == .compact, let id, id.hasPrefix("cat:") {
+            let list = channels(String(id.dropFirst(4)))
+            IOSGuideTimeline(channels: list, playingID: playing?.id) { tap($0, lineup: list) }
+        } else {
+            listPage(id)
+        }
+    }
+
+    private func listPage(_ id: String?) -> some View {
         ScrollView {
             LazyVStack(spacing: 0) {
                 if id == nil && searching {
@@ -299,7 +311,10 @@ struct IOSChannelRow: View {
     var body: some View {
         let now = model.currentProgramme(channel)
         let next = now.flatMap { n in model.guide[channel.epgID]?.first { $0.start >= n.end } }
+        // What's on now in its sport's colour (or the channel's own), like the TV guide.
+        let colour = GuideColour.fill(title: now?.title ?? "", channel: channel, games: model.games)
         HStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 2).fill(colour).frame(width: 4).padding(.vertical, 2)
             IOSChannelIcon(url: channel.icon, size: 38)
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -312,6 +327,8 @@ struct IOSChannelRow: View {
                     }
                     Spacer()
                     if let q = model.measuredQuality[channel.id] { IOSBadge(text: q) }
+                    if let fps = model.measuredFrameRate[channel.id] { IOSBadge(text: PlaybackController.fpsLabel(fps)) }
+                    if let sound = model.measuredAudio[channel.id], !sound.isEmpty { IOSBadge(text: sound) }
                 }
                 if let now {
                     Text(now.title).font(.footnote).foregroundStyle(Theme.soft).lineLimit(1)

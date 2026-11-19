@@ -228,6 +228,9 @@ struct StreamRow: View {
                         if let fps = model.measuredFrameRate[match.channel.id] {
                             Badge(text: PlaybackController.fpsLabel(fps))
                         }
+                        if let sound = model.measuredAudio[match.channel.id], !sound.isEmpty {
+                            Badge(text: sound)
+                        }
                     }
                     .fixedSize()
                 }

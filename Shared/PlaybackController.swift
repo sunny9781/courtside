@@ -156,6 +156,7 @@ final class PlaybackController: ObservableObject {
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.currentURL == url else { return }
             self.pendingOpen = nil
+            ConnLog.add("Opened \(ConnLog.stream(url))\(quiet ? " again (it froze)" : "")")
             #if canImport(VLCKitSPM)
             #if os(tvOS) && canImport(KSPlayer)
             self.usesHDRPlayer = self.wantHDR
@@ -198,12 +199,17 @@ final class PlaybackController: ObservableObject {
             had = true
         }
         #endif
-        guard player.media != nil else { return had }
+        guard player.media != nil else {
+            if had { ConnLog.add("Closed \(ConnLog.stream(currentURL)) (HDR player)") }
+            return had
+        }
+        ConnLog.add("Closed \(ConnLog.stream(player.media?.url))")
         player.stop()
         player.media = nil
         return true
         #else
         guard player.currentItem != nil else { return false }
+        ConnLog.add("Closed \(ConnLog.stream((player.currentItem?.asset as? AVURLAsset)?.url))")
         player.pause()
         player.replaceCurrentItem(with: nil)
         return true

@@ -537,6 +537,7 @@ struct GuideView: View {
 
         return HStack(spacing: 8) {
             ChannelCell(channel: channel, selected: selected, width: column, height: rowHeight,
+                        tags: MacChannelLine.tags(channel, model: model),
                         favorite: model.isFavorite(channel: channel.id),
                         onFavorite: { model.toggleFavorite(channel: channel.id) })
                 .onTapGesture(count: 2) { watch(channel, list) }
@@ -563,9 +564,13 @@ struct GuideView: View {
                     let width = max(x(end, windowStart) - x(start, windowStart) - 4, 0)
                     let gameID = model.guideLinks[Matcher.linkKey(channel.epgID, p.start)]
 
+                    // Every show in its sport's colour (or its channel's own), what's already been on darker.
+                    let past = p.start < now ? min(max(x(now, windowStart) - x(start, windowStart), 0), width) : 0
                     ProgrammeBlock(programme: p, width: width, height: rowHeight,
                                    isNow: p.start <= now && p.end > now, selectedRow: selected,
-                                   gameID: gameID, streams: gameID.map { model.streamCount($0) })
+                                   gameID: gameID, streams: gameID.map { model.streamCount($0) },
+                                   colour: GuideColour.fill(title: p.title, channel: channel, games: model.games),
+                                   past: past)
                         .offset(x: x(start, windowStart))
                         .onTapGesture(count: 2) {
                             if let gameID { onOpenGame(gameID) } else { watch(channel, list) }
@@ -674,6 +679,8 @@ struct ChannelCell: View {
     let selected: Bool
     let width: CGFloat
     let height: CGFloat
+    /// Resolution, frame rate and sound from the last time it played.
+    var tags: [String] = []
     var favorite = false
     var onFavorite: (() -> Void)? = nil
     @State private var hovering = false
@@ -697,10 +704,18 @@ struct ChannelCell: View {
             .frame(width: 64, height: height - 14)
             .background(RoundedRectangle(cornerRadius: 8).fill(Theme.raised))
 
-            Text(channel.name)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(selected ? Theme.accent : Theme.text)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(channel.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(selected ? Theme.accent : Theme.text)
+                    .lineLimit(1)
+                if !tags.isEmpty {
+                    Text(tags.joined(separator: " · "))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1)
+                }
+            }
 
             Spacer(minLength: 0)
             if let onFavorite {
@@ -738,6 +753,9 @@ struct ProgrammeBlock: View {
     let selectedRow: Bool
     let gameID: String?
     let streams: Int?
+    /// The sport's colour (or the channel's own), and how much of the block has already been on (drawn darker).
+    var colour: Color = Theme.card
+    var past: CGFloat = 0
     @State private var hovering = false
 
     var body: some View {
@@ -752,21 +770,20 @@ struct ProgrammeBlock: View {
                     .lineLimit(1)
             }
         }
-        .foregroundStyle(gameID != nil ? Theme.matchText : (isNow ? Theme.text : Theme.soft))
+        .foregroundStyle(.white)
         .padding(.horizontal, 10)
         .frame(width: width, height: height, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(background))
+        .background(
+            ZStack(alignment: .leading) {
+                colour.brightness(hovering ? 0.08 : 0)
+                Rectangle().fill(Color.black.opacity(0.3)).frame(width: past)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+        )
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(selectedRow && isNow ? Color.white.opacity(0.7) : Color.clear, lineWidth: 1.5))
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .help(programme.title)
-    }
-
-    private var background: Color {
-        if gameID != nil { return hovering ? Theme.matchBG.opacity(0.8) : Theme.matchBG }
-        if hovering { return Theme.cardHover }
-        if selectedRow && isNow { return Color(hex: 0x323B49) }
-        if selectedRow || isNow { return Theme.raised }
-        return Theme.card
     }
 
     private var detail: String {

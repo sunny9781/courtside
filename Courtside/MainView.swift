@@ -169,7 +169,15 @@ struct TopBar: View {
                         .keyboardShortcut("[", modifiers: .command)
                 }
                 ConnectionsPill(account: model.account)
-                if let saved = model.savedAt, !model.downloadingChannels {
+                // Like the TVs: "Refreshing EPG 45%" with a bar while it downloads, or waiting for the stream to stop.
+                if model.downloadingChannels || model.guideDownloading {
+                    EPGProgress()
+                } else if model.refreshWaiting {
+                    Text("EPG refreshes after this stream")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Theme.muted)
+                        .padding(.horizontal, 12)
+                } else if let saved = model.savedAt {
                     EPGRefreshButton(date: saved) { Task { await model.refresh(force: true) } }
                 }
                 Spacer()
@@ -374,6 +382,28 @@ struct TopTab: View {
 extension Notification.Name {
     /// Open a game's screen (object: the game's id), e.g. from the player strip.
     static let openGame = Notification.Name("openGame")
+}
+
+/// "Refreshing EPG 45%" and a thin bar while the channels or guide download.
+struct EPGProgress: View {
+    @EnvironmentObject var model: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(model.downloadingChannels ? "Refreshing channels…"
+                 : "Refreshing EPG" + (model.guideProgress.map { " \(Int($0 * 100))%" } ?? " · \(model.guideMegabytes) MB"))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Theme.muted)
+                .monospacedDigit()
+            if model.guideDownloading, let p = model.guideProgress {
+                ProgressView(value: p)
+                    .progressViewStyle(.linear)
+                    .tint(Theme.accent)
+                    .frame(width: 140)
+            }
+        }
+        .padding(.horizontal, 12)
+    }
 }
 
 /// "EPG 9:10 PM ⟳": when the channels and guide were last downloaded; click to download them again now.

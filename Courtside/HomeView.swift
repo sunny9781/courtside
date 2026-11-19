@@ -27,6 +27,9 @@ struct SportView: View {
                     Banner(text: error)
                 }
 
+                let redZone = HomeFolds.redZone(model: model, sport: leagueID == nil || leagueID == "nfl" ? sport : nil)
+                if !redZone.isEmpty { RedZoneFolder(channels: redZone) }
+
                 if sections.isEmpty || sections.allSatisfy({ l in !allGames.contains { $0.league == l } }) {
                     emptyState
                 }
@@ -65,12 +68,15 @@ struct LeagueSection: View {
     let games: [Game]
     let showHeading: Bool
     let onOpen: (Game) -> Void
-    /// Finished games fold into one "Finished · 6" line under the cards; click it to show them.
-    @State private var showFinished = false
+    /// Finished games show under the cards (as on the TVs); "Finished · 6" folds them away.
+    @State private var showFinished = true
+    /// Games starting more than 2 hours from now fold into "Later today · 6"; click it to show them.
+    @State private var showLater = false
 
     var body: some View {
         let live = games.filter { $0.state == .live }
         let upcoming = games.filter { $0.state == .upcoming }
+        let later = upcoming.filter { HomeFolds.isLater($0) }
         let finished = games.filter { $0.state == .finished }
 
         VStack(alignment: .leading, spacing: 16) {
@@ -89,7 +95,8 @@ struct LeagueSection: View {
 
             // One grid of cards: live first, then coming up (greyed, by start time), then finished.
             let byStart: (Game, Game) -> Bool = { ($0.start ?? .distantFuture) < ($1.start ?? .distantFuture) }
-            let cards = live.sorted(by: byStart) + upcoming.sorted(by: byStart)
+            let cards = live.sorted(by: byStart)
+                + upcoming.filter { showLater || !HomeFolds.isLater($0) }.sorted(by: byStart)
                 + (showFinished ? finished.sorted(by: byStart) : [])
             let width = cardWidth(for: model.games(for: league.sport), charWidth: 9.5, fixed: 112, minimum: 260, maximum: 560)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: width, maximum: width), spacing: 16, alignment: .top)],
@@ -98,22 +105,124 @@ struct LeagueSection: View {
                     LiveGameCard(game: game, streams: model.streamCount(game.id)) { onOpen(game) }
                 }
             }
-            if !finished.isEmpty {
-                Button {
-                    showFinished.toggle()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: showFinished ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 11, weight: .bold))
-                        Text("Finished · \(finished.count)")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    .foregroundStyle(Theme.muted)
-                    .contentShape(Rectangle())
+            if !later.isEmpty { FoldButton(text: "Later today · \(later.count)", open: $showLater) }
+            if !finished.isEmpty { FoldButton(text: "Finished · \(finished.count)", open: $showFinished) }
+        }
+    }
+}
+
+/// "Later today · 6" / "Finished · 6": click to show or hide them.
+struct FoldButton: View {
+    let text: String
+    @Binding var open: Bool
+    var colour: Color = Theme.muted
+
+    var body: some View {
+        Button { open.toggle() } label: {
+            HStack(spacing: 8) {
+                Image(systemName: open ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
+                Text(text)
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(colour)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// "NFL RedZone · 2" at the top of Football while an NFL game is live: click to show its channels.
+struct RedZoneFolder: View {
+    let channels: [Channel]
+    @State private var open = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            FoldButton(text: "NFL RedZone · \(channels.count)", open: $open, colour: Theme.accent)
+            if open {
+                VStack(spacing: 6) {
+                    ForEach(channels) { MacChannelLine(channel: $0, lineup: channels) }
                 }
-                .buttonStyle(.plain)
             }
         }
+    }
+}
+
+/// A channel sport (pickleball): its channels under the category each comes from, like the TVs. Click to play in
+/// the player, double-click for full screen.
+struct MacSportChannels: View {
+    @EnvironmentObject var model: AppModel
+    let sport: Sport
+
+    var body: some View {
+        let groups = channelSportGroups(sport, model: model)
+        let lineup = groups.flatMap(\.channels)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 6) {
+                if let error = model.errorMessage { Banner(text: error) }
+                ForEach(groups, id: \.category) { group in
+                    Text(group.category.uppercased())
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Theme.muted)
+                        .padding(.top, 14)
+                    ForEach(group.channels) { MacChannelLine(channel: $0, lineup: lineup) }
+                }
+            }
+            .padding(.horizontal, 40)
+            .padding(.top, 10)
+            .padding(.bottom, 48)
+        }
+    }
+}
+
+/// One channel as a line: logo, name, what's on now, and its resolution, frame rate and sound once played.
+struct MacChannelLine: View {
+    @EnvironmentObject var model: AppModel
+    let channel: Channel
+    let lineup: [Channel]
+
+    var body: some View {
+        let playing = model.pinned?.channel.id == channel.id
+        let now = model.currentProgramme(channel)
+        CardButton(radius: 10, action: {
+            if playing { model.play(channel, lineup: lineup) } else { model.pin(channel, lineup: lineup) }
+        }) {
+            HStack(spacing: 12) {
+                AsyncImage(url: channel.icon) { image in
+                    image.resizable().scaledToFit()
+                } placeholder: {
+                    Text(String(channel.name.prefix(3)).uppercased())
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Theme.muted)
+                }
+                .padding(4)
+                .frame(width: 52, height: 34)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Theme.raised))
+                Text(channel.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(playing ? Theme.accent : Theme.text)
+                    .lineLimit(1)
+                    .frame(width: 260, alignment: .leading)
+                Text(now?.title ?? "")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Theme.soft)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                ForEach(MacChannelLine.tags(channel, model: model), id: \.self) { Badge(text: $0) }
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 48)
+        }
+        .simultaneousGesture(TapGesture(count: 2).onEnded { model.play(channel, lineup: lineup) })
+        .help("Click to play in the mini player, double-click for full screen")
+    }
+
+    /// Resolution, frame rate and sound measured when the channel last played.
+    @MainActor static func tags(_ channel: Channel, model: AppModel) -> [String] {
+        [model.measuredQuality[channel.id],
+         model.measuredFrameRate[channel.id].map(PlaybackController.fpsLabel),
+         model.measuredAudio[channel.id]].compactMap { $0 }.filter { !$0.isEmpty }
     }
 }
 

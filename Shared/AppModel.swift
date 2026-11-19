@@ -282,6 +282,7 @@ final class AppModel: ObservableObject {
     private func streamsChanged() {
         if streamOpen {
             if guideDownloading {
+                ConnLog.add("Paused the guide download (a stream started)")
                 guideTask?.cancel()
                 guidePending = true
                 refreshWaiting = true
@@ -388,13 +389,15 @@ final class AppModel: ObservableObject {
         // 2. Channels from the provider only when the saved copy is too old (or you asked), and never while a stream
         // plays (that would be a second connection): then it waits until the stream stops.
         if stale && streamOpen && !channels.isEmpty {
+            ConnLog.add("Waiting for the stream to stop before downloading the channels")
             channelsPending = true
             refreshWaiting = true
             stale = false
         }
         if stale {
+            ConnLog.add("Downloading the channels")
             downloadingChannels = true
-            defer { downloadingChannels = false }
+            defer { downloadingChannels = false; ConnLog.add("Finished the channels") }
             let client = XtreamClient(creds: creds)
             do {
                 account = try await client.login()
@@ -490,6 +493,7 @@ final class AppModel: ObservableObject {
         // The provider's own count, as it reports it (shown in Settings).
         if let fresh = try? await XtreamClient(creds: creds).login() {
             account = fresh
+            ConnLog.add("Provider says \(fresh.activeConnections.map(String.init) ?? "?")/\(fresh.maxConnections.map(String.init) ?? "?") in use")
         }
     }
 
@@ -710,6 +714,7 @@ final class AppModel: ObservableObject {
         if !download && !guide.isEmpty { return }   // the saved guide is recent enough
 
         if streamOpen {
+            ConnLog.add("Waiting for the stream to stop before downloading the guide")
             guidePending = true
             refreshWaiting = true
             return
@@ -718,6 +723,7 @@ final class AppModel: ObservableObject {
         let end = savedGuideEnd
         let file = Self.guideFile
         guideStatus = "Updating the guide…"
+        ConnLog.add("Downloading the guide")
         guideDownloading = true
         guideProgress = nil
         guideMegabytes = 0
@@ -735,6 +741,7 @@ final class AppModel: ObservableObject {
                 if Self.writeSavedGuide(all, savedAt: Date()) { try? FileManager.default.removeItem(at: file) }
                 return Self.trimmed(all, wanted: wanted, from: from, to: to)
             }.value
+            ConnLog.add("Finished the guide")
             guide = fresh
             guideUpdated = Date()
             guideStatus = nil

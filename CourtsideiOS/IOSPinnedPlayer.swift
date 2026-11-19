@@ -57,6 +57,7 @@ struct IOSPinnedPlayer: View {
             if !playback.resolution.isEmpty { model.recordQuality(item.channel.id, playback.resolution) }
         }
         .onChange(of: playback.frameRate) { model.recordFrameRate(item.channel.id, playback.frameRate) }
+        .onChange(of: playback.audio) { model.recordAudio(item.channel.id, playback.audio) }
     }
 
     /// One line: the score (or title), then the channel.
@@ -107,6 +108,7 @@ struct IOSPinnedPlayer: View {
         HStack(spacing: 8) {
             if !playback.resolution.isEmpty { IOSBadge(text: playback.resolution).fixedSize() }
             if playback.frameRate > 0 { IOSBadge(text: PlaybackController.fpsLabel(playback.frameRate)).fixedSize() }
+            if !playback.audio.isEmpty { IOSBadge(text: playback.audio).fixedSize() }
             Spacer(minLength: 4)
             smallButton("rectangle.compress.vertical") { withAnimation(.easeOut(duration: 0.2)) { collapsed = true } }
             smallButton("arrow.up.left.and.arrow.down.right") { fullScreen() }

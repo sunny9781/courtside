@@ -22,13 +22,15 @@ struct IOSSettingsView: View {
     @State private var barWidth: CGFloat = 390
 
     enum SettingsSection: String, CaseIterable, Identifiable {
-        case account = "Account", sports = "Sports", general = "General", changelog = "Changelog"
+        // The same sections as on the TVs.
+        case account = "Account", playback = "Playback", general = "General", hidden = "Hidden", changelog = "Changelog"
         var id: String { rawValue }
         var symbol: String {
             switch self {
             case .account: return "person.crop.circle"
-            case .sports: return "sportscourt"
+            case .playback: return "play.rectangle"
             case .general: return "slider.horizontal.3"
+            case .hidden: return "eye.slash"
             case .changelog: return "sparkles"
             }
         }
@@ -52,7 +54,7 @@ struct IOSSettingsView: View {
 
                 }
 
-                if section == .general {
+                if section == .playback {
                 Section {
                     Toggle("Switch to the next stream when one stalls", isOn: $autoSwitch)
                     if UserDefaults.standard.bool(forKey: CastManager.disabledKey) {
@@ -78,7 +80,7 @@ struct IOSSettingsView: View {
 
                 }
 
-                if section == .sports {
+                if section == .hidden {
                 Section {
                     ForEach(Sport.ordered(sportOrderPref)) { sport in
                         sportRow(sport)
@@ -90,14 +92,14 @@ struct IOSSettingsView: View {
                 }
                 }
 
-                if section == .general {
+                if section == .playback {
                 Section("Games") {
                     Toggle("Hide SD streams", isOn: $hideSD)
                 }
 
                 }
 
-                if section == .general {
+                if section == .hidden {
                 // Categories and channels hidden in the EPG (categories with "adult" in the name start out here).
                 Section {
                     let cats = model.hiddenCategoryNames
@@ -116,7 +118,7 @@ struct IOSSettingsView: View {
                         }
                     }
                 } header: {
-                    Text("Hidden")
+                    Text("Categories and channels")
                 } footer: {
                     Text("Categories with \"adult\" in the name start out here. Tap one to show it again.")
                 }
@@ -144,6 +146,7 @@ struct IOSSettingsView: View {
                         Text("Channels and guide last downloaded \(saved.formatted(date: .abbreviated, time: .shortened)). Scores update every minute.")
                     }
                 }
+                IOSConnectionLogSection()
 
                 }
 
@@ -367,5 +370,28 @@ struct IOSLoginView: View {
         TextField(placeholder, text: text)
             .padding(14)
             .background(RoundedRectangle(cornerRadius: 12).fill(Theme.card))
+    }
+}
+
+/// What used a connection to the provider, newest first: to see what caused 2/2 when only one thing plays.
+struct IOSConnectionLogSection: View {
+    @ObservedObject private var log = ConnLog.shared
+    @State private var open = false
+
+    var body: some View {
+        Section {
+            DisclosureGroup(isExpanded: $open) {
+                if log.entries.isEmpty {
+                    Text("Nothing yet.").font(.footnote).foregroundStyle(.secondary)
+                }
+                ForEach(Array(log.entries.enumerated()), id: \.offset) { _, line in
+                    Text(line).font(.caption.monospacedDigit()).foregroundStyle(Theme.soft)
+                }
+            } label: {
+                Text("Connection log")
+            }
+        } footer: {
+            Text("Streams opened and closed, downloads, and what the provider said was in use.")
+        }
     }
 }

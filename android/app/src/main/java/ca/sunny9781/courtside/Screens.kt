@@ -15,6 +15,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -795,21 +796,29 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     // An EPG-like list, like the channel sports: a row per game (status, the teams and scores), under a heading per
     // league. It runs to the bottom of the screen, under the now-playing bar.
     BehindPlayerBar(model) {
-    LazyColumn(modifier.fillMaxHeight(), state = model.homeList, verticalArrangement = Arrangement.spacedBy(2.dp),
+    BoxWithConstraints(modifier.fillMaxHeight()) {
+    // Score cards, as many to a row as fit (each at least CARD_MIN_WIDTH wide).
+    val cols = maxOf(1, ((maxWidth - 8.dp) / (CARD_MIN_WIDTH + 8.dp)).toInt())
+    // One list item per row of cards. Right on the last card of a row (the screen's right edge) jumps to the EPG.
+    fun LazyListScope.cardRows(games: List<Game>, prefix: String) {
+        items(games.chunked(cols), key = { "$prefix:${it.first().id}" }, contentType = { "cards" }) { row ->
+            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEachIndexed { i, game ->
+                    val main = model.mainStreams(game.id)
+                    GameCard(game, main.size, main.any { it.is4K },
+                        modifier = Modifier.weight(1f).tracked(targets, "game:${game.id}")
+                            .then(if (i == row.size - 1) toEpg else Modifier),
+                        onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
+                }
+                repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+    LazyColumn(Modifier.fillMaxHeight(), state = model.homeList, verticalArrangement = Arrangement.spacedBy(2.dp),
         contentPadding = PaddingValues(top = 6.dp, bottom = 6.dp + barInset(model))) {
         if (sport != null && model.leagues(sport).size > 1) {
             item(key = "chips") { SidewaysScroll { LeagueChips(model, sport, targets) } }
-        }
-        item(key = "header") {
-            Row(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
-                Label("STATUS", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted, modifier = Modifier.width(STATUS_WIDTH))
-                // Over the "@" between the two teams.
-                Box(Modifier.width(TEAM_WIDTH * 2 + 22.dp), contentAlignment = Alignment.Center) {
-                    Label("GAME", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted)
-                }
-                Spacer(Modifier.weight(1f))
-                Label("STREAMS", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted)
-            }
         }
         if (redZone.isNotEmpty()) {
             item(key = "redzone", contentType = "finished") {
@@ -845,23 +854,13 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             }
             // Same content type: switching sports reuses the rows already built (new text, same row) instead of
             // building new ones.
-            items(section.games, key = { "${section.id}:${it.id}" }, contentType = { "game" }) { game ->
-                val main = model.mainStreams(game.id)
-                GameRow(game, main.size, main.any { it.is4K }, showLeague = false,
-                    modifier = Modifier.tracked(targets, "game:${game.id}").then(toEpg),
-                    onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
-            }
+            cardRows(section.games, section.id)
         }
         if (later.isNotEmpty()) {
             item(key = "later", contentType = "finished") {
                 FoldRow("Later today · ${later.size}", showLater, Modifier.tracked(targets, "later")) { showLater = !showLater }
             }
-            if (showLater) items(later, key = { "l:${it.id}" }, contentType = { "game" }) { game ->
-                val main = model.mainStreams(game.id)
-                GameRow(game, main.size, main.any { it.is4K }, showLeague = false,
-                    modifier = Modifier.tracked(targets, "game:${game.id}").then(toEpg),
-                    onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
-            }
+            if (showLater) cardRows(later, "l")
         }
         if (finished.isNotEmpty()) {
             item(key = "finished", contentType = "finished") {
@@ -876,14 +875,63 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
                     }
                 }
             }
-            if (showFinished) items(finished, key = { "f:${it.id}" }, contentType = { "game" }) { game ->
-                val main = model.mainStreams(game.id)
-                GameRow(game, main.size, main.any { it.is4K }, showLeague = false,
-                    modifier = Modifier.tracked(targets, "game:${game.id}").then(toEpg),
-                    onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
-            }
+            if (showFinished) cardRows(finished, "f")
         }
     }
+    }
+    }
+}
+
+private val CARD_MIN_WIDTH = 200.dp
+
+/**
+ * A game as a score card: when (or LIVE and the clock), its 4K tag and number of streams, then each team with its
+ * logo and score. Upcoming games are dimmer, so live games stand out. Lite mode: no scores or logos.
+ */
+@Composable
+private fun GameCard(game: Game, streams: Int, has4K: Boolean, modifier: Modifier, onFocus: () -> Unit, onClick: () -> Unit) {
+    // Only plain values come in (not the whole app model), so when the scores update, a card whose game didn't
+    // change isn't drawn again.
+    TvButton(onClick = onClick, onFocus = onFocus, modifier = modifier, background = Theme.card,
+        shape = RoundedCornerShape(12.dp)) { focused ->
+        val text = if (focused) Theme.bg else Theme.text
+        val dim = if (game.state == GameState.UPCOMING && !focused) 0.7f else 1f
+        Column(Modifier.fillMaxWidth().padding(horizontal = 11.dp, vertical = 9.dp).alpha(dim),
+            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                val status = when {
+                    Perf.noScores && game.state == GameState.LIVE -> "LIVE"
+                    game.state == GameState.UPCOMING -> startText(game)
+                    else -> cardHeader(game)
+                }
+                Label(status, size = 11.sp, weight = FontWeight.Bold,
+                    color = if (focused) Theme.bg else if (game.state == GameState.LIVE) Theme.accent else Theme.muted,
+                    modifier = Modifier.weight(1f))
+                if (has4K) Badge("4K", fill = Theme.accent, color = Theme.onAccent)
+                Label(if (streams == 0) "None" else "$streams", size = 11.sp, weight = FontWeight.SemiBold,
+                    color = if (streams == 0 && !focused) Theme.losing else if (focused) Theme.bg else Theme.muted)
+                if (streams > 0) Icon(Icons.Filled.LiveTv, null, tint = if (focused) Theme.bg else Theme.muted,
+                    modifier = Modifier.size(11.dp))
+            }
+            if (game.isEvent && !game.hasSides) {
+                Column(Modifier.heightIn(min = 50.dp)) {
+                    Label(game.eventTitle, size = 13.sp, weight = FontWeight.SemiBold, color = text, maxLines = 2)
+                    if (game.eventDetail.isNotEmpty()) Label(game.eventDetail, size = 11.sp, color = text.copy(alpha = 0.75f))
+                }
+            } else {
+                val showScore = game.state != GameState.UPCOMING && !Perf.noScores
+                for (team in listOf(game.away, game.home)) {
+                    Row(Modifier.height(22.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (!Perf.noLogos) Logo(team.logo, 20.dp, team.abbr)
+                        Label(team.shortName.ifEmpty { team.name }, size = 13.sp, weight = FontWeight.SemiBold, color = text,
+                            modifier = Modifier.weight(1f))
+                        if (showScore && team.score.isNotEmpty()) Label(team.score, size = 15.sp, weight = FontWeight.Bold,
+                            color = if (focused) Theme.bg else scoreColor(game, team))
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -896,83 +944,6 @@ private fun FoldRow(title: String, open: Boolean, modifier: Modifier, onClick: (
             val color = if (focused) Theme.bg else Theme.muted
             Icon(if (open) Icons.Filled.ExpandMore else Icons.Filled.ChevronRight, null, tint = color, modifier = Modifier.size(14.dp))
             Label(title, size = 12.sp, weight = FontWeight.SemiBold, color = color)
-        }
-    }
-}
-
-private val STATUS_WIDTH = 125.dp
-private val TEAM_WIDTH = 182.dp
-/** Room for three digits (basketball scores over 99). */
-private val SCORE_WIDTH = 34.dp
-
-/**
- * A game as an EPG row, all on one line: when (or LIVE and the clock), the teams with their scores, and how many
- * streams it has. Upcoming games are grey and finished ones a little dimmer, so live games stand out in white.
- */
-@Composable
-private fun GameRow(game: Game, streams: Int, has4K: Boolean, showLeague: Boolean, modifier: Modifier, onFocus: () -> Unit,
-                    onClick: () -> Unit) {
-    // Only plain values come in (not the whole app model), so when the scores update, a row whose game didn't
-    // change isn't drawn again.
-    TvButton(onClick = onClick, onFocus = onFocus, modifier = modifier.fillMaxWidth()) { focused ->
-        val text = when {
-            focused -> Theme.bg
-            game.state == GameState.UPCOMING -> Theme.muted
-            game.state == GameState.FINISHED -> Theme.soft
-            else -> Theme.text
-        }
-        Row(Modifier.padding(horizontal = 10.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
-            // Upcoming: just the start time (the row is already grey), so the status column stays narrow.
-            val status = when {
-                Perf.noScores && game.state == GameState.LIVE -> "LIVE"
-                game.state == GameState.UPCOMING -> startText(game)
-                else -> cardHeader(game)
-            }
-            Label(if (showLeague) "$status · ${game.league.name}" else status, size = 11.sp,
-                weight = FontWeight.Bold, color = if (focused) Theme.bg else if (game.state == GameState.LIVE) Theme.accent else Theme.muted,
-                modifier = Modifier.width(STATUS_WIDTH))
-            Row(Modifier.weight(1f).padding(end = 10.dp), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                if (game.isEvent && !game.hasSides) {
-                    Label(game.eventTitle, size = 13.sp, weight = FontWeight.SemiBold, color = text, modifier = Modifier.weight(1f, fill = false))
-                    if (game.eventDetail.isNotEmpty()) Label(game.eventDetail, size = 11.sp, color = text.copy(alpha = 0.75f),
-                        modifier = Modifier.weight(1f, fill = false))
-                } else {
-                    // Lined up around the "@" on every row: name, score, logo | @ | logo, score, name, so each score
-                    // sits between its team's name and logo. Lite mode: no scores or logos.
-                    val showScore = game.state != GameState.UPCOMING && !Perf.noScores
-                    @Composable
-                    fun score(team: Team, end: Boolean) = Box(Modifier.width(SCORE_WIDTH),
-                        contentAlignment = if (end) Alignment.CenterEnd else Alignment.CenterStart) {
-                        if (showScore && team.score.isNotEmpty()) Label(team.score, size = 13.sp, weight = FontWeight.Bold,
-                            color = if (focused) Theme.bg else scoreColor(game, team))
-                    }
-                    Row(Modifier.width(TEAM_WIDTH), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
-                            Label(game.away.shortName.ifEmpty { game.away.name }, size = 13.sp, weight = FontWeight.SemiBold, color = text)
-                        }
-                        score(game.away, end = true)
-                        if (!Perf.noLogos) Logo(game.away.logo, 16.dp, game.away.abbr)
-                    }
-                    Label("@", size = 12.sp, color = text.copy(alpha = 0.6f))
-                    Row(Modifier.width(TEAM_WIDTH), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        if (!Perf.noLogos) Logo(game.home.logo, 16.dp, game.home.abbr)
-                        score(game.home, end = false)
-                        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                            Label(game.home.shortName.ifEmpty { game.home.name }, size = 13.sp, weight = FontWeight.SemiBold, color = text)
-                        }
-                    }
-                }
-            }
-            // 4K tag and the number of streams (back in 1.87).
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                if (has4K) Badge("4K", fill = Theme.accent, color = Theme.onAccent)
-                Label(if (streams == 0) "None" else "$streams", size = 12.sp, weight = FontWeight.SemiBold,
-                    color = if (streams == 0 && !focused) Theme.losing else text)
-                if (streams > 0) Icon(Icons.Filled.LiveTv, null, tint = text, modifier = Modifier.size(12.dp))
-            }
         }
     }
 }

@@ -16,10 +16,12 @@ struct SettingsView: View {
     @State private var editingAccount = false
 
     enum SettingsSection: String, CaseIterable, Identifiable {
+        // The same sections as on the TVs.
         case account = "Account"
-        case sports = "Sports"
-        /// Playback, games, EPG and updates together.
+        case playback = "Playback"
         case general = "General"
+        /// Sports and leagues switched off, and hidden categories and channels.
+        case hidden = "Hidden"
         case changelog = "Changelog"
 
         var id: String { rawValue }
@@ -27,8 +29,9 @@ struct SettingsView: View {
         var symbol: String {
             switch self {
             case .account: return "person.crop.circle"
-            case .sports: return "sportscourt"
+            case .playback: return "play.rectangle"
             case .general: return "slider.horizontal.3"
+            case .hidden: return "eye.slash"
             case .changelog: return "sparkles"
             }
         }
@@ -91,7 +94,7 @@ struct SettingsView: View {
                 }
             }
 
-        case .sports:
+        case .hidden:
             panel("Sports and leagues") {
                 Text("Order of the sports on Home (you can also drag them there). Switch a sport or league off to hide it. Click a sport to see its leagues.")
                     .font(.system(size: 12))
@@ -110,7 +113,29 @@ struct SettingsView: View {
                 }
             }
 
-        case .general:
+            // Categories and channels hidden in the EPG (categories with "adult" in the name start out here).
+            panel("Categories and channels") {
+                let cats = model.hiddenCategoryNames
+                let chans = model.hiddenChannelNames
+                if cats.isEmpty && chans.isEmpty {
+                    Text("Nothing hidden. Right-click a category or channel in the EPG to hide it.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.muted)
+                } else {
+                    Text("Categories with \"adult\" in the name start out here. Show one to bring it back.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.muted)
+                }
+                ForEach(cats, id: \.id) { item in
+                    hiddenRow(item.name, icon: "folder") { model.setCategoryHidden(item.id, false) }
+                }
+                ForEach(chans, id: \.id) { item in
+                    hiddenRow(item.name, icon: "tv") { model.setChannelHidden(item.id, false) }
+                }
+            }
+
+
+        case .playback:
             panel("Player") {
                 setting("Buffer", "More buffer means fewer stalls but a longer delay behind live.") {
                     Picker("", selection: $bufferMs) {
@@ -131,6 +156,7 @@ struct SettingsView: View {
                 toggle("Hide SD streams", $hideSD)
             }
 
+        case .general:
             panel("EPG") {
                 setting("Hours to show", "How far ahead the guide goes. Takes effect on the next refresh.") {
                     Picker("", selection: $guideHours) {
@@ -141,27 +167,6 @@ struct SettingsView: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 260)
-                }
-            }
-
-            // Categories and channels hidden in the EPG (categories with "adult" in the name start out here).
-            panel("Hidden") {
-                let cats = model.hiddenCategoryNames
-                let chans = model.hiddenChannelNames
-                if cats.isEmpty && chans.isEmpty {
-                    Text("Nothing hidden. Right-click a category or channel in the EPG to hide it.")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.muted)
-                } else {
-                    Text("Categories with \"adult\" in the name start out here. Show one to bring it back.")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Theme.muted)
-                }
-                ForEach(cats, id: \.id) { item in
-                    hiddenRow(item.name, icon: "folder") { model.setCategoryHidden(item.id, false) }
-                }
-                ForEach(chans, id: \.id) { item in
-                    hiddenRow(item.name, icon: "tv") { model.setChannelHidden(item.id, false) }
                 }
             }
 
@@ -189,6 +194,7 @@ struct SettingsView: View {
                     .disabled(model.downloadingChannels)
                 }
             }
+            ConnectionLogPanel()
             AppVersionPanel()
 
         case .changelog:
@@ -417,6 +423,44 @@ struct AppVersionPanel: View {
                     }
                     .buttonStyle(GhostButtonStyle())
                     .disabled(updater.state == .checking)
+                }
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Theme.card))
+    }
+}
+
+/// What used a connection to the provider, newest first: to see what caused 2/2 when only one thing plays.
+struct ConnectionLogPanel: View {
+    @ObservedObject private var log = ConnLog.shared
+    @State private var open = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Connection log")
+                        .font(Theme.display(18))
+                        .foregroundStyle(Theme.text)
+                    Text("Streams opened and closed, downloads, and what the provider said was in use.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(Theme.muted)
+                }
+                Spacer()
+                Button(open ? "Hide" : "Show") { open.toggle() }
+                    .buttonStyle(GhostButtonStyle())
+            }
+            if open {
+                if log.entries.isEmpty {
+                    Text("Nothing yet.").font(.system(size: 12)).foregroundStyle(Theme.muted)
+                }
+                ForEach(Array(log.entries.enumerated()), id: \.offset) { _, line in
+                    Text(line)
+                        .font(.system(size: 12).monospacedDigit())
+                        .foregroundStyle(Theme.soft)
+                        .textSelection(.enabled)
                 }
             }
         }
