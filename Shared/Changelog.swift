@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.88", date: "2026-11-18", time: "22:15", title: "Home without Live Now", changes: [
+            Change(text: "Home: the Live Now row is gone (each sport already shows its live games); Home opens on your first sport.", apps: tv),
+            Change(text: "Home: scores over 99 fit (no more cut-off basketball scores).", apps: tv),
+            Change(text: "EPG: the channel column is a third narrower, with smaller channel names that wrap onto up to three lines; the quality, frame rate and sound tags always show, so nothing moves as you go up and down.", apps: tv)
+        ]),
         Release(version: "1.87", date: "2026-11-18", time: "21:25", title: "Real HDR for 4K, one connection", changes: [
             Change(text: "4K channels play with a new HDR player (the same kind of engine UHF uses), so in full screen the TV switches into HDR and shows its HDR sign, and 4K HDR is no longer dark. It reads the same stream VLC does, so the provider still counts one connection. Everything else still plays with VLC.", apps: tv),
             Change(text: "If a 4K channel shows nothing within a few seconds, the HDR player closes it and the channel plays with VLC instead, never both at once.", apps: tv),

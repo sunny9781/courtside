@@ -11,10 +11,12 @@ struct TVHomeView: View {
 
     /// The row to land on when coming down from the tabs: the selected sport (or Live Now).
     private var sidebarTarget: TVNav.HomeSelection {
+        // Live Now is no longer listed (the sports already show what's live): it stands for the first sport.
+        let first: TVNav.HomeSelection = orderedSports(model: model).first.map { .sport($0) } ?? .liveNow
         switch nav.homeSelection {
-        case .liveNow: return .liveNow
+        case .liveNow: return first
         case .sport(let s): return .sport(s)
-        case .league(let id): return League.all.first { $0.id == id }.map { .sport($0.sport) } ?? .liveNow
+        case .league(let id): return League.all.first { $0.id == id }.map { .sport($0.sport) } ?? first
         }
     }
 
@@ -84,15 +86,12 @@ struct TVSportList: View {
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 6) {
-                let live = model.games.filter { $0.state == .live && sports.contains($0.league.sport) }.count
-                row(.liveNow, symbol: "dot.radiowaves.left.and.right", name: "Live Now",
-                    live: live, total: model.games.filter { sports.contains($0.league.sport) }.count,
-                    detail: "\(model.games.count) today")
-                    .padding(.bottom, 14)
-
                 // Sports with live scores | sports shown as channels (pickleball) | sports with nothing today.
-                ForEach(Array(groups.enumerated()), id: \.offset) { _, group in
-                    Rectangle().fill(Theme.raised).frame(height: 2).padding(.horizontal, 16).padding(.vertical, 8)
+                // (No Live Now row: each sport already shows its live games.)
+                ForEach(Array(groups.enumerated()), id: \.offset) { index, group in
+                    if index > 0 {
+                        Rectangle().fill(Theme.raised).frame(height: 2).padding(.horizontal, 16).padding(.vertical, 8)
+                    }
                     ForEach(group) { sport in
                         let games = model.games(for: sport)
                         let channelOnly = isChannelSport(sport, model: model)
@@ -126,6 +125,9 @@ struct TVSportList: View {
         }
         // Use the full width: no Apple TV side insets on top of our own small margin.
         .ignoresSafeArea(.container, edges: .horizontal)
+        // Live Now isn't listed any more: start on (and fall back to) the first sport instead.
+        .onAppear { leaveLiveNow() }
+        .onChange(of: nav.homeSelection) { leaveLiveNow() }
         .onChange(of: focused.wrappedValue) {
             // Moving onto a row shows its games once you stop on it (a quarter second), so passing several sports
             // doesn't draw each one's games. Moving right into the games shows it straight away. Coming back to the
@@ -160,6 +162,10 @@ struct TVSportList: View {
     }
 
     /// Live games as an orange number; otherwise today's count.
+    private func leaveLiveNow() {
+        if nav.homeSelection == .liveNow, let first = sports.first { nav.homeSelection = .sport(first) }
+    }
+
     private func row(_ selection: TVNav.HomeSelection, symbol: String, name: String, live: Int, total: Int, detail: String,
                      favorite: Bool = false) -> some View {
         Button {
@@ -523,8 +529,9 @@ struct TVGameRow: View {
     var showLeague = false
     static let statusWidth: CGFloat = 230
 
-    static let teamWidth: CGFloat = 330
-    static let scoreWidth: CGFloat = 46
+    static let teamWidth: CGFloat = 350
+    /// Room for three digits (basketball scores over 99) at the score's size.
+    static let scoreWidth: CGFloat = 66
 
     var body: some View {
         let main = model.mainStreams(game.id)

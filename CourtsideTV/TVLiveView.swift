@@ -500,7 +500,7 @@ struct TVChannelRow: View {
 /// The EPG's timeline: a channel column on the left, then two and a half hours of programmes laid out by time,
 /// coloured by sport, with a line at the current time. The row you're on opens up to two lines.
 enum TVGuide {
-    static let channelWidth: CGFloat = 330
+    static let channelWidth: CGFloat = 220
     static let span: TimeInterval = 150 * 60
     static let rowHeight: CGFloat = 92
     static let gap: CGFloat = 8
@@ -709,13 +709,15 @@ struct TVGuideRow: View {
         let quality = model.measuredQuality[channel.id]
         let fps = model.measuredFrameRate[channel.id] ?? 0
         let sound = model.measuredAudio[channel.id]
-        return HStack(spacing: 14) {
-            TVChannelIcon(url: channel.icon, size: 46)
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 10) {
+        return HStack(spacing: 10) {
+            TVChannelIcon(url: channel.icon, size: 40)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
                     Text(channel.name)
-                        .font(.system(size: 23, weight: .semibold))
-                        .lineLimit(2)
+                        .font(.system(size: 18, weight: .semibold))
+                        .lineLimit(3)
+                        .minimumScaleFactor(0.85)
+                        .fixedSize(horizontal: false, vertical: true)
                         .foregroundStyle(playing && !focused ? Theme.accent : (focused ? Theme.bg : Theme.text))
                     if playing {
                         Image(systemName: "speaker.wave.2.fill")
@@ -726,7 +728,8 @@ struct TVGuideRow: View {
                         Image(systemName: "heart.fill").font(.system(size: 15)).foregroundStyle(Theme.accent)
                     }
                 }
-                if focused {
+                // Always shown (not only on the row you're on), so nothing moves as you go up and down.
+                Group {
                     HStack(spacing: 8) {
                         if let quality, !quality.isEmpty {
                             TVBadge(text: quality, fill: quality == "4K" ? Theme.accent : Theme.raised,
@@ -739,7 +742,7 @@ struct TVGuideRow: View {
                 }
             }
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 10)
         .frame(width: TVGuide.channelWidth, alignment: .leading)
         .frame(maxHeight: .infinity)
         .background(RoundedRectangle(cornerRadius: 10).fill(focused ? Theme.text : Theme.card))
