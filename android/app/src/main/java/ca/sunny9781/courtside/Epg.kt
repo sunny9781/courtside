@@ -434,7 +434,9 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
             // The game screen shows the stream's tags where the EPG shows what's next.
             if (showNext) Label(next?.let { "${clockTime(it.start)}  ${it.title}" } ?: "", size = 11.sp,
                 color = color.copy(alpha = 0.65f), scroll = focused, modifier = Modifier.width(NEXT_WIDTH).padding(end = COLUMN_GAP))
-            // What it really played at, once it has (resolution, frame rate, sound), on the EPG and the game screen.
+            // What it really played at, once it has (resolution, frame rate, sound): on the game screen and channel
+            // sports only (the EPG leaves it to the now-playing bar).
+            if (!showNext) {
             val quality = badge?.takeIf { it.isNotEmpty() } ?: model.measuredQuality[channel.id]
             val fps = model.measuredFrameRate[channel.id]
             val sound = model.measuredAudio[channel.id]
@@ -444,6 +446,7 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
                     color = if (quality == "4K") Theme.onAccent else Theme.soft)
                 if (fps != null && fps > 0) Badge(Playback.fpsLabel(fps), fill = Theme.raised, color = Theme.soft)
                 if (!sound.isNullOrEmpty()) Badge(sound, fill = Theme.raised, color = Theme.soft)
+            }
             }
         }
     }
@@ -616,17 +619,7 @@ internal fun GuideRow(model: AppModel, channel: Channel, playing: Boolean, start
                         if (model.isFavoriteChannel(channel.id))
                             Icon(Icons.Filled.Favorite, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(8.dp))
                     }
-                    // Always shown, so nothing moves as you go up and down.
-                    val quality = model.measuredQuality[channel.id]
-                    val fps = model.measuredFrameRate[channel.id]
-                    val sound = model.measuredAudio[channel.id]
-                    if (!quality.isNullOrEmpty() || (fps != null && fps > 0) || !sound.isNullOrEmpty())
-                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                            if (!quality.isNullOrEmpty()) Badge(quality, fill = if (quality == "4K") Theme.accent else Theme.raised,
-                                color = if (quality == "4K") Theme.onAccent else Theme.soft)
-                            if (fps != null && fps > 0) Badge(Playback.fpsLabel(fps), fill = Theme.raised, color = Theme.soft)
-                            if (!sound.isNullOrEmpty()) Badge(sound, fill = Theme.raised, color = Theme.soft)
-                        }
+                    // No resolution / frame rate / sound tags here: the now-playing bar shows them.
                 }
             }
             // The programmes, by time.

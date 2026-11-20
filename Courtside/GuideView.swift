@@ -537,7 +537,6 @@ struct GuideView: View {
 
         return HStack(spacing: 8) {
             ChannelCell(channel: channel, selected: selected, width: column, height: rowHeight,
-                        tags: MacChannelLine.tags(channel, model: model),
                         favorite: model.isFavorite(channel: channel.id),
                         onFavorite: { model.toggleFavorite(channel: channel.id) })
                 .onTapGesture(count: 2) { watch(channel, list) }

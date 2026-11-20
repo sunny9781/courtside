@@ -326,9 +326,7 @@ struct IOSChannelRow: View {
                         Image(systemName: "speaker.wave.2.fill").font(.caption).foregroundStyle(Theme.accent)
                     }
                     Spacer()
-                    if let q = model.measuredQuality[channel.id] { IOSBadge(text: q) }
-                    if let fps = model.measuredFrameRate[channel.id] { IOSBadge(text: PlaybackController.fpsLabel(fps)) }
-                    if let sound = model.measuredAudio[channel.id], !sound.isEmpty { IOSBadge(text: sound) }
+
                 }
                 if let now {
                     Text(now.title).font(.footnote).foregroundStyle(Theme.soft).lineLimit(1)

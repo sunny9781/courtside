@@ -80,6 +80,7 @@ enum Changelog {
             Change(text: "Left on a left panel (Settings sections, EPG categories, sports, game categories) stays put instead of jumping to another tab; right on the last score card stays put too.", apps: android),
             Change(text: "Hold select on the player in the corner to stop the stream (for remotes without Play/Pause, like the Chromecast's). Play/Pause still stops it too.", apps: android),
             Change(text: "Lite mode options say what you get when they're on: Logos, Live scores, Player in the corner, Finished games, Quick page switching.", apps: android),
+            Change(text: "EPG: no resolution, frame rate or sound tags on the channel names (the now-playing bar shows them for what's playing).", apps: [.mac, .tv, .ios, .android]),
             Change(text: "League chips are always in the same order: All, then the most popular league first (NBA, WNBA, NCAA...), instead of moving around as games go live.", apps: [.tv, .ios, .android]),
             Change(text: "Game screen: a 4K stream whose name or guide names the race or game always shows at the top under 4K, never under Local and likely.", apps: [.mac, .tv, .ios, .android]),
             Change(text: "Switching to the next stream when one stalls is off by default (Settings › Playback turns it back on).", apps: [.mac, .tv, .ios, .android]),

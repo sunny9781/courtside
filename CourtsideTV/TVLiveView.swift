@@ -478,14 +478,15 @@ struct TVChannelRow: View {
                     .padding(.trailing, 24)
                     .frame(width: Self.nextWidth, alignment: .leading)
             }
-            // What it really played at, once it has (resolution, frame rate, sound).
+            // What it really played at, once it has (resolution, frame rate, sound): on the game screen and
+            // channel sports only (the EPG leaves it to the now-playing bar).
             HStack(spacing: 8) {
-                if let quality, !quality.isEmpty {
+                if !showNext, let quality, !quality.isEmpty {
                     TVBadge(text: quality, fill: quality == "4K" ? Theme.accent : Theme.raised,
                             color: quality == "4K" ? Theme.onAccent : Theme.soft)
                 }
-                if fps > 0 { TVBadge(text: PlaybackController.fpsLabel(fps)) }
-                if let sound { TVBadge(text: sound) }
+                if !showNext, fps > 0 { TVBadge(text: PlaybackController.fpsLabel(fps)) }
+                if !showNext, let sound { TVBadge(text: sound) }
             }
             .fixedSize()
             Spacer(minLength: 0)
@@ -616,9 +617,6 @@ struct TVGuideRow: View {
     }
 
     private var tile: some View {
-        let quality = model.measuredQuality[channel.id]
-        let fps = model.measuredFrameRate[channel.id] ?? 0
-        let sound = model.measuredAudio[channel.id]
         return HStack(spacing: 10) {
             TVChannelIcon(url: channel.icon, size: 40)
             VStack(alignment: .leading, spacing: 6) {
@@ -638,18 +636,7 @@ struct TVGuideRow: View {
                         Image(systemName: "heart.fill").font(.system(size: 15)).foregroundStyle(Theme.accent)
                     }
                 }
-                // Always shown (not only on the row you're on), so nothing moves as you go up and down.
-                Group {
-                    HStack(spacing: 8) {
-                        if let quality, !quality.isEmpty {
-                            TVBadge(text: quality, fill: quality == "4K" ? Theme.accent : Theme.raised,
-                                    color: quality == "4K" ? Theme.onAccent : Theme.soft)
-                        }
-                        if fps > 0 { TVBadge(text: PlaybackController.fpsLabel(fps)) }
-                        if let sound { TVBadge(text: sound) }
-                    }
-                    .fixedSize()
-                }
+                // No resolution / frame rate / sound tags here: the now-playing bar shows them.
             }
         }
         .padding(.horizontal, 10)
