@@ -31,7 +31,16 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
    "Update Apple TV and iPhone" shortcut.
 
 ## Layout (Android TV and Apple TV match)
-- Top bar: connections pill, EPG refresh, version/update button (one press checks and installs).
+- Top bar: connections pill, EPG refresh, version/update button (one press checks and installs). Apple TV only since
+  2.4: Android TV has no top bar but a rail down the left edge (`NavRail` in Screens.kt, 56 dp closed / 214 dp open,
+  drawn after the video so it covers the corner player when open): Home / EPG / Settings icons, connections + EPG time
+  (short) + an update dot at the bottom; open = names, full status, version button. Left off a page's left edge opens
+  it, Right goes to `model.leftPanel`, Back from a left panel focuses it ("tabs"). Pages start at the top (Column has
+  start padding RAIL_WIDTH). EPG download status also at the right end of the now-playing bar.
+- Android Home 2.4: no league chips; a sport with several leagues lists them beside it (`LeagueList`): Right from the
+  sport folds the sports to a 48 dp icon strip (`compact` SportRow) and focuses the league; focusing the sports again
+  opens them out; Back from a league → its sport; Back from cards → the league when folded. Cards run full height to the
+  right of the column (beside the player). Mock-ups: Design canvas "Courtside Android TV – left navigation mockups".
 - Player in the bottom-left corner; left panels (sports, EPG categories, game stream categories, settings sections)
   sit on top of it; a one-line now-playing bar runs along the very bottom; pages on the right scroll under the bar.
 - Home: sports sidebar (groups: live scores / channel sports / nothing today) + score cards (1.95, both TVs; replaced

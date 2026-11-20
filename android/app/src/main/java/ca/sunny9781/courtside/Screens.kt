@@ -201,8 +201,8 @@ fun Shell(model: AppModel) {
     val full = model.nowPlaying != null
     val strip = remember { FocusTargets() }
     // Back goes up one level at a time: full screen → the player; a game → its card on Home; a page (games, channels,
-    // a setting) → its left panel, on the selected item; the left panel → the tab you're on at the top; the EPG or
-    // Settings tab → Home; the Home tab → leaves the app.
+    // a setting) → its left panel, on the selected item; the left panel → the tab you're on in the rail down the left
+    // edge; the EPG or Settings tab → Home; the Home tab → leaves the app.
     BackHandler(enabled = full || model.openGameId != null || model.tab != Tab.HOME || !model.tabsFocused) {
         when {
             model.nowPlaying != null -> model.closePlayer()
@@ -243,13 +243,14 @@ fun Shell(model: AppModel) {
             ) { model.stopPinned(); true } else false
         }
     ) {
-        Column(Modifier.fillMaxSize().padding(top = Theme.margin).alpha(if (full) 0f else 1f).enterAt({ full }) { FocusRequester.Default }) {
-            TopBar(model)
+        // No top bar (2.4): the tabs and the status (connections, EPG, version) are in the rail down the left edge, so
+        // every page starts at the top of the screen.
+        Column(Modifier.fillMaxSize().padding(start = RAIL_WIDTH, top = Theme.margin).alpha(if (full) 0f else 1f).enterAt({ full }) { FocusRequester.Default }) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
-            // Moving left or right off the edge of a page goes nowhere (not up to a tab at the top, which switched tabs).
+            // Left off the left edge of a page goes to the rail; right off the right edge goes nowhere.
             Box(Modifier.fillMaxSize().focusProperties {
                 exit = { d ->
-                    if (d == FocusDirection.Left || d == FocusDirection.Right || d == FocusDirection.Next || d == FocusDirection.Previous)
+                    if (d == FocusDirection.Right || d == FocusDirection.Next || d == FocusDirection.Previous || d == FocusDirection.Up || d == FocusDirection.Down)
                         FocusRequester.Cancel else FocusRequester.Default
                 }
             }.focusGroup()) {
@@ -284,6 +285,8 @@ fun Shell(model: AppModel) {
             }
             PlayerVideo(place)
         }
+        // After the video, so the open rail (and its shade over the page) draws on top of the player in the corner.
+        if (!full) NavRail(model)
         model.nowPlaying?.let { FullScreenPlayer(model, it) }
         model.notice?.let { message ->
             Box(Modifier.fillMaxWidth().padding(top = 24.dp), contentAlignment = Alignment.TopCenter) {
@@ -300,101 +303,158 @@ fun Shell(model: AppModel) {
     }
 }
 
-/** Home, EPG and Settings in the middle (moving across them switches once you stop on one); the version on the right. */
+/** How wide the rail down the left edge is while you're on a page (icons only), and when you move onto it. */
+val RAIL_WIDTH = 56.dp
+private val RAIL_OPEN = 214.dp
+
+/**
+ * The tabs (Home, EPG, Settings) down the left edge, where every move starts: left from a left panel opens it, right
+ * goes back into the page's left panel. Closed it's a strip of icons, with the connections, the EPG time and a dot
+ * when an update is ready at the bottom; open it shows names, the full status and the version button, over the page.
+ * Moving through the tabs shows a page once you stop on its tab; clicking, or pressing right, is instant.
+ */
 @Composable
-fun TopBar(model: AppModel) {
+fun NavRail(model: AppModel) {
     val context = LocalContext.current
     val tabs = remember { FocusTargets() }
-    // Moving across the tabs shows a page once you stop on its tab (going from Home to Settings doesn't draw the
-    // EPG on the way). Clicking, or pressing down into the page, is instant.
     val settle = rememberSettle()
-    // Back from a left panel: up to the tab you're on.
+    val scope = rememberCoroutineScope()
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    var open by remember { mutableStateOf(false) }
+    // Back from a left panel: to the tab you're on.
     LaunchedEffect(Unit) {
         model.focusMoves.collect { if (it == "tabs") { settle.cancel(); delay(30); tabs.focus(model.tab) } }
     }
-    Box(Modifier.fillMaxWidth().padding(horizontal = Theme.margin).height(40.dp)) {
-        // Coming back up to the tabs lands on the one you're on, so it doesn't switch by accident.
-        Row(Modifier.align(Alignment.Center).onFocusChanged { model.tabsFocused = it.hasFocus; if (!it.hasFocus) settle.flush() }
-            .flushOn(settle, androidx.compose.ui.focus.FocusDirection.Down).enterAt { tabs[model.tab] },
-            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            for (tab in Tab.entries) {
-                TvButton(onClick = { settle.now { model.tab = tab } }, selected = model.tab == tab, shape = RoundedCornerShape(20.dp), focusedScale = 1.04f,
-                    onFocus = { if (model.tab != tab) settle.later { model.tab = tab } else settle.cancel() }, modifier = Modifier.tracked(tabs, tab)) { focused ->
-                    Row(Modifier.padding(horizontal = 18.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        val color = if (focused) Theme.bg else if (model.tab == tab) Theme.text else Theme.muted
-                        when (tab) {
-                            Tab.EPG -> Icon(Icons.Filled.Tv, null, tint = color, modifier = Modifier.size(15.dp))
-                            Tab.SETTINGS -> Icon(Icons.Filled.Tune, null, tint = color, modifier = Modifier.size(15.dp))
-                            else -> {}
-                        }
-                        Label(tab.title, size = 15.sp, weight = FontWeight.SemiBold, color = color)
-                    }
+    val width by animateDpAsState(if (open) RAIL_OPEN else RAIL_WIDTH,
+        androidx.compose.animation.core.tween(if (Perf.slowSettle) 0 else 140), label = "rail")
+    if (open) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)))
+    Column(Modifier.width(width).fillMaxHeight().background(if (open) Theme.card else Theme.bg)
+        .onFocusChanged {
+            open = it.hasFocus
+            model.tabsFocused = it.hasFocus
+            if (!it.hasFocus) settle.flush()
+        }
+        .onPreviewKeyEvent { e ->
+            // Right: into the page's left panel (the selected sport, category or section), after showing the tab
+            // you stopped on.
+            if (e.type != KeyEventType.KeyDown || e.key.nativeKeyCode != KeyEvent.KEYCODE_DPAD_RIGHT) return@onPreviewKeyEvent false
+            val flushed = settle.flush()
+            scope.launch {
+                if (flushed) { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
+                if (runCatching { model.leftPanel.requestFocus() }.isFailure) focusManager.moveFocus(FocusDirection.Right)
+            }
+            true
+        }
+        .enterAt { tabs[model.tab] }
+        .padding(horizontal = 8.dp, vertical = Theme.margin),
+        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.height(34.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (open) {
+                Label("Court", size = 17.sp, weight = FontWeight.Bold)
+                Label("side", size = 17.sp, weight = FontWeight.Bold, color = Theme.accent)
+            } else Label("C", size = 17.sp, weight = FontWeight.Bold, color = Theme.accent)
+        }
+        for (tab in Tab.entries) {
+            TvButton(onClick = { settle.now { model.tab = tab } }, selected = model.tab == tab,
+                onFocus = { if (model.tab != tab) settle.later { model.tab = tab } else settle.cancel() },
+                modifier = Modifier.fillMaxWidth().tracked(tabs, tab)) { focused ->
+                val color = if (focused) Theme.bg else if (model.tab == tab) Theme.accent else Theme.muted
+                Row(Modifier.height(40.dp).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(when (tab) { Tab.HOME -> Icons.Filled.Home; Tab.EPG -> Icons.Filled.Tv; Tab.SETTINGS -> Icons.Filled.Tune },
+                        tab.title, tint = color, modifier = Modifier.size(20.dp))
+                    if (open) Label(tab.title, size = 15.sp, weight = FontWeight.SemiBold,
+                        color = if (focused) Theme.bg else Theme.text)
                 }
             }
         }
-        // Left: connections in use ("1/2", orange at the limit), and "EPG 9:10 PM ⟳" (download it again).
-        Row(Modifier.align(Alignment.CenterStart), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val a = model.account
-            val max = a?.maxConnections ?: 0
-            if (max > 0) {
-                val active = a?.activeConnections ?: 0
-                val full = active >= max
-                Row(Modifier.clip(RoundedCornerShape(14.dp)).background(if (full) Theme.accent else Theme.raised)
-                    .padding(horizontal = 10.dp, vertical = 5.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Icon(Icons.Filled.People, null, tint = if (full) Theme.onAccent else Theme.muted, modifier = Modifier.size(13.dp))
-                    Label("$active/$max", size = 12.sp, weight = FontWeight.SemiBold, color = if (full) Theme.onAccent else Theme.muted)
-                }
-            }
-            // When the EPG was last downloaded (just text: it refreshes by itself, or from Settings › General).
-            // While it downloads: "Refreshing EPG…" (2.4: no percentage or bar; the download comes in a burst and most
-            // of the wait is sorting and saving it afterwards, so the bar sat at 100%).
-            when {
-                model.refreshWaiting -> Label("EPG refreshes after this stream", size = 12.sp, color = Theme.muted)
-                model.loading -> Label("Refreshing EPG · channels…", size = 12.sp, color = Theme.muted)
-                model.guideLoading -> Label("Refreshing EPG…", size = 12.sp, color = Theme.muted)
-                else -> model.updatedAt?.let { at -> Label("EPG ${clockTime(at)}", size = 12.sp, color = Theme.muted,
-                    modifier = Modifier.padding(horizontal = 10.dp)) }
-            }
-        }
-        Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Spacer(Modifier.weight(1f))
+        RailStatus(model, open)
+        if (open) {
             // The version is the update button: one click checks for a new version and installs it. When one has
-            // already downloaded by itself it shows "Install update". (Channels refresh on their own, or from Settings.)
+            // already downloaded by itself it shows "Install update".
             val ready = Updater.readyVersion
-            val scope = rememberCoroutineScope()
             var busy by remember { mutableStateOf(false) }
             TvButton(onClick = {
                 if (busy) Unit
                 else if (ready != null) scope.launch { Updater.installLatest(context) }
                 else scope.launch {
                     busy = true
-                    // One press: check, and if there's a new version, download it and open the installer right away.
                     Updater.check(context, userInitiated = true)
                     busy = false
                     if (Updater.readyVersion != null) Updater.install(context)
                     else model.notice = Updater.message ?: "You have the latest version."
                 }
-            }, background = if (ready != null) Theme.accent else Color.Transparent) { focused ->
-                Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            }, background = if (ready != null) Theme.accent else Color.Transparent, modifier = Modifier.fillMaxWidth()) { focused ->
+                Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val color = if (focused) Theme.bg else if (ready != null) Theme.onAccent else Theme.muted
-                    // Downloading first ("Downloading 1.98 · 45%"), then one install: Android's own screen asks you
-                    // to confirm it.
+                    Icon(if (ready != null) Icons.Filled.Download else if (Updater.checking) Icons.Filled.HourglassTop else Icons.Filled.Refresh,
+                        null, tint = color, modifier = Modifier.size(14.dp))
                     val dl = Updater.downloading
                     Label(when {
                         dl != null -> "Downloading $dl" + (Updater.downloadProgress?.let { " · ${(it * 100).toInt()}%" } ?: "…")
-                        Updater.installing || busy -> "Checking for a newer version…"
+                        Updater.installing || busy -> "Checking…"
                         ready != null -> "Install update $ready"
                         else -> "v${BuildConfig.VERSION_NAME}"
-                    }, size = 12.sp,
-                        weight = FontWeight.SemiBold, color = color)
-                    Icon(if (ready != null) Icons.Filled.Download else if (Updater.checking) Icons.Filled.HourglassTop else Icons.Filled.Refresh,
-                        null, tint = color, modifier = Modifier.size(13.dp))
+                    }, size = 12.sp, weight = FontWeight.SemiBold, color = color)
                 }
             }
+        }
+    }
+}
+
+/**
+ * Connections in use ("1/2", orange at the limit) and when the EPG was downloaded ("Refreshing EPG 45%" while it
+ * downloads): full lines when the rail is open, short ones under the icons when it's closed. A dot: an update is ready.
+ */
+@Composable
+private fun RailStatus(model: AppModel, open: Boolean) {
+    val a = model.account
+    val max = a?.maxConnections ?: 0
+    val active = a?.activeConnections ?: 0
+    val atLimit = max > 0 && active >= max
+    val epgShort = when {
+        model.refreshWaiting -> "EPG…"
+        model.loading -> "EPG…"
+        model.guideLoading -> "EPG…"
+        else -> model.updatedAt?.let { clockTime(it).substringBefore(' ') }
+    }
+    val epgLong = when {
+        model.refreshWaiting -> "EPG refreshes after this stream"
+        model.loading -> "Refreshing EPG · channels…"
+        model.guideLoading -> "Refreshing EPG…"
+        else -> model.updatedAt?.let { "EPG ${clockTime(it)}" }
+    }
+    if (open) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Theme.border))
+            if (max > 0) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.People, null, tint = if (atLimit) Theme.accent else Theme.muted, modifier = Modifier.size(15.dp))
+                Label("$active/$max connections", size = 12.sp, weight = FontWeight.SemiBold, color = if (atLimit) Theme.accent else Theme.soft)
+            }
+            epgLong?.let {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Filled.Schedule, null, tint = Theme.muted, modifier = Modifier.size(15.dp))
+                    Label(it, size = 12.sp, color = Theme.muted, maxLines = 2)
+                }
+            }
+        }
+    } else {
+        Column(Modifier.fillMaxWidth().padding(bottom = 4.dp), horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (max > 0) Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Filled.People, null, tint = if (atLimit) Theme.accent else Theme.muted, modifier = Modifier.size(15.dp))
+                Label("$active/$max", size = 10.sp, weight = FontWeight.SemiBold, color = if (atLimit) Theme.accent else Theme.muted)
+            }
+            epgShort?.let {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Filled.Schedule, null, tint = if (model.guideLoading) Theme.accent else Theme.muted, modifier = Modifier.size(15.dp))
+                    Label(it, size = 10.sp, color = if (model.guideLoading) Theme.accent else Theme.muted)
+                }
+            }
+            if (Updater.readyVersion != null || Updater.downloading != null)
+                Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Theme.accent))
         }
     }
 }
@@ -469,6 +529,16 @@ fun NowPlayingBar(model: AppModel, item: NowPlaying, modifier: Modifier = Modifi
                 Label("${clockTime(now.start)} – ${clockTime(now.end)}", size = 13.sp, color = Theme.muted)
                 val total = (now.end - now.start).toFloat()
                 ProgressLine(if (total > 0) (System.currentTimeMillis() - now.start) / total else 0f, false, width = 100.dp)
+            }
+            // The EPG refresh, at the right end (the closed rail only has room for "EPG…").
+            val epg = when {
+                model.refreshWaiting -> "EPG refreshes after this stream"
+                model.guideLoading -> "Refreshing EPG…"
+                else -> null
+            }
+            if (epg != null) {
+                Spacer(Modifier.weight(1f))
+                Label(epg, size = 12.sp, color = Theme.muted)
             }
         }
     }
@@ -682,10 +752,33 @@ fun HomeScreen(model: AppModel) {
         }
     }
 
-    // Back from the games: the selected sport.
-    LaunchedEffect(Unit) {
-        model.focusMoves.collect { if (it == "side") side.focus(sidebarKey(model.homeSelection)) }
+    // 2.4: a sport with several leagues lists them beside it. Right from the sport moves into its leagues, and the
+    // sports fold to a strip of icons to make room; going back onto the sports opens them out again.
+    val leagueTargets = remember { FocusTargets() }
+    var folded by remember { mutableStateOf(false) }
+    var leaguesFocused by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    fun leagueKey() = (model.homeSelection as? HomeSelection.OfLeague)?.let { "lg:${it.leagueId}" } ?: "lg:all"
+    fun hasLeagues(sel: HomeSelection): Boolean {
+        val sp = selectedSport(sel) ?: return false
+        return sp !in model.home.channelSports && model.leagues(sp).size > 1
     }
+    val canFold = hasLeagues(model.homeSelection)
+    LaunchedEffect(canFold) { if (!canFold) folded = false }
+    fun openLeagues(): Boolean {
+        if (!hasLeagues(model.homeSelection)) return false
+        folded = true
+        scope.launch { repeat(10) { delay(30); if (leagueTargets.focus(leagueKey())) return@launch } }
+        return true
+    }
+    // Back from the games: the selected league (when the leagues are out), otherwise the selected sport.
+    LaunchedEffect(Unit) {
+        model.focusMoves.collect {
+            if (it == "side") { if (folded && leagueTargets.focus(leagueKey())) Unit else side.focus(sidebarKey(model.homeSelection)) }
+        }
+    }
+    // Back from a league: its sport (the sports open out again).
+    BackHandler(enabled = folded && leaguesFocused && model.nowPlaying == null) { side.focus(sidebarKey(model.homeSelection)) }
     // Back from a game: focus goes to its card.
     LaunchedEffect(Unit) {
         val id = model.returnToGame ?: return@LaunchedEffect
@@ -696,13 +789,25 @@ fun HomeScreen(model: AppModel) {
         }
     }
 
-    // The sports on top of the player (the same width), the games to the right.
+    // The sports (and leagues) on top of the player (the same width), the games to the right, down to the bottom of
+    // the screen beside the player.
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin)
         .enterAt { firstGame?.let { "game:$it" }?.takeIf { it in pane.live }?.let { pane[it] } ?: side[sidebarKey(model.homeSelection)] }) {
-        SportList(model, side, compact = false,
-            modifier = Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).focusRequester(model.leftPanel)
-                .onFocusChanged { model.sideFocused = it.hasFocus }
-                .enterAt { side[sidebarKey(model.homeSelection)] })
+        Row(Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).focusRequester(model.leftPanel)
+            .onFocusChanged { model.sideFocused = it.hasFocus }
+            .enterAt { if (folded) leagueTargets[leagueKey()] else side[sidebarKey(model.homeSelection)] }) {
+            SportList(model, side, compact = folded, onRight = { openLeagues() },
+                modifier = (if (folded) Modifier.width(48.dp) else Modifier.weight(1f))
+                    .onFocusChanged { if (it.hasFocus) folded = false }
+                    .enterAt { side[sidebarKey(model.homeSelection)] })
+            val sport = selectedSport(model.homeSelection)
+            if (folded && sport != null) {
+                Box(Modifier.padding(vertical = 8.dp).width(1.dp).fillMaxHeight().background(Theme.border))
+                Spacer(Modifier.width(6.dp))
+                LeagueList(model, sport, leagueTargets, Modifier.weight(1f).onFocusChanged { leaguesFocused = it.hasFocus }
+                    .enterAt { leagueTargets[leagueKey()] })
+            }
+        }
         Spacer(Modifier.width(16.dp))
         GamesPane(model, pane, onOpen = { lastGame = it; model.openGameId = it }, onFocusGame = { lastGame = it },
             onFirst = { firstGame = it },
@@ -723,7 +828,7 @@ private fun selectedSport(s: HomeSelection): Sport? = when (s) {
 }
 
 @Composable
-private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, modifier: Modifier) {
+private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, onRight: () -> Boolean = { false }, modifier: Modifier) {
     val sports = model.orderedSports()
     val favs = model.settings.favoriteSet
     val open = selectedSport(model.homeSelection)
@@ -738,7 +843,25 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
         val apply = { if (model.homeSelection != s) model.homeSelection = s }
         if (now) settle.now(apply) else settle.later(apply)
     }
-    Column(modifier.fillMaxHeight().flushOn(settle, androidx.compose.ui.focus.FocusDirection.Right)
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    val scope = rememberCoroutineScope()
+    Column(modifier.fillMaxHeight().onPreviewKeyEvent { e ->
+            // Right: show the sport you stopped on first, then into its leagues (when it has several) or its games.
+            if (e.type != KeyEventType.KeyDown || e.key.nativeKeyCode != KeyEvent.KEYCODE_DPAD_RIGHT) return@onPreviewKeyEvent false
+            val flushed = settle.flush()
+            when {
+                onRight() -> true
+                flushed -> {
+                    scope.launch {
+                        androidx.compose.runtime.withFrameNanos { }
+                        androidx.compose.runtime.withFrameNanos { }
+                        focusManager.moveFocus(FocusDirection.Right)
+                    }
+                    true
+                }
+                else -> false
+            }
+        }
         .verticalScroll(rememberScrollState()).padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(3.dp)) {
         // Sports with live scores | sports that are channels (pickleball) | sports with nothing today. (No Live Now row:
@@ -747,7 +870,7 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
         var firstGroup = true
         for (group in listOf(home.scoreSports, home.channelSports, home.emptySports)) {
             if (group.isEmpty()) continue
-            if (!firstGroup) Box(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp).height(1.dp).background(Theme.border))
+            if (!firstGroup) Box(Modifier.fillMaxWidth().padding(horizontal = if (compact) 6.dp else 10.dp, vertical = 5.dp).height(1.dp).background(Theme.border))
             firstGroup = false
             for (sport in group) {
                 val games = model.games(sport)
@@ -785,23 +908,25 @@ private fun SportRow(
     TvButton(onClick = select, selected = selected, onFocus = onFocus, onLongClick = onHold,
         modifier = Modifier.fillMaxWidth().tracked(targets, key).alpha(if (dimmed) 0.5f else 1f)) { focused ->
         val color = if (focused) Theme.bg else Theme.text
-        Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, contentDescription = name, tint = color, modifier = Modifier.size(18.dp))
-            if (compact) {
-                Spacer(Modifier.weight(1f))
-                if (live > 0) Badge("$live", fill = Theme.accent, color = Theme.onAccent)
-                else if (total > 0) Label("$total", size = 11.sp, color = color.copy(alpha = 0.6f))
-            } else {
-                Spacer(Modifier.width(10.dp))
-                Label(name, size = 14.sp, weight = FontWeight.SemiBold, color = color)
-                if (favorite) {
-                    Spacer(Modifier.width(5.dp))
-                    Icon(Icons.Filled.Favorite, null, tint = Theme.accent, modifier = Modifier.size(10.dp))
-                }
-                Spacer(Modifier.weight(1f).widthIn(min = 6.dp))
-                if (live > 0) Badge("$live", fill = Theme.accent, color = Theme.onAccent)
-                else Label(detail, size = 11.sp, color = color.copy(alpha = 0.6f))
+        if (compact) {
+            // Folded (the leagues are out): just the icon, orange for the sport you're in, a dot when it has live games.
+            Box(Modifier.fillMaxWidth().height(34.dp), contentAlignment = Alignment.Center) {
+                Icon(icon, contentDescription = name, tint = if (focused) Theme.bg else if (selected) Theme.accent else Theme.muted,
+                    modifier = Modifier.size(18.dp))
+                if (live > 0) Box(Modifier.align(Alignment.TopEnd).padding(top = 5.dp, end = 7.dp).size(6.dp)
+                    .clip(RoundedCornerShape(3.dp)).background(Theme.accent))
             }
+        } else Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, contentDescription = name, tint = color, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(10.dp))
+            Label(name, size = 14.sp, weight = FontWeight.SemiBold, color = color)
+            if (favorite) {
+                Spacer(Modifier.width(5.dp))
+                Icon(Icons.Filled.Favorite, null, tint = Theme.accent, modifier = Modifier.size(10.dp))
+            }
+            Spacer(Modifier.weight(1f).widthIn(min = 6.dp))
+            if (live > 0) Badge("$live", fill = Theme.accent, color = Theme.onAccent)
+            else Label(detail, size = 11.sp, color = color.copy(alpha = 0.6f))
         }
     }
 }
@@ -900,9 +1025,6 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     }
     LazyColumn(Modifier.fillMaxHeight(), state = model.homeList, verticalArrangement = Arrangement.spacedBy(2.dp),
         contentPadding = PaddingValues(top = 6.dp, bottom = 6.dp + barInset(model))) {
-        if (sport != null && model.leagues(sport).size > 1) {
-            item(key = "chips") { SidewaysScroll { LeagueChips(model, sport, targets) } }
-        }
         if (redZone.isNotEmpty()) {
             item(key = "redzone", contentType = "finished") {
                 FoldRow("NFL RedZone · ${redZone.size}", showRedZone, Modifier.tracked(targets, "redzone")) { showRedZone = !showRedZone }
@@ -1063,44 +1185,47 @@ private fun SportChannels(model: AppModel, sport: Sport, targets: FocusTargets, 
 }
 
 /**
- * "All · NBA · WNBA · NCAA Men…": always in that order (the most popular league first), so the chips never move.
- * Moving across them switches straight away.
+ * A sport's leagues beside its icon: "All" first, then the most popular league first (`Sport.leagues` order), so
+ * the list never moves. Moving through it shows a league's games once you stop; clicking, or right, is instant.
  */
 @Composable
-private fun LeagueChips(model: AppModel, sport: Sport, targets: FocusTargets) {
-    val ordered = model.leagues(sport)
+private fun LeagueList(model: AppModel, sport: Sport, targets: FocusTargets, modifier: Modifier) {
     val selection = model.homeSelection
-    // Coming up from the games lands on the chip that's selected (All, or the league), not the one above.
-    val selectedChip = (selection as? HomeSelection.OfLeague)?.let { "chip:${it.leagueId}" } ?: "chip:all"
-    Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 4.dp).enterAt { targets[selectedChip] },
-        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    val settle = rememberSettle()
+    fun choose(s: HomeSelection, now: Boolean) {
+        val apply = { if (model.homeSelection != s) model.homeSelection = s }
+        if (now) settle.now(apply) else settle.later(apply)
+    }
+    Column(modifier.fillMaxHeight().flushOn(settle, androidx.compose.ui.focus.FocusDirection.Right)
+        .verticalScroll(rememberScrollState()).padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Label(sport.title.uppercase(), size = 10.sp, weight = FontWeight.Bold, color = Theme.muted,
+            modifier = Modifier.padding(start = 10.dp, top = 2.dp, bottom = 4.dp))
         val all = model.games(sport)
-        Chip(targets, "chip:all", null, "All", all.count { it.state == GameState.LIVE }, all.size,
-            selection == HomeSelection.OfSport(sport), model) {
-            if (model.homeSelection != HomeSelection.OfSport(sport)) model.homeSelection = HomeSelection.OfSport(sport)
+        LeagueRow(targets, "lg:all", null, "All", all.count { it.state == GameState.LIVE }, all.size,
+            selection == HomeSelection.OfSport(sport), model, onFocus = { choose(HomeSelection.OfSport(sport), false) }) {
+            choose(HomeSelection.OfSport(sport), true)
         }
-        for (league in ordered) {
+        for (league in model.leagues(sport)) {
             val g = model.gamesIn(league.id)
-            Chip(targets, "chip:${league.id}", league, league.name, g.count { it.state == GameState.LIVE }, g.size,
-                (selection as? HomeSelection.OfLeague)?.leagueId == league.id, model, dimmed = g.isEmpty()) {
-                if ((model.homeSelection as? HomeSelection.OfLeague)?.leagueId != league.id) model.homeSelection = HomeSelection.OfLeague(league.id)
-            }
+            val s = HomeSelection.OfLeague(league.id)
+            LeagueRow(targets, "lg:${league.id}", league, league.name, g.count { it.state == GameState.LIVE }, g.size,
+                selection == s, model, dimmed = g.isEmpty(), onFocus = { choose(s, false) }) { choose(s, true) }
         }
     }
 }
 
 @Composable
-private fun Chip(targets: FocusTargets, key: String, league: League?, name: String, live: Int, total: Int, selected: Boolean,
-                 model: AppModel, dimmed: Boolean = false, select: () -> Unit) {
-    TvButton(onClick = select, selected = selected, onFocus = select, shape = RoundedCornerShape(18.dp),
-        modifier = Modifier.tracked(targets, key).alpha(if (dimmed) 0.5f else 1f)
-            .border(1.dp, if (selected) Color.Transparent else Theme.border, RoundedCornerShape(18.dp))) { focused ->
-        Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (league != null) LeagueLogo(model, league, 15.dp)
-            Label(name, size = 12.sp, weight = FontWeight.SemiBold, color = if (focused) Theme.bg else Theme.text)
+private fun LeagueRow(targets: FocusTargets, key: String, league: League?, name: String, live: Int, total: Int, selected: Boolean,
+                      model: AppModel, dimmed: Boolean = false, onFocus: () -> Unit, select: () -> Unit) {
+    TvButton(onClick = select, selected = selected, onFocus = onFocus,
+        modifier = Modifier.fillMaxWidth().tracked(targets, key).alpha(if (dimmed) 0.5f else 1f)) { focused ->
+        val color = if (focused) Theme.bg else Theme.text
+        Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (league != null && !Perf.noLogos) LeagueLogo(model, league, 15.dp)
+            Label(name, size = 14.sp, weight = FontWeight.SemiBold, color = color, modifier = Modifier.weight(1f))
             if (live > 0) Badge("$live", fill = Theme.accent, color = Theme.onAccent)
-            else if (total > 0) Label("$total", size = 10.sp, color = if (focused) Theme.bg else Theme.muted)
+            else if (total > 0) Label("$total", size = 11.sp, color = color.copy(alpha = 0.6f))
         }
     }
 }

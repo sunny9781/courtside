@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.6", date: "2026-11-20", time: "16:40", title: "Navigation from the left", changes: [
+            Change(text: "No top bar: Home, EPG and Settings are in a rail down the left edge. Left from a left panel (or Back) opens it with names, connections, the EPG time and the version button; right goes back into the page.", apps: android),
+            Change(text: "Home: a sport's leagues are a list beside it instead of chips. Right from the sport moves into them and the sports fold to icons; left (or Back) opens them out again.", apps: android),
+            Change(text: "The EPG refresh shows at the right end of the now-playing bar.", apps: android),
+        ]),
         Release(version: "2.5", date: "2026-11-20", time: "16:26", title: "Streams ride out hiccups", changes: [
             Change(text: "A stream that stalls keeps its connection and carries on when the data comes back, like other IPTV apps, instead of being restarted after 4 seconds. Only a picture that hasn't moved for a whole minute is reopened.", apps: everywhere),
             Change(text: "No more jumping to another stream because one kept freezing (and no \"kept freezing\" message). Switching only happens if Settings › Switch to the next stream when one stalls is on.", apps: everywhere),
