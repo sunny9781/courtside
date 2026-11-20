@@ -79,6 +79,7 @@ enum Changelog {
             Change(text: "Each tab remembers where you were: coming back to Settings lands on the section you left (Lite mode, say), not the first one.", apps: android),
             Change(text: "Left on a left panel (Settings sections, EPG categories, sports, game categories) stays put instead of jumping to another tab; right on the last score card stays put too.", apps: android),
             Change(text: "Hold select on the player in the corner to stop the stream (for remotes without Play/Pause, like the Chromecast's). Play/Pause still stops it too.", apps: android),
+            Change(text: "Full screen: no more black flash a few seconds in. Match frame rate now switches the TV only as a channel starts (using the frame rate it played at last time); the first time a channel plays, its frame rate is counted and used from then on.", apps: android),
             Change(text: "Lite mode options say what you get when they're on: Logos, Live scores, Player in the corner, Finished games, Quick page switching.", apps: android),
             Change(text: "EPG: no resolution, frame rate or sound tags on the channel names (the now-playing bar shows them for what's playing).", apps: [.mac, .tv, .ios, .android]),
             Change(text: "League chips are always in the same order: All, then the most popular league first (NBA, WNBA, NCAA...), instead of moving around as games go live.", apps: [.tv, .ios, .android]),
