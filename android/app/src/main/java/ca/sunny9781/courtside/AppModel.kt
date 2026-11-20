@@ -135,6 +135,14 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     var tab by mutableStateOf(Tab.HOME)
     /** Focus is on Home / EPG / Settings: the player's video can't take focus then, so down lands on the page. */
     var tabsFocused by mutableStateOf(false)
+    /**
+     * You moved to a sport yourself. Until then Home keeps the top sport selected while things finish loading (the
+     * order settles once the scores, channels and guide are in), so it doesn't stay on whichever sport loaded first.
+     */
+    var pickedSport = false
+    /** The select button is still held after it stopped the corner player: ignore it until it's let go. */
+    var swallowSelect = false
+    val openedAt = System.currentTimeMillis()
     /** Focus is in a screen's left panel (sports, EPG categories, settings sections, game categories). */
     var sideFocused by mutableStateOf(false)
     /** Settings' section, kept while you visit other tabs (coming back lands where you were). */
@@ -530,8 +538,10 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         guideMegabytes = 0
         try {
             runCatching {
-                // Last hour to the next 8: plenty for now/next and today's games, and light on a 2 GB TV.
-                val g = client.guide(wanted, now - 3600_000L, now + 8 * 3600_000L) { read, total ->
+                // Last hour to the refresh interval ahead (it's downloaded again after that; at least 3 hours, for the
+                // guide's two and a half hours on screen): only what's needed, light on a 2 GB TV.
+                val ahead = maxOf(settings.refreshHours, 3) * 3600_000L
+                val g = client.guide(wanted, now - 3600_000L, now + ahead) { read, total ->
                     // A stream started: stop reading (the download starts again once it's closed).
                     if (job?.isActive == false) throw java.io.InterruptedIOException("paused")
                     viewModelScope.launch {

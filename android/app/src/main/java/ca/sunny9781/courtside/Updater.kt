@@ -27,6 +27,11 @@ object Updater {
     var checking by mutableStateOf(false)
         private set
     var message by mutableStateOf<String?>(null)
+    /** The new version being downloaded right now, and how far it's got (0..1, null if the size isn't known). */
+    var downloading by mutableStateOf<String?>(null)
+        private set
+    var downloadProgress by mutableStateOf<Float?>(null)
+        private set
     private var readyFile: File? = null
     private var readyBuild = 0
 
@@ -48,7 +53,9 @@ object Updater {
             }
             val dir = File(context.cacheDir, "updates").apply { mkdirs() }
             val file = File(dir, "Courtside.apk")
-            download(url, file)
+            downloading = version
+            downloadProgress = null
+            try { download(url, file) } finally { downloading = null; downloadProgress = null }
             readyFile = file
             readyBuild = build
             readyVersion = version
@@ -182,7 +189,24 @@ object Updater {
         val conn = (URL(url).openConnection() as HttpURLConnection).apply { connectTimeout = 15_000; readTimeout = 120_000 }
         try {
             val tmp = File(to.parentFile, "download.tmp")
-            conn.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it) } }
+            val total = conn.contentLengthLong
+            conn.inputStream.use { input ->
+                tmp.outputStream().use { out ->
+                    val buf = ByteArray(64 * 1024)
+                    var read = 0L
+                    var shown = -1
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        out.write(buf, 0, n)
+                        read += n
+                        if (total > 0) {
+                            val pct = (read * 100 / total).toInt()
+                            if (pct != shown) { shown = pct; downloadProgress = read.toFloat() / total }
+                        }
+                    }
+                }
+            }
             // A cut-off download would fail to install ("App not installed"), so it's checked first.
             val expected = conn.contentLengthLong
             if (expected > 0 && tmp.length() != expected) { tmp.delete(); error("The download was incomplete.") }

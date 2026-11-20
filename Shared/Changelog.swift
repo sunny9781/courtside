@@ -74,6 +74,15 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.98", date: "2026-11-20", time: "02:00", title: "Polish", changes: [
+            Change(text: "Updates: the button shows the download (Downloading 1.98 · 45%), then opens the install. Android's own screen asks you to confirm it.", apps: android),
+            Change(text: "Home: once everything has loaded, the top sport is selected (not whichever sport loaded first), until you pick one yourself.", apps: android),
+            Change(text: "Game screen: channel names and shows wrap onto a second line instead of being cut off; a channel with nothing on uses the room for its name.", apps: android),
+            Change(text: "EPG: the channel column is half as big again (wider, bigger logo and name).", apps: android),
+            Change(text: "EPG: the guide ends exactly level with the bottom of the video in the corner.", apps: android),
+            Change(text: "Holding select on the player in the corner stops it without also opening the Favourites menu of whatever is underneath.", apps: android),
+            Change(text: "The guide is only kept as far ahead as Settings › General › Download fresh channels and guide after (at least 3 hours), for less memory use.", apps: android)
+        ]),
         Release(version: "1.98", date: "2026-11-20", time: "01:40", title: "More like the TV apps", changes: [
             Change(text: "Home: the sports list is split into sports with scores, channel sports and sports with nothing today, with a line between them. Badges show just the number of live games, and channel sports say \"Channels\".", apps: mac),
             Change(text: "Home: right-click a sport to favourite or hide it (Settings › Hidden brings it back).", apps: mac),
