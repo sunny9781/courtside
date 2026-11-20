@@ -74,6 +74,13 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.4", date: "2026-11-20", time: "16:45", title: "Flip back to recent streams", changes: [
+            Change(text: "Full screen: the streams you watched before show along the bottom when you press the centre button, most recent on the left. Left and right pick one, the centre button plays it, Back hides them.", apps: [.tv, .android]),
+            Change(text: "Full screen: clicking the video (or I) also shows the streams you watched before, most recent on the left. Click one to go back to it, or use Left/Right and Return.", apps: mac),
+            Change(text: "Full screen: tapping shows the streams you watched before along the bottom, most recent on the left. Tap one to go back to it.", apps: [.ios, .android]),
+            Change(text: "A stream only joins the recent list once it has played for 5 seconds, so flipping past streams doesn't fill it up.", apps: [.mac, .tv, .ios, .android]),
+            Change(text: "EPG: no percentage or progress bar while it refreshes, just Refreshing EPG… (the bar sat at 100% while the guide was being read).", apps: [.mac, .tv, .ios, .android]),
+        ]),
         Release(version: "2.3", date: "2026-11-20", time: "14:15", title: "More games per row", changes: [
             Change(text: "Home: score cards fill the width, so another card fits on each row when there's room.", apps: mac),
             Change(text: "Home: with one league on screen, its logo, name and \"9 coming up\" sit at the right end of the league chips instead of on a row of their own. With several leagues, each heading is a smaller, single line.", apps: mac),

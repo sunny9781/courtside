@@ -751,6 +751,31 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         return if (settings.preferHls) hls to ts else ts to hls
     }
 
+    /**
+     * Streams watched before the current one, most recent first (2.4): full screen shows them along the bottom so you
+     * can flip back. A stream only counts once it has played for 5 seconds (flipping past one doesn't).
+     */
+    val watched = androidx.compose.runtime.mutableStateListOf<NowPlaying>()
+    private var watching: NowPlaying? = null
+    private var watchingSince = 0L
+
+    private fun noteWatching(item: NowPlaying) {
+        val now = System.currentTimeMillis()
+        val previous = watching
+        watching = item
+        if (previous?.channel?.id == item.channel.id) return
+        if (previous != null && now - watchingSince >= 5000) {
+            watched.removeAll { it.channel.id == previous.channel.id }
+            watched.add(0, previous)
+            while (watched.size > 8) watched.removeAt(watched.size - 1)
+        }
+        watchingSince = now
+    }
+
+    /** The streams to offer while watching [item]: the ones watched before it, most recent first. */
+    fun recentStreams(item: NowPlaying, limit: Int = 6): List<NowPlaying> =
+        watched.filter { it.channel.id != item.channel.id }.take(limit)
+
     /** Plays in the player at the top. */
     fun pin(channel: Channel, gameTitle: String? = null, lineup: List<Channel> = emptyList()) {
         // Lite mode has no player in the corner: a channel goes straight to full screen.
@@ -764,6 +789,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         }
         recent.add(channel.id)
         pinned = NowPlaying(channel, gameTitle, lineup.ifEmpty { listOf(channel) })
+        noteWatching(pinned!!)
         val (ts, hls) = urls(channel) ?: return
         pauseDownloads()
         Playback.play(ts, hls)
@@ -776,6 +802,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         fullScreenFrom = from
         val item = NowPlaying(channel, gameTitle, lineup.ifEmpty { listOf(channel) })
         nowPlaying = item
+        noteWatching(item)
         val (ts, hls) = urls(channel) ?: return
         pauseDownloads()
         Playback.play(ts, hls)

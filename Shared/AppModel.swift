@@ -35,9 +35,15 @@ final class AppModel: ObservableObject {
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var lastRefresh: Date?
-    @Published var nowPlaying: NowPlaying? { didSet { streamsChanged() } }
+    @Published var nowPlaying: NowPlaying? { didSet { streamsChanged(); noteWatching() } }
     /// What the pinned player at the top is playing (iPhone/iPad and Mac). Nil hides it.
-    @Published var pinned: NowPlaying? { didSet { streamsChanged() } }
+    @Published var pinned: NowPlaying? { didSet { streamsChanged(); noteWatching() } }
+    /// Streams watched before the current one, most recent first (2.4): the full-screen info shows them along the
+    /// bottom so you can flip back. A stream only counts once it has played for 5 seconds (flipping past doesn't).
+    @Published private(set) var watched: [NowPlaying] = []
+    private var watching: NowPlaying?
+    private var watchingSince = Date()
+    private var watchCheckQueued = false
     /// Mac: the pinned player is showing in its own window.
     @Published var poppedOut = false
 
@@ -281,6 +287,31 @@ final class AppModel: ObservableObject {
 
     /// A stream started or stopped: a guide download under way pauses for it, and anything waiting starts once
     /// nothing plays.
+    /// Called on every change to the stream; checked once the change is done (closing full screen sets two values).
+    private func noteWatching() {
+        guard !watchCheckQueued else { return }
+        watchCheckQueued = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.watchCheckQueued = false
+            let current = self.nowPlaying ?? self.pinned
+            guard current?.channel.id != self.watching?.channel.id else {
+                if let current { self.watching = current }
+                return
+            }
+            if let previous = self.watching, Date().timeIntervalSince(self.watchingSince) >= 5 {
+                self.watched = Array(([previous] + self.watched.filter { $0.channel.id != previous.channel.id }).prefix(8))
+            }
+            self.watching = current
+            self.watchingSince = Date()
+        }
+    }
+
+    /// The streams to offer while watching `item`: the ones watched before it, most recent first.
+    func recentStreams(besides item: NowPlaying, limit: Int = 6) -> [NowPlaying] {
+        Array(watched.filter { $0.channel.id != item.channel.id }.prefix(limit))
+    }
+
     private func streamsChanged() {
         if streamOpen {
             // Only the download itself uses a connection; reading the file afterwards carries on.

@@ -280,7 +280,7 @@ struct TVTopBar: View {
 
             HStack(spacing: 16) {
                 // Connections in use, and "EPG 9:10 PM": when the channels and guide were last downloaded (just text:
-                // it refreshes by itself, or from Settings › General). While it downloads: "Refreshing EPG 45%".
+                // it refreshes by itself, or from Settings › General). While it downloads: "Refreshing EPG…" (no bar).
                 TVConnectionsPill(account: model.account)
                 Group {
                     if model.refreshWaiting {
@@ -290,14 +290,7 @@ struct TVTopBar: View {
                     } else if model.guideReading {
                         Text("Reading EPG…")
                     } else if model.guideDownloading {
-                        HStack(spacing: 12) {
-                            if let p = model.guideProgress {
-                                Text("Refreshing EPG \(Int(p * 100))%")
-                                ProgressView(value: p).frame(width: 120).tint(Theme.accent)
-                            } else {
-                                Text("Refreshing EPG · \(model.guideMegabytes) MB")
-                            }
-                        }
+                        Text("Refreshing EPG…")
                     } else if let saved = model.guideUpdated ?? model.savedAt {
                         Text("EPG \(saved.formatted(date: .omitted, time: .shortened))")
                     }

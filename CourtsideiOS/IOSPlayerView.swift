@@ -3,7 +3,7 @@ import UIKit
 
 /// Full-screen player.
 /// - Swipe up/down (or the arrows): next/previous stream for this game, or channel in this category.
-/// - Tap: show or hide the controls.
+/// - Tap: show or hide the controls (and the streams watched before this one; tap one to go back to it).
 /// - Swipe up to leave the app and it keeps playing in Picture in Picture (or use the PiP button).
 /// - AirPlay and Chromecast buttons send it to a TV.
 /// A stream that fails, stops, or buffers for 10 seconds switches to the next one (USA and Canada first).
@@ -240,6 +240,8 @@ struct IOSPlayerView: View {
 
             Spacer()
 
+            recentStrip
+
             HStack(alignment: .bottom, spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(model.playerTitle(item))
@@ -270,6 +272,51 @@ struct IOSPlayerView: View {
             )
         }
         .transition(.opacity)
+    }
+
+    /// The streams watched before this one, most recent on the left (as many as fit): tap one to go back to it.
+    @ViewBuilder
+    private var recentStrip: some View {
+        let list = model.recentStreams(besides: item, limit: 4)
+        if !list.isEmpty {
+            ViewThatFits(in: .horizontal) {
+                ForEach((1...list.count).reversed(), id: \.self) { n in
+                    HStack(spacing: 8) {
+                        ForEach(list.prefix(n), id: \.channel.id) { recent in recentCard(recent) }
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 4)
+        }
+    }
+
+    private func recentCard(_ recent: NowPlaying) -> some View {
+        Button {
+            model.play(recent.channel, gameTitle: recent.gameTitle, lineup: recent.lineup)
+            poke()
+        } label: {
+            HStack(spacing: 8) {
+                IOSChannelIcon(url: recent.channel.icon, size: 26)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(model.playerTitle(recent))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                    Text(recent.channel.name)
+                        .font(.caption2)
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+                .lineLimit(1)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .frame(width: 165, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.55)))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.15), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
     }
 
     private func circleButton(_ symbol: String, action: @escaping () -> Void) -> some View {
