@@ -109,6 +109,13 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Chromecast crashes: Android now saves crash details (shown once on next start, and in Settings › General).
 - Apple TV hasn't got a Lite mode (not needed so far).
 
+## 2.1 (2026-11-20, Mac EPG)
+- `guideReading` (Shared): after the guide download, while the file is parsed: "Reading EPG…" (Mac/TV/iPhone); a stream
+  starting then no longer cancels it. Mac EPG banner hidden while downloading (the top bar shows it).
+- Mac EPG channel column: `ChannelCell` number 44 pt (one line), logo 52, name on up to 2 lines, `MacScrollingText` when
+  it needs more (hovered/selected); column = longest/2 clamped 110–180 + fixed, min 290. Category panel 0x0B0E12 + edge line.
+- Mac Home: the sections VStack is full width/leading (all-folded leagues used to centre).
+
 ## 1.98 (2026-11-20, Mac follows the TVs)
 - Home sports list: TV groups with a line between (scores | channel sports | nothing today, `orderedSports`), badge = live
   count only, "Channels" detail, right-click Favourite/Hide. League chips in `Sport.leagues` order with live badge.

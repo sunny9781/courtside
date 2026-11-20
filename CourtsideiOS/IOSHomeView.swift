@@ -280,9 +280,10 @@ struct IOSGamesList: View {
         if model.guideDownloading || model.downloadingChannels {
             VStack(alignment: .leading, spacing: 4) {
                 Text(model.downloadingChannels ? "Refreshing channels…"
+                     : model.guideReading ? "Reading EPG…"
                      : "Refreshing EPG\(model.guideProgress.map { " \(Int($0 * 100))%" } ?? " · \(model.guideMegabytes) MB")")
                     .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
-                if let p = model.guideProgress, model.guideDownloading {
+                if let p = model.guideProgress, model.guideDownloading, !model.guideReading {
                     ProgressView(value: p).tint(Theme.accent)
                 }
             }

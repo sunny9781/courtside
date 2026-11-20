@@ -269,6 +269,8 @@ final class AppModel: ObservableObject {
     @Published var guideDownloading = false
     @Published var guideProgress: Double?
     @Published var guideMegabytes = 0
+    /// The download is done and the file is being read (no provider connection in use): "Reading EPG…", not 100%.
+    @Published var guideReading = false
     /// A refresh waits for the stream to stop, so only one connection to the provider is ever in use.
     @Published var refreshWaiting = false
     private var channelsPending = false
@@ -281,7 +283,8 @@ final class AppModel: ObservableObject {
     /// nothing plays.
     private func streamsChanged() {
         if streamOpen {
-            if guideDownloading {
+            // Only the download itself uses a connection; reading the file afterwards carries on.
+            if guideDownloading && !guideReading {
                 ConnLog.add("Paused the guide download (a stream started)")
                 guideTask?.cancel()
                 guidePending = true
@@ -734,7 +737,8 @@ final class AppModel: ObservableObject {
         guideDownloading = true
         guideProgress = nil
         guideMegabytes = 0
-        defer { guideDownloading = false }
+        guideReading = false
+        defer { guideDownloading = false; guideReading = false }
         do {
             try await XtreamClient(creds: creds).downloadGuide(to: file) { read, total in
                 Task { @MainActor [weak self] in
@@ -742,6 +746,8 @@ final class AppModel: ObservableObject {
                     self?.guideProgress = total > 0 ? min(1, Double(read) / Double(total)) : nil
                 }
             }
+            guideReading = true
+            ConnLog.add("Downloaded the guide; reading it")
             let fresh = try await Task.detached(priority: .utility) { () throws -> [String: [Programme]] in
                 let all = try XtreamClient.parseGuide(file: file, wanted: wanted, from: from, to: end)
                 // Keep only the small copy: the provider's file is large and only needed once.

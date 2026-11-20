@@ -223,7 +223,7 @@ struct TopBar: View {
             }
             .font(.system(size: 12))
             .foregroundStyle(Theme.muted)
-        } else if let note = model.guideStatus {
+        } else if let note = model.guideStatus, !model.guideDownloading {
             Label(note, systemImage: "tablecells")
                 .font(.system(size: 12))
                 .foregroundStyle(Theme.muted)
@@ -391,11 +391,12 @@ struct EPGProgress: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(model.downloadingChannels ? "Refreshing channels…"
+                 : model.guideReading ? "Reading EPG…"
                  : "Refreshing EPG" + (model.guideProgress.map { " \(Int($0 * 100))%" } ?? " · \(model.guideMegabytes) MB"))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(Theme.muted)
                 .monospacedDigit()
-            if model.guideDownloading, let p = model.guideProgress {
+            if model.guideDownloading, !model.guideReading, let p = model.guideProgress {
                 ProgressView(value: p)
                     .progressViewStyle(.linear)
                     .tint(Theme.accent)
