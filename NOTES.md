@@ -112,6 +112,9 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   pull to refresh, spinner, dialog.
 
 ## Working preferences (Sunny)
+- Small changes (a number, text, a changelog line) merge straight away without check.yml; the Mac release build
+  refuses to publish a broken build (2.9). Anything that changes behaviour or Apple TV/iPhone code still gets check.yml
+  first. Always re-check Changelog.swift after resolving a merge conflict in it (2.10 broke the Mac build that way).
 - Report how long each request took.
 - Always tell Sunny when a release is actually published (after the main runs finish), not just merged.
 - To save credits: build and settle features on Android first, then port to Apple TV/Mac/iPhone in one batch.
