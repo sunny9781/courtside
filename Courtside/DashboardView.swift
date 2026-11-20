@@ -49,26 +49,37 @@ struct DashboardView: View {
     private var sportList: some View {
         ScrollView {
             VStack(spacing: 4) {
-                ForEach(tileOrder) { sport in
-                    let games = model.games(for: sport)
-                    SportRow(symbol: sport.symbol, name: sport.rawValue,
-                             detail: games.isEmpty ? "No games" : "\(games.count) today",
-                             live: games.filter { $0.state == .live }.count, total: games.count,
-                             selected: selectedSport == sport,
-                             dimmed: games.isEmpty && !favorites.contains(sport),
-                             favorite: favorites.contains(sport),
-                             onToggleFavorite: { toggleFavorite(sport) }) {
-                        selectedSport = sport
-                        selectedLeague = nil
+                // Like the TVs: sports with live scores | sports shown as channels (pickleball) | nothing today,
+                // with a line between the groups.
+                ForEach(Array(sportGroups.enumerated()), id: \.offset) { index, group in
+                    if index > 0 {
+                        Rectangle().fill(Theme.raised).frame(height: 1).padding(.horizontal, 12).padding(.vertical, 6)
                     }
-                    .draggable(sport.rawValue)
-                    .dropDestination(for: String.self) { items, _ in
-                        guard let raw = items.first, let dragged = Sport(rawValue: raw) else { return false }
-                        moveSport(dragged, to: sport)
-                        return true
+                    ForEach(group) { sport in
+                        let games = model.games(for: sport)
+                        let channelOnly = isChannelSport(sport, model: model)
+                        SportRow(symbol: sport.symbol, name: sport.rawValue,
+                                 detail: games.isEmpty ? "No games" : (channelOnly ? "Channels" : "\(games.count) today"),
+                                 live: channelOnly ? 0 : games.filter { $0.state == .live }.count,
+                                 selected: selectedSport == sport,
+                                 dimmed: games.isEmpty && !favorites.contains(sport),
+                                 favorite: favorites.contains(sport),
+                                 onToggleFavorite: { toggleFavorite(sport) }) {
+                            selectedSport = sport
+                            selectedLeague = nil
+                        }
+                        .contextMenu {
+                            let fav = favorites.contains(sport)
+                            Button(fav ? "Remove from Favourites" : "Add to Favourites") { toggleFavorite(sport) }
+                            Button("Hide") { hide(sport) }
+                        }
+                        .draggable(sport.rawValue)
+                        .dropDestination(for: String.self) { items, _ in
+                            guard let raw = items.first, let dragged = Sport(rawValue: raw) else { return false }
+                            moveSport(dragged, to: sport)
+                            return true
+                        }
                     }
-
-
                 }
             }
             .padding(12)
@@ -77,26 +88,51 @@ struct DashboardView: View {
         .background(Theme.sidebar)
     }
 
+    /// The TVs' groups: sports with scores today, channel-only sports, then sports with nothing today.
+    private var sportGroups: [[Sport]] {
+        let sports = orderedSports(model: model)
+        let scored = sports.filter { s in model.games(for: s).contains { !$0.id.hasPrefix("guide-") } }
+        let channels = sports.filter { !scored.contains($0) && isChannelSport($0, model: model) }
+        let empty = sports.filter { !scored.contains($0) && !channels.contains($0) }
+        return [scored, channels, empty].filter { !$0.isEmpty }
+    }
+
+    /// Right-click › Hide: switches the sport off (as on the TVs); Settings › Hidden brings it back.
+    private func hide(_ sport: Sport) {
+        var set = Sport.hidden(hiddenSports)
+        set.insert(sport)
+        hiddenSports = Sport.allCases.filter { set.contains($0) }.map(\.rawValue).joined(separator: ",")
+        if selectedSport == sport {
+            selectedSport = orderedSports(model: model).first { $0 != sport }
+            selectedLeague = nil
+        }
+        model.sportsChanged()
+        model.notice = "\(sport.rawValue) is hidden. Settings › Hidden brings it back."
+    }
+
     /// The chosen sport's leagues as chips along the top ("All" first, then leagues with games).
     private func leagueChips(_ sport: Sport) -> some View {
         let games = model.games(for: sport)
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 Button { selectedLeague = nil } label: {
-                    Text("All")
+                    HStack(spacing: 6) {
+                        Text("All")
+                        chipCount(live: games.filter { $0.state == .live }.count, total: games.count,
+                                  selected: selectedLeague == nil)
+                    }
                 }
                 .buttonStyle(ChipStyle(selected: selectedLeague == nil))
                 ForEach(orderedLeagues(sport)) { league in
-                    let count = games.filter { $0.league == league }.count
+                    let leagueGames = games.filter { $0.league == league }
                     Button { selectedLeague = league.id } label: {
                         HStack(spacing: 6) {
                             LeagueLogo(league: league, size: 16)
                             Text(league.name)
-                            if count > 0 {
-                                Text("\(count)").foregroundStyle(selectedLeague == league.id ? Theme.bg.opacity(0.65) : Theme.muted)
-                            }
+                            chipCount(live: leagueGames.filter { $0.state == .live }.count, total: leagueGames.count,
+                                      selected: selectedLeague == league.id)
                         }
-                        .opacity(count == 0 && selectedLeague != league.id ? 0.55 : 1)
+                        .opacity(leagueGames.isEmpty && selectedLeague != league.id ? 0.55 : 1)
                     }
                     .buttonStyle(ChipStyle(selected: selectedLeague == league.id))
                 }
@@ -170,11 +206,24 @@ struct DashboardView: View {
         }
     }
 
+    /// Like the TVs: live games as an orange number, otherwise today's games in grey.
+    @ViewBuilder
+    private func chipCount(live: Int, total: Int, selected: Bool) -> some View {
+        if live > 0 {
+            Text("\(live)")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Theme.onAccent)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 1)
+                .background(Capsule().fill(Theme.accent))
+        } else if total > 0 {
+            Text("\(total)").foregroundStyle(selected ? Theme.bg.opacity(0.65) : Theme.muted)
+        }
+    }
+
     private func orderedLeagues(_ sport: Sport) -> [League] {
-        let games = model.games(for: sport)
-        let leagues = model.leagues(for: sport)
-        let withGames = leagues.filter { l in games.contains { $0.league == l } }
-        return withGames + leagues.filter { !withGames.contains($0) }
+        // Always the same order, like the TVs: the most popular league first (NBA, WNBA, NCAA...), so chips never move.
+        model.leagues(for: sport)
     }
 
     private var favorites: Set<Sport> {
@@ -230,7 +279,7 @@ struct SportRow: View {
     let name: String
     let detail: String?
     let live: Int
-    /// Today's games: the badge reads "2/5 LIVE".
+    /// Unused since the badge shows only the live count (as on the TVs).
     var total = 0
     let selected: Bool
     let dimmed: Bool
@@ -258,7 +307,7 @@ struct SportRow: View {
                         .layoutPriority(1)
                     Spacer(minLength: 4)
                     if live > 0 {
-                        Text(total > 0 ? "\(live)/\(total) LIVE" : "\(live) LIVE")
+                        Text("\(live)")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(Theme.onAccent)
                             .fixedSize()
@@ -323,7 +372,7 @@ struct LeagueRow: View {
                     .layoutPriority(1)
                 Spacer(minLength: 4)
                 if live > 0 {
-                    Text(total > 0 ? "\(live)/\(total) LIVE" : "\(live) LIVE")
+                    Text("\(live)")
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(Theme.onAccent)
                         .fixedSize()

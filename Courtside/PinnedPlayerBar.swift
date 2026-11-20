@@ -296,15 +296,36 @@ struct PinnedInfo: View {
             if !controller.audio.isEmpty { Badge(text: controller.audio).fixedSize() }
                 }
             }
-            if item.gameTitle == nil, let now = model.currentProgramme(item.channel) {
-                if !now.title.isEmpty {
-                    Text("On now: \(now.title) · until \(now.end.formatted(date: .omitted, time: .shortened))")
-                        .font(.system(size: 12))
+            // Like the TVs' now-playing bar: what's on with its times and progress, and what's next.
+            if let now = model.currentProgramme(item.channel) {
+                let next = model.guide[item.channel.epgID]?.first { $0.start >= now.end }
+                if !now.title.isEmpty && (item.gameTitle == nil || now.title != item.gameTitle) {
+                    Text(now.title)
+                        .font(.system(size: max(10, 12 * scale)))
                         .foregroundStyle(Theme.soft)
                         .lineLimit(2)
                 }
+                HStack(spacing: 8) {
+                    Text("\(now.start.formatted(date: .omitted, time: .shortened)) – \(now.end.formatted(date: .omitted, time: .shortened))")
+                        .font(.system(size: max(10, 11 * scale)))
+                        .foregroundStyle(Theme.muted)
+                        .fixedSize()
+                    TimelineView(.periodic(from: .now, by: 30)) { context in
+                        let total = max(now.end.timeIntervalSince(now.start), 1)
+                        ProgressView(value: min(max(context.date.timeIntervalSince(now.start) / total, 0), 1))
+                            .progressViewStyle(.linear)
+                            .tint(Theme.accent)
+                            .frame(maxWidth: 160)
+                    }
+                }
+                if let next, !next.title.isEmpty {
+                    Text("Next \(next.start.formatted(date: .omitted, time: .shortened))  \(next.title)")
+                        .font(.system(size: max(10, 11 * scale)))
+                        .foregroundStyle(Theme.muted)
+                        .lineLimit(1)
+                }
                 // A game on now: jump to all of its streams.
-                if let gameID = model.guideLinks[Matcher.linkKey(item.channel.epgID, now.start)] {
+                if item.gameTitle == nil, let gameID = model.guideLinks[Matcher.linkKey(item.channel.epgID, now.start)] {
                     Button("All streams for this game") {
                         NotificationCenter.default.post(name: .openGame, object: gameID)
                     }

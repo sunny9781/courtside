@@ -3,13 +3,10 @@ import SwiftUI
 struct GameDetailView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.hideSD) private var hideSD = true
-    @State private var showLocal = false
-    @AppStorage(Prefs.showForeignStreams) private var showForeign = false
     /// The filter box in the top bar.
     @Binding var search: String
-    @State private var listWidth: CGFloat = 800
-    /// Sections folded shut (4K, USA, Other…), by name.
-    @State private var folded: Set<String> = []
+    /// The category picked on the left ("All", 4K, USA…, Foreign, Local and likely), like the TVs' game screen.
+    @State private var selected = "All"
     let game: Game
     let onBack: () -> Void
 
@@ -19,18 +16,30 @@ struct GameDetailView: View {
     }
 
     /// 4K, PPV for fights, the league's own channels, home-country broadcasters, other countries (see
-    /// StreamSections), filtered by the search field and the foreign-language toggle.
+    /// StreamSections), filtered by the search field.
     private var listing: StreamSections.Result {
         StreamSections.build(allStreams, league: game.league, search: search)
     }
 
-    private var sections: [StreamSections.Section] { listing.sections }
+    /// The main sections (what autoplay picks from).
+    private var main: [StreamMatch] { listing.sections.flatMap(\.streams) }
 
-    /// Everything showing, in on-screen order: what up/down flips through while watching.
-    private var streams: [StreamMatch] {
-        sections.flatMap(\.streams) + (showForeign ? listing.foreign.flatMap(\.streams) : [])
-            + (showLocal ? listing.extras : [])
+    /// Every group of streams, in order, as on the TVs: each section, then Foreign, then Local and likely.
+    private var groups: [(name: String, streams: [StreamMatch])] {
+        var out: [(name: String, streams: [StreamMatch])] = listing.sections.map { ($0.name, $0.streams) }
+        if !listing.foreign.isEmpty { out.append(("Foreign", listing.foreign.flatMap(\.streams))) }
+        if !listing.extras.isEmpty { out.append(("Local and likely", listing.extras)) }
+        return out
     }
+
+    /// "All" first, then each group.
+    private var categories: [(name: String, streams: [StreamMatch])] {
+        let g = groups
+        return [("All", g.flatMap(\.streams))] + g
+    }
+
+    /// The picked category's streams: what up/down flips through while watching.
+    private var current: [StreamMatch] { categories.first { $0.name == selected }?.streams ?? categories[0].streams }
 
     private var title: String { game.title }
 
@@ -42,18 +51,18 @@ struct GameDetailView: View {
 
     /// Click: play in the pinned player at the top.
     private func preview(_ channel: Channel) {
-        model.pin(channel, gameTitle: title, lineup: streams.map(\.channel))
+        model.pin(channel, gameTitle: title, lineup: current.map(\.channel))
     }
 
-    /// Double-click: full screen.
+    /// Double-click (or click the one already playing): full screen.
     private func watch(_ channel: Channel) {
-        model.pin(channel, gameTitle: title, lineup: streams.map(\.channel))
-        model.play(channel, gameTitle: title, lineup: streams.map(\.channel))
+        model.pin(channel, gameTitle: title, lineup: current.map(\.channel))
+        model.play(channel, gameTitle: title, lineup: current.map(\.channel))
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Fixed at the top: the player and score (Back is in the top bar). Only the streams scroll.
+            // Fixed at the top: the score (Back is in the top bar). Below: categories left, streams right.
             if !model.pinnedIsFrom(gameID: game.id) {
                 hero
                     .padding(.horizontal, 32)
@@ -61,121 +70,70 @@ struct GameDetailView: View {
                     .padding(.bottom, 16)
             }
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-
-                    if listing.sections.isEmpty && listing.foreign.isEmpty {
-                        Banner(text: search.isEmpty ? "No channels on your provider matched this game yet. If you know which channel has it, find it in the EPG."
-                                                    : "No streams match \"\(search)\".",
-                               icon: "magnifyingglass")
-                    }
-
-                    // The search box sits at the right end of the first section's line.
-                    ForEach(listing.sections) { sectionView($0) }
-
-                    // Foreign-language countries, folded into one group.
-                    if !listing.foreign.isEmpty {
-                        groupHeader("Foreign streams", count: listing.foreignCount, open: showForeign) {
-                            showForeign.toggle()
-                        }
-                        if showForeign {
-                            ForEach(listing.foreign) { sectionView($0) }
-                                .padding(.leading, 18)
-                        }
-                    }
-
-                    // Local stations and "usually on" guesses, at the very bottom.
-                    if !listing.extras.isEmpty {
-                        groupHeader("Local stations and likely channels", count: listing.extras.count, open: showLocal) {
-                            showLocal.toggle()
-                        }
-                        if showLocal {
-                            grid(listing.extras)
-                                .padding(.leading, 18)
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { listWidth = $0 }
-                .padding(.horizontal, 32)
-                .padding(.top, 10)
-                .padding(.bottom, 40)
+            HStack(alignment: .top, spacing: 0) {
+                categoryList
+                Rectangle().fill(Theme.raised).frame(width: 1)
+                streamList
             }
         }
         .onAppear {
-            // Opening a game plays its first stream in the pinned player, unless one of its streams already is.
-            if previewChannel == nil, let first = streams.firstToPlay(model.measuredQuality) { preview(first.channel) }
+            // Opening a game plays its first stream that isn't 4K in the player, unless one of its streams already is.
+            if previewChannel == nil, let first = main.firstToPlay(model.measuredQuality) { preview(first.channel) }
+        }
+        .onChange(of: search) {
+            if !categories.contains(where: { $0.name == selected }) { selected = "All" }
         }
     }
 
-    /// A section: its name (click to fold it) and its streams.
-
-
-    private func sectionView(_ section: StreamSections.Section) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                withAnimation(.easeOut(duration: 0.15)) {
-                    if folded.contains(section.name) { folded.remove(section.name) } else { folded.insert(section.name) }
+    private var categoryList: some View {
+        ScrollView {
+            VStack(spacing: 4) {
+                ForEach(categories, id: \.name) { category in
+                    CategoryRow(name: category.name, count: category.streams.count,
+                                selected: selected == category.name) { selected = category.name }
+                        .opacity(category.streams.isEmpty && category.name != "All" ? 0.5 : 1)
                 }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .bold))
-                        .rotationEffect(.degrees(folded.contains(section.name) ? 0 : 90))
-                    Text(section.name.uppercased())
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(Theme.soft)
-                    Text("\(section.streams.count)")
-                        .font(.system(size: 12))
+            }
+            .padding(12)
+        }
+        .frame(width: 230)
+        .background(Theme.sidebar)
+    }
+
+    private var streamList: some View {
+        // "All": each group's name above its streams (just a heading).
+        let shown = selected == "All" ? groups : [(name: selected, streams: current)]
+        return TimelineView(.periodic(from: .now, by: 60)) { _ in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 6) {
+                    if current.isEmpty {
+                        Banner(text: search.isEmpty
+                               ? (model.channels.isEmpty ? "Channels are still loading…"
+                                  : "No channels on your provider matched this game yet. If you know which channel has it, find it in the EPG.")
+                               : "No streams match \"\(search)\".",
+                               icon: "magnifyingglass")
+                    }
+                    ForEach(shown, id: \.name) { group in
+                        if selected == "All" && !group.streams.isEmpty {
+                            Text(group.name.uppercased())
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(Theme.muted)
+                                .padding(.leading, 4)
+                                .padding(.top, 14)
+                        }
+                        ForEach(group.streams) { match in
+                            GameStreamLine(match: match, playing: match.channel.id == previewChannel?.id,
+                                           onSelect: {
+                                               if match.channel.id == previewChannel?.id { watch(match.channel) }
+                                               else { preview(match.channel) }
+                                           },
+                                           onWatch: { watch(match.channel) })
+                        }
+                    }
                 }
-                .foregroundStyle(Theme.muted)
-                .padding(.leading, 4)
-                .frame(height: 30)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            if !folded.contains(section.name) {
-                grid(section.streams)
-            }
-        }
-    }
-
-    /// A bigger header for the groups at the bottom (foreign languages, local stations).
-    private func groupHeader(_ title: String, count: Int, open: Bool, toggle: @escaping () -> Void) -> some View {
-        Button {
-            withAnimation(.easeOut(duration: 0.15)) { toggle() }
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .bold))
-                    .rotationEffect(.degrees(open ? 90 : 0))
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Theme.text)
-                Text("\(count)")
-                    .font(.system(size: 12))
-                Spacer()
-            }
-            .foregroundStyle(Theme.muted)
-            .padding(.horizontal, 14)
-            .frame(height: 40)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .padding(.top, 6)
-    }
-
-    /// Not lazy: a lazy grid guesses row heights as cards wrap, which made the page scroll on past the last
-    /// stream. A game only has a few dozen streams.
-    /// Each card is as wide as its text (within limits), so more fit on a row. Not lazy: a lazy grid guesses row
-    /// heights, which made the page scroll on past the last stream.
-    private func grid(_ list: [StreamMatch]) -> some View {
-        FlowLayout(spacing: 10, minItemWidth: 200, maxItemWidth: 460, uniformHeight: true) {
-            ForEach(list) { match in
-                StreamRow(match: match, previewing: match.channel.id == previewChannel?.id,
-                          onSelect: { preview(match.channel) },
-                          onWatch: { watch(match.channel) })
+                .padding(.horizontal, 28)
+                .padding(.top, 10)
+                .padding(.bottom, 40)
             }
         }
     }
@@ -191,6 +149,67 @@ struct GameDetailView: View {
                 .padding(20)
                 .background(RoundedRectangle(cornerRadius: 20).fill(Theme.card))
         }
+    }
+}
+
+/// A stream on the game screen, like the TVs' rows: logo, name, what's on now with its progress, and the stream's
+/// quality, frame rate and sound. Click plays it in the mini player (again for full screen); double-click goes full
+/// screen.
+struct GameStreamLine: View {
+    @EnvironmentObject var model: AppModel
+    let match: StreamMatch
+    let playing: Bool
+    let onSelect: () -> Void
+    let onWatch: () -> Void
+
+    var body: some View {
+        let channel = match.channel
+        let now = model.currentProgramme(channel)
+        let quality = model.measuredQuality[channel.id] ?? (match.quality.isEmpty ? nil : match.quality)
+        let tags = [quality, model.measuredFrameRate[channel.id].map(PlaybackController.fpsLabel),
+                    model.measuredAudio[channel.id]].compactMap { $0 }.filter { !$0.isEmpty }
+        CardButton(radius: 10, action: onSelect) {
+            HStack(spacing: 12) {
+                SmallLogoImage(url: channel.icon, size: 64) {
+                    Text(String(channel.name.prefix(3)).uppercased())
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(Theme.muted)
+                }
+                .padding(4)
+                .frame(width: 52, height: 34)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Theme.raised))
+                HStack(spacing: 6) {
+                    Text(channel.name)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(playing ? Theme.accent : Theme.text)
+                        .lineLimit(1)
+                    if playing {
+                        Image(systemName: "speaker.wave.2.fill").font(.system(size: 11)).foregroundStyle(Theme.accent)
+                    }
+                }
+                .frame(width: 280, alignment: .leading)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(now?.title.isEmpty == false ? now!.title : "–")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Theme.soft)
+                        .lineLimit(1)
+                    if let now {
+                        let total = max(now.end.timeIntervalSince(now.start), 1)
+                        ProgressView(value: min(max(Date().timeIntervalSince(now.start) / total, 0), 1))
+                            .progressViewStyle(.linear)
+                            .tint(Theme.accent)
+                            .frame(maxWidth: 260)
+                    }
+                }
+                Spacer(minLength: 8)
+                ForEach(tags, id: \.self) { Badge(text: $0) }
+            }
+            .padding(.horizontal, 12)
+            .frame(height: 52)
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(playing ? Theme.accent : Color.clear, lineWidth: 1.5))
+        }
+        .simultaneousGesture(TapGesture(count: 2).onEnded { onWatch() })
+        .help("\(channel.name)\(channel.categoryName.isEmpty ? "" : " · \(channel.categoryName)") — click to play in the mini player, double-click for full screen")
     }
 }
 
