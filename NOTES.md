@@ -97,6 +97,14 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Chromecast crashes: Android now saves crash details (shown once on next start, and in Settings › General).
 - Apple TV hasn't got a Lite mode (not needed so far).
 
+## 1.98 (2026-11-20, Mac follows the TVs)
+- Home sports list: TV groups with a line between (scores | channel sports | nothing today, `orderedSports`), badge = live
+  count only, "Channels" detail, right-click Favourite/Hide. League chips in `Sport.leagues` order with live badge.
+- Score cards: stream count (or "None" in red). Game screen: categories left (All, sections, Foreign, Local and likely),
+  `GameStreamLine` rows (logo, name, now + progress, tags); lineup = current category; old StreamRow/FlowLayout unused.
+- Full screen: click / I / info button = stream information panel. Mini player: now times + progress, next.
+- EPG: right-click Hide on categories and channels. The Mac mini player stays at the top (not the TVs' corner).
+
 ## 1.96 (2026-11-20)
 - Android navigation like Apple TV's: Back = page → left panel (selected item) → current tab → Home tab → exit
   (`model.sideFocused`, `model.focusMoves` "side"/"tabs"); Settings section kept in `model.settingsSection`. No edge
