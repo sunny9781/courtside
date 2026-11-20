@@ -27,6 +27,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The downloaded Swift packages (VLCKit, KSPlayer/FFmpegKit...) are kept between runs (the same cache as the
+      # Check workflow); they change only when Package.resolved does. Saves downloading them on every release.
+      - name: Restore Swift packages
+        uses: actions/cache@v4
+        with:
+          path: build/SourcePackages
+          key: spm-${{ runner.os }}-${{ hashFiles('Courtside.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: spm-${{ runner.os }}-
+
       - name: Build
         run: |
           # Build numbers start at 2 so a copy built in Xcode (build 1) is always "older".

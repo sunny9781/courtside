@@ -2,7 +2,7 @@ name: Check
 
 # Compiles the Apple apps without publishing anything. Started by hand (it uses GitHub's Mac minutes).
 #   gh workflow run check.yml --ref <branch>                 # all three apps
-#   gh workflow run check.yml --ref <branch> -f apps=tv      # only the Apple TV app (~1-2 min instead of ~7)
+#   gh workflow run check.yml --ref <branch> -f apps=tv      # only the Apple TV app
 # Pick "all" whenever Shared/ or more than one app changed.
 on:
   workflow_dispatch:
@@ -18,46 +18,46 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # The three apps compile side by side on their own Macs (about 3 minutes in all instead of 5-6 one after another).
+  # The repo is public, so the extra runners cost nothing.
   compile:
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [mac, tv, ios]
     runs-on: macos-26
     timeout-minutes: 30
     env:
       APPS: ${{ inputs.apps || 'all' }}
     steps:
+      - name: Skip
+        id: skip
+        run: |
+          if [ "$APPS" = "all" ] || [ "$APPS" = "${{ matrix.app }}" ]; then echo "run=yes" >> "$GITHUB_OUTPUT"; else echo "run=no" >> "$GITHUB_OUTPUT"; fi
+
       - uses: actions/checkout@v4
+        if: steps.skip.outputs.run == 'yes'
 
       # The downloaded Swift packages (VLCKit and the rest) are kept between runs; they change only when
       # Package.resolved does. Saved once per Package.resolved, restored on every run.
       - name: Restore Swift packages
+        if: steps.skip.outputs.run == 'yes'
         uses: actions/cache@v4
         with:
           path: build/SourcePackages
           key: spm-${{ runner.os }}-${{ hashFiles('Courtside.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
           restore-keys: spm-${{ runner.os }}-
 
-      - name: Mac app
-        if: env.APPS == 'all' || env.APPS == 'mac'
+      - name: Compile
+        if: steps.skip.outputs.run == 'yes'
         run: |
           set -o pipefail
-          xcodebuild -project Courtside.xcodeproj -scheme Courtside -configuration Debug \
-            -destination 'generic/platform=macOS' -derivedDataPath build \
-            ARCHS=arm64 CODE_SIGNING_ALLOWED=NO build > mac.log 2>&1 \
-            || { grep -E "error:|warning: .*(deprecated|unavailable)" mac.log | sort -u | head -80; tail -20 mac.log; exit 1; }
-
-      - name: Apple TV app
-        if: always() && (env.APPS == 'all' || env.APPS == 'tv')
-        run: |
-          set -o pipefail
-          xcodebuild -project Courtside.xcodeproj -scheme CourtsideTV -configuration Debug \
-            -destination 'generic/platform=tvOS' -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO build > tv.log 2>&1 \
-            || { grep -E "error:" tv.log | sort -u | head -80; tail -30 tv.log; exit 1; }
-
-      - name: iPhone and iPad app
-        if: always() && (env.APPS == 'all' || env.APPS == 'ios')
-        run: |
-          set -o pipefail
-          xcodebuild -project Courtside.xcodeproj -scheme CourtsideiOS -configuration Debug \
-            -destination 'generic/platform=iOS' -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO build > ios.log 2>&1 \
-            || { grep -E "error:" ios.log | sort -u | head -80; tail -30 ios.log; exit 1; }
+          case "${{ matrix.app }}" in
+            mac) SCHEME=Courtside;    DEST='generic/platform=macOS'; EXTRA="ARCHS=arm64" ;;
+            tv)  SCHEME=CourtsideTV;  DEST='generic/platform=tvOS';  EXTRA="" ;;
+            ios) SCHEME=CourtsideiOS; DEST='generic/platform=iOS';   EXTRA="" ;;
+          esac
+          xcodebuild -project Courtside.xcodeproj -scheme "$SCHEME" -configuration Debug \
+            -destination "$DEST" -derivedDataPath build $EXTRA \
+            CODE_SIGNING_ALLOWED=NO build > build.log 2>&1 \
+            || { grep -E "error:" build.log | sort -u | head -80; tail -30 build.log; exit 1; }
