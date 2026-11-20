@@ -35,8 +35,10 @@ struct SportView: View {
                 }
 
                 ForEach(sections) { item in
+                    // One league on screen with the chip row above: its name sits at the end of that row instead.
                     LeagueSection(league: item, games: allGames.filter { $0.league == item },
-                                  showHeading: league == nil, onOpen: onOpen)
+                                  showHeading: sections.count > 1 || model.leagues(for: sport).count <= 1,
+                                  onOpen: onOpen)
                 }
             }
             // Always full width on the left: with every game folded away it used to shrink and sit in the middle.
@@ -80,22 +82,16 @@ struct LeagueSection: View {
 
         VStack(alignment: .leading, spacing: 16) {
             if showHeading {
-                HStack(spacing: 14) {
-                    LeagueLogo(league: league, size: 40)
-                    Text(league.name)
-                        .font(Theme.display(22))
-                        .foregroundStyle(Theme.text)
-                    Text([live.isEmpty ? nil : "\(live.count) live",
-                          upcoming.isEmpty ? nil : "\(upcoming.count) coming up"].compactMap { $0 }.joined(separator: " · "))
-                        .font(.system(size: 13))
-                        .foregroundStyle(Theme.muted)
-                }
+                // Compact: a small logo and the name on one short line (it used to take a tall row).
+                LeagueSummary(league: league, games: games)
             }
 
             // Live first, then coming up (greyed, by start time). "Finished" folds below, each
             // heading above its own cards (as on the TVs).
             let byStart: (Game, Game) -> Bool = { ($0.start ?? .distantFuture) < ($1.start ?? .distantFuture) }
-            let width = cardWidth(for: model.games(for: league.sport), charWidth: 9.5, fixed: 112, minimum: 260, maximum: 560)
+            // The smallest width that fits the longest names; the grid fits as many as it can per row and stretches
+            // them to fill it (no empty band on the right).
+            let width = cardWidth(for: model.games(for: league.sport), charWidth: 9.5, fixed: 112, minimum: 260, maximum: 560) * 0.86
             grid(live.sorted(by: byStart) + upcoming.sorted(by: byStart), width: width)
             if !finished.isEmpty {
                 FoldButton(text: "Finished · \(finished.count)", open: $showFinished)
@@ -107,12 +103,35 @@ struct LeagueSection: View {
     @ViewBuilder
     private func grid(_ cards: [Game], width: CGFloat) -> some View {
         if !cards.isEmpty {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: width, maximum: width), spacing: 16, alignment: .top)],
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: width), spacing: 16, alignment: .top)],
                       alignment: .leading, spacing: 16) {
                 ForEach(cards) { game in
                     LiveGameCard(game: game, streams: model.streamCount(game.id)) { onOpen(game) }
                 }
             }
+        }
+    }
+}
+
+/// A league's logo, name and "2 live · 9 coming up": above its cards, or at the end of the chip row when it's the
+/// only league on screen.
+struct LeagueSummary: View {
+    let league: League
+    let games: [Game]
+
+    var body: some View {
+        let live = games.filter { $0.state == .live }.count
+        let upcoming = games.filter { $0.state == .upcoming }.count
+        let finished = games.filter { $0.state == .finished }.count
+        HStack(spacing: 10) {
+            LeagueLogo(league: league, size: 24)
+            Text(league.name)
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(Theme.text)
+            Text([live == 0 ? nil : "\(live) live", upcoming == 0 ? nil : "\(upcoming) coming up",
+                  finished == 0 ? nil : "\(finished) finished"].compactMap { $0 }.joined(separator: " · "))
+                .font(.system(size: 13))
+                .foregroundStyle(Theme.muted)
         }
     }
 }

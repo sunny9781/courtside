@@ -8,3 +8,5 @@ build-sim/
 shots/
 crashlogs/
 build-ios/
+build-mac/
+build-mac.log

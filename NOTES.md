@@ -109,6 +109,14 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Chromecast crashes: Android now saves crash details (shown once on next start, and in Settings › General).
 - Apple TV hasn't got a Lite mode (not needed so far).
 
+## 2.3 (2026-11-20, Mac Home width + local Mac builds)
+- Home cards: `GridItem(.adaptive(minimum: cardWidth × 0.86))` with no maximum, so cards stretch and an extra one fits.
+- `LeagueSummary` (logo 24 + name + "2 live · 9 coming up"): at the right end of the chip row when one league is on
+  screen (DashboardView `leagueChips`), otherwise a compact heading per league (SportView `showHeading`).
+- Local Mac build: `shortcuts/Update Mac app.command` → `scripts/mac-install.sh` (xcodebuild Release arm64 into
+  build-mac, reuses build-tv/SourcePackages, build number = newest mac-N release so GitHub releases still update it,
+  replaces the installed copy and opens it, prints the time). Merges built this way can use `[skip ci]`.
+
 ## 2.1 (2026-11-20, Mac EPG)
 - `guideReading` (Shared): after the guide download, while the file is parsed: "Reading EPG…" (Mac/TV/iPhone); a stream
   starting then no longer cancels it. Mac EPG banner hidden while downloading (the top bar shows it).

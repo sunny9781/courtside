@@ -113,7 +113,12 @@ struct DashboardView: View {
     /// The chosen sport's leagues as chips along the top ("All" first, then leagues with games).
     private func leagueChips(_ sport: Sport) -> some View {
         let games = model.games(for: sport)
-        return ScrollView(.horizontal, showsIndicators: false) {
+        // Only one league on screen (picked, or the only one with games): its logo, name and "9 coming up" sit at
+        // the right end of this row instead of taking a row of their own above the cards.
+        let shown = selectedLeague.flatMap { id in sport.leagues.first { $0.id == id } }.map { [$0] }
+            ?? model.leagues(for: sport).filter { l in games.contains { $0.league == l } }
+        return HStack(spacing: 16) {
+        ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 Button { selectedLeague = nil } label: {
                     HStack(spacing: 6) {
@@ -137,9 +142,15 @@ struct DashboardView: View {
                     .buttonStyle(ChipStyle(selected: selectedLeague == league.id))
                 }
             }
-            .padding(.horizontal, 32)
+            .padding(.leading, 32)
             .padding(.vertical, 12)
         }
+            if shown.count == 1, let league = shown.first {
+                LeagueSummary(league: league, games: games.filter { $0.league == league })
+                    .fixedSize()
+            }
+        }
+        .padding(.trailing, 32)
     }
 
     // MARK: All sports overview
