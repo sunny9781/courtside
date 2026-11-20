@@ -156,6 +156,20 @@ struct GuideView: View {
         }
     }
 
+    /// Right-click › Hide, as on the TVs (hold select): out of favourites, into Settings › Hidden.
+    private func hideCategory(_ id: String, name: String) {
+        if model.isFavorite(category: id) { model.toggleFavorite(category: id) }
+        model.setCategoryHidden(id, true)
+        if categoryID == id { categoryID = ""; pickDefaultCategory() }
+        model.notice = "\(name) is hidden. Settings › Hidden brings it back."
+    }
+
+    private func hideChannel(_ channel: Channel) {
+        if model.isFavorite(channel: channel.id) { model.toggleFavorite(channel: channel.id) }
+        model.setChannelHidden(channel.id, true)
+        model.notice = "\(channel.name) is hidden. Settings › Hidden brings it back."
+    }
+
     private func choose(_ id: String) {
         categoryID = id
         gridFocused = true
@@ -196,6 +210,7 @@ struct GuideView: View {
                                             selected: categoryID == node.id, depth: item.depth,
                                             favorite: model.isFavorite(category: node.id),
                                             onFavorite: { model.toggleFavorite(category: node.id) },
+                                            onHide: { hideCategory(node.id, name: node.name) },
                                             expanded: expanded.contains(node.id),
                                             onToggle: {
                                                 if expanded.contains(node.id) { expanded.remove(node.id) } else { expanded.insert(node.id) }
@@ -205,6 +220,7 @@ struct GuideView: View {
                                             selected: categoryID == node.id, depth: item.depth,
                                             favorite: model.isFavorite(category: node.id),
                                             onFavorite: { model.toggleFavorite(category: node.id) },
+                                            onHide: { hideCategory(node.id, name: node.name) },
                                             alignWithArrows: true) { choose(node.id) }
                             }
                         }
@@ -213,7 +229,8 @@ struct GuideView: View {
                             .sorted { CategoryGrouping.sortsBefore($0.name, $1.name) }) { cat in
                             CategoryRow(name: cat.name, count: model.channelsByCategory[cat.id]?.count ?? 0,
                                         selected: categoryID == cat.id,
-                                        favorite: false, onFavorite: { model.toggleFavorite(category: cat.id) }) { choose(cat.id) }
+                                        favorite: model.isFavorite(category: cat.id), onFavorite: { model.toggleFavorite(category: cat.id) },
+                                        onHide: { hideCategory(cat.id, name: cat.name) }) { choose(cat.id) }
                         }
                     }
                 }
@@ -237,7 +254,8 @@ struct GuideView: View {
         }
         ForEach(nodes) { node in
             CategoryRow(name: node.name, count: channelCount(node.categories), selected: categoryID == node.id,
-                        favorite: true, onFavorite: { model.toggleFavorite(category: node.id) }) { choose(node.id) }
+                        favorite: true, onFavorite: { model.toggleFavorite(category: node.id) },
+                        onHide: { hideCategory(node.id, name: node.name) }) { choose(node.id) }
         }
         if !nodes.isEmpty || !model.favoriteChannels.isEmpty {
             Divider().overlay(Theme.raised).padding(.vertical, 6)
@@ -538,7 +556,8 @@ struct GuideView: View {
         return HStack(spacing: 8) {
             ChannelCell(channel: channel, selected: selected, width: column, height: rowHeight,
                         favorite: model.isFavorite(channel: channel.id),
-                        onFavorite: { model.toggleFavorite(channel: channel.id) })
+                        onFavorite: { model.toggleFavorite(channel: channel.id) },
+                        onHide: { hideChannel(channel) })
                 .onTapGesture(count: 2) { watch(channel, list) }
                 .onTapGesture { select(channel) }
 
@@ -598,6 +617,8 @@ struct CategoryRow: View {
     /// A heart to add it to favourites (or take it off): shown on hover, and always when it's a favourite.
     var favorite: Bool? = nil
     var onFavorite: (() -> Void)? = nil
+    /// Right-click › Hide (as on the TVs); Settings › Hidden shows it again.
+    var onHide: (() -> Void)? = nil
     /// An icon before the name (the Favourites row).
     var symbol: String? = nil
     /// In the grouped list, rows without an arrow keep its space so names at the same level line up.
@@ -663,6 +684,7 @@ struct CategoryRow: View {
             if let onFavorite {
                 Button(favorite == true ? "Remove from Favourites" : "Add to Favourites", action: onFavorite)
             }
+            if let onHide { Button("Hide", action: onHide) }
         }
         .font(.system(size: 13, weight: selected ? .semibold : .medium))
         .foregroundStyle(selected ? Theme.bg : (depth > 0 ? Theme.muted : Theme.soft))
@@ -682,6 +704,8 @@ struct ChannelCell: View {
     var tags: [String] = []
     var favorite = false
     var onFavorite: (() -> Void)? = nil
+    /// Right-click › Hide (as on the TVs).
+    var onHide: (() -> Void)? = nil
     @State private var hovering = false
 
     var body: some View {
@@ -737,6 +761,7 @@ struct ChannelCell: View {
             if let onFavorite {
                 Button(favorite ? "Remove from Favourites" : "Add to Favourites", action: onFavorite)
             }
+            if let onHide { Button("Hide", action: onHide) }
         }
         .help(channel.name)
     }

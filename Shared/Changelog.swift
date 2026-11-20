@@ -74,6 +74,16 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.98", date: "2026-11-20", time: "01:40", title: "More like the TV apps", changes: [
+            Change(text: "Home: the sports list is split into sports with scores, channel sports and sports with nothing today, with a line between them. Badges show just the number of live games, and channel sports say \"Channels\".", apps: mac),
+            Change(text: "Home: right-click a sport to favourite or hide it (Settings › Hidden brings it back).", apps: mac),
+            Change(text: "League chips: live games as an orange number on All and each league (otherwise today's games), always in the same order.", apps: mac),
+            Change(text: "Score cards show how many streams a game has, or \"None\" in red.", apps: mac),
+            Change(text: "Game screen like the TVs: stream categories on the left (All, each section, Foreign, Local and likely) and the streams on the right with their logo, what's on now with its progress, and quality tags. Up/Down flips through the category you're in.", apps: mac),
+            Change(text: "Full screen: click the video, press I or use the info button for stream information (channel, now, next, video, sound).", apps: mac),
+            Change(text: "Mini player: what's on with its times and progress, and what's next.", apps: mac),
+            Change(text: "EPG: right-click a category or channel to hide it.", apps: mac),
+        ]),
         Release(version: "1.97", date: "2026-11-20", time: "01:30", title: "EPG tidy-up and a faster app", changes: [
             Change(text: "EPG: what's playing has an orange outline around its channel and the show on now (the colour of the time line), instead of a small icon.", apps: android),
             Change(text: "EPG: the guide ends level with the bottom of the player in the corner, instead of running on under the now-playing bar.", apps: android),

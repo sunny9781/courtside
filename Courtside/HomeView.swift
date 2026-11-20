@@ -293,6 +293,17 @@ struct LiveGameCard: View {
                             .background(Capsule().fill(Theme.accent))
                             .help("A 4K stream is available")
                     }
+                    // Like the TV cards: how many streams it has, or "None" in red.
+                    if !game.isChannel {
+                        let count = model.mainStreams(game.id).count
+                        HStack(spacing: 4) {
+                            Text(count == 0 ? "None" : "\(count)")
+                                .font(.system(size: 12, weight: .semibold))
+                            if count > 0 { Image(systemName: "play.tv").font(.system(size: 11)) }
+                        }
+                        .foregroundStyle(count == 0 ? Theme.danger : Theme.muted)
+                        .help(count == 0 ? "No streams found yet" : "\(count) streams")
+                    }
                 }
                 if game.isEvent {
                     EventLines(game: game)

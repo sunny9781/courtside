@@ -40,6 +40,9 @@ struct PlayerView: View {
     /// True when opening the player put the window into full screen, so leaving it can undo that.
     @State private var enteredFullScreen = false
     @State private var flipTask: Task<Void, Never>?
+    /// The stream information panel (click the video or press I), like the TVs' centre button.
+    @State private var showDetails = false
+    @State private var detailsTask: Task<Void, Never>?
     let item: NowPlaying
 
     private var position: Int {
@@ -58,9 +61,16 @@ struct PlayerView: View {
                 .ignoresSafeArea()
                 .onContinuousHover { _ in poke() }
                 .onTapGesture(count: 2) { exitPlayer() }
-                .onTapGesture { poke() }
+                .onTapGesture { toggleDetails() }
 
             statusOverlay
+
+            if showDetails {
+                detailsPanel
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(40)
+                    .transition(.opacity)
+            }
 
             bottomBar
                 .frame(maxHeight: .infinity, alignment: .bottom)
@@ -110,6 +120,7 @@ struct PlayerView: View {
         .onDisappear {
             hideTask?.cancel()
             flipTask?.cancel()
+            detailsTask?.cancel()
             // Playback carries on in the mini player if there is one; the model stops it otherwise.
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { _ in
@@ -201,6 +212,58 @@ struct PlayerView: View {
         model.closePlayer()
     }
 
+    /// Click or I: show the stream information (and the bar) for 8 seconds, or hide it again.
+    private func toggleDetails() {
+        detailsTask?.cancel()
+        if showDetails {
+            withAnimation(.easeOut(duration: 0.2)) { showDetails = false }
+            return
+        }
+        withAnimation(.easeOut(duration: 0.2)) { showDetails = true }
+        poke()
+        detailsTask = Task {
+            try? await Task.sleep(for: .seconds(8))
+            if !Task.isCancelled { withAnimation(.easeOut(duration: 0.4)) { showDetails = false } }
+        }
+    }
+
+    /// Channel (and its place in the lineup), what's on now and next, video, sound and number: as on the TVs.
+    private var detailsPanel: some View {
+        let now = model.currentProgramme(item.channel)
+        let next = now.flatMap { n in model.guide[item.channel.epgID]?.first { $0.start >= n.end } }
+        func time(_ d: Date) -> String { d.formatted(date: .omitted, time: .shortened) }
+        func row(_ label: String, _ value: String) -> some View {
+            HStack(alignment: .firstTextBaseline, spacing: 14) {
+                Text(label)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Theme.muted)
+                    .frame(width: 80, alignment: .leading)
+                Text(value)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Theme.text)
+                    .lineLimit(2)
+            }
+        }
+        var video: [String] = []
+        if !controller.resolution.isEmpty { video.append(controller.resolution) }
+        if controller.frameRate > 0 { video.append(PlaybackController.fpsLabel(controller.frameRate)) }
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Stream information")
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(Theme.accent)
+            row("Channel", item.lineup.count > 1 ? "\(item.channel.name) · \(position) of \(item.lineup.count)" : item.channel.name)
+            row("Now", now.map { "\($0.title)  (\(time($0.start)) – \(time($0.end)))" } ?? model.playerTitle(item))
+            if let next { row("Next", "\(time(next.start))  \(next.title)") }
+            row("Video", video.isEmpty ? "Waiting for the picture…" : video.joined(separator: " · "))
+            row("Sound", controller.audio.isEmpty ? "–" : controller.audio)
+            if let n = item.channel.number { row("Number", "\(n)") }
+        }
+        .padding(22)
+        .frame(width: 480, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 16).fill(.black.opacity(0.82)))
+        .allowsHitTesting(false)
+    }
+
     private func poke() {
         showControls = true
         hideTask?.cancel()
@@ -267,7 +330,7 @@ struct PlayerView: View {
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Theme.text)
                 Text(item.lineup.count > 1
-                     ? "\(item.channel.name) · \(position) of \(item.lineup.count) · Up/Down to switch"
+                     ? "\(item.channel.name) · \(position) of \(item.lineup.count) · Up/Down to switch · click for info"
                      : item.channel.name)
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.muted)
@@ -285,6 +348,20 @@ struct PlayerView: View {
             if !controller.audio.isEmpty {
                 Badge(text: controller.audio)
             }
+
+            Button {
+                toggleDetails()
+            } label: {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(showDetails ? Theme.accent : Theme.text)
+                    .frame(width: 44, height: 44)
+                    .background(Circle().fill(.white.opacity(0.12)))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut("i", modifiers: [])
+            .help("Stream information (I or click the video)")
 
             Button {
                 exitPlayer()
