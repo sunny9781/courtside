@@ -341,7 +341,7 @@ object Playback {
 
     /**
      * No picture 8 seconds after opening: try the stream's other format (HLS or TS) once. After that, hiccups are
-     * waited out with the connection open (like other IPTV apps); only a whole minute without progress reopens it.
+     * waited out with the connection open (like other IPTV apps); only 10 seconds without progress reopens it.
      */
     private fun poll() {
         if (!::player.isInitialized || currentUrl == null) return
@@ -414,7 +414,7 @@ object Playback {
 }
 
 /**
- * Notices a stream that has stopped moving. Hiccups are waited out with the connection open; only after a whole minute
+ * Notices a stream that has stopped moving. Hiccups are waited out with the connection open; only after 10 seconds
  * without progress (a connection that died without saying so) does it ask for a quiet restart. Never SKIP any more.
  */
 class FreezeWatch {
@@ -436,7 +436,7 @@ class FreezeWatch {
             if (lastChange < now) lastChange = now
             return Action.NONE
         }
-        if (now - lastChange < 60_000) return Action.NONE
+        if (now - lastChange < 10_000) return Action.NONE
         lastProgress = -1.0
         lastChange = now + 6000      // a restart takes a few seconds to show a picture
         return Action.RESTART

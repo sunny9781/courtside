@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.8", date: "2026-11-20", time: "16:47", title: "Frozen streams restart after 10 seconds", changes: [
+            Change(text: "A picture that hasn't moved for 10 seconds (instead of a whole minute) reopens the same stream. Shorter hiccups still carry on with the connection open.", apps: everywhere)
+        ]),
         Release(version: "2.7", date: "2026-11-20", time: "16:45", title: "Navigation from the left", changes: [
             Change(text: "No top bar: Home, EPG and Settings are in a rail down the left edge. Left from a left panel (or Back) opens it with names, connections, the EPG time and the version button; right goes back into the page.", apps: android),
             Change(text: "Home: a sport's leagues are a list beside it instead of chips. Right from the sport moves into them and the sports fold to icons; left (or Back) opens them out again.", apps: android),

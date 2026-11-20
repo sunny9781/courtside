@@ -317,7 +317,7 @@ final class PlaybackController: ObservableObject {
         if status == .playing { droppedSince = nil }
         let size = player.videoSize
         if size.height > 0 { resolution = Self.label(size.height) }
-        // Hiccups are waited out with the connection open; only a minute without progress reopens the stream.
+        // Hiccups are waited out with the connection open; only 10 seconds without progress reopens the stream.
         let watching = !resolution.isEmpty && (status == .playing || status == .buffering || status == .opening)
         switch freezeWatch.check(progress: Double(player.time.intValue), watching: watching) {
         case .restart: restartQuietly()
