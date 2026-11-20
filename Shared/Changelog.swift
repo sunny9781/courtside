@@ -78,6 +78,7 @@ enum Changelog {
             Change(text: "Back goes up one level at a time: from a setting, game or channel to the selected item on the left, then to the tab you're on at the top, then Home.", apps: android),
             Change(text: "Each tab remembers where you were: coming back to Settings lands on the section you left (Lite mode, say), not the first one.", apps: android),
             Change(text: "Left on a left panel (Settings sections, EPG categories, sports, game categories) stays put instead of jumping to another tab; right on the last score card stays put too.", apps: android),
+            Change(text: "Hold select on the player in the corner to stop the stream (for remotes without Play/Pause, like the Chromecast's). Play/Pause still stops it too.", apps: android),
             Change(text: "Lite mode options say what you get when they're on: Logos, Live scores, Player in the corner, Finished games, Quick page switching.", apps: android),
             Change(text: "League chips are always in the same order: All, then the most popular league first (NBA, WNBA, NCAA...), instead of moving around as games go live.", apps: [.tv, .ios, .android]),
             Change(text: "Game screen: a 4K stream whose name or guide names the race or game always shows at the top under 4K, never under Local and likely.", apps: [.mac, .tv, .ios, .android]),

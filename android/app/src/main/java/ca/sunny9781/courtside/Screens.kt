@@ -415,11 +415,13 @@ fun PlayerVideo(modifier: Modifier = Modifier) {
 /**
  * The player under the tabs, in the same spot on every screen while something plays. Move up onto the video and
  * click it for full screen (it can't take focus straight from the tabs, so pressing down from them lands on the
- * page). Play/Pause on the remote stops it.
+ * page). Play/Pause on the remote stops it, and so does holding select on the video (remotes without Play/Pause,
+ * like the Chromecast's).
  */
 @Composable
 fun PlayerStrip(model: AppModel, item: NowPlaying, targets: FocusTargets, modifier: Modifier = Modifier) {
     TvButton(onClick = { model.play(item.channel, item.gameTitle, item.lineup, from = "strip") }, focusedScale = 1f,
+        onLongClick = { model.stopPinned(); model.notice = "Stopped" },
         modifier = modifier.padding(start = Theme.margin).focusProperties { canFocus = !model.tabsFocused }
             .focusProperties { up = model.leftPanel }
             .tracked(targets, "video").size(Theme.playerWidth, Theme.playerWidth * 9 / 16)) { _ ->
