@@ -68,6 +68,10 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   Settings sections Account/Playback/General/Hidden/Changelog, Connection log (`Shared/ConnLog.swift`, shared by the
   Apple apps; Android has its own ConnLog.kt). iPhone: two cards per row; sideways on an EPG category =
   `IOSGuideTimeline`. Mac: finished games open by default; channel sports as `MacSportChannels`.
+- Stalls (all apps, 2.4): the connection stays open through hiccups; FreezeWatch only reopens a picture that hasn't
+  moved for 60 s and never skips to another stream (`onRepeatedFreezing` no longer fires). A stream that had shown a
+  picture and then errors/ends is reopened (same URL, every 3 s, up to 2 min, shown as buffering); one that never
+  showed a picture fails as before. Switching streams only with the opt-in auto-switch setting.
 - Android Lite mode (1.94): Settings › Lite mode section, only when `settings.slowDevice` (not NVIDIA). Master switch
   plus one Flag per option, least → most effect: liteSettle (350 ms), liteFoldFinished, liteNoLogos, liteNoScores,
   liteNoAutoplay, liteNoCorner. Defaults follow the old `lite` pref. Drawing code reads them via `Perf` (settings ref).
