@@ -75,8 +75,14 @@ class MainActivity : ComponentActivity() {
         Updater.afterInstall(this)
     }
 
+    override fun onStart() {
+        super.onStart()
+        model.cameBack()
+    }
+
     override fun onStop() {
         super.onStop()
+        model.onScreen = false
         // Leaving the app (Home button) stops the stream, so it doesn't keep using a connection.
         Playback.stop()
         model.pinned = null

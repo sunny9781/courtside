@@ -449,13 +449,20 @@ final class AppModel: ObservableObject {
         startAccountUpdates()
     }
 
-    /// Live scores every minute while the app is open, for leagues that still have games to play today.
+    /// Live scores every minute while a game is live or starts within 15 minutes; otherwise every 5 minutes (nothing
+    /// changes then but the odd start time). Only leagues that still have games to play today.
     private func startScoreUpdates() {
         scoreTask?.cancel()
         scoreTask = Task { [weak self] in
+            var last = Date()
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(60))
                 guard !Task.isCancelled, let self else { return }
+                let busy = self.allGames.contains { g in
+                    g.state == .live || (g.state == .upcoming && (g.start ?? .distantFuture) < Date().addingTimeInterval(15 * 60))
+                }
+                if !busy && Date().timeIntervalSince(last) < 290 { continue }
+                last = Date()
                 // Leagues with games still to play, and any switched back on since (not fetched yet today).
                 let on = League.active
                 let missing = on.filter { !self.fetchedLeagues.contains($0.id) }

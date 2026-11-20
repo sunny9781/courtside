@@ -598,7 +598,9 @@ enum Matcher {
                 }
                 list.append(StreamMatch(channel: c.channel, reason: reasons.joined(separator: " · "), score: score,
                                         quality: q.label, qualityRank: q.rank, recent: recent.contains(cid),
-                                        local: isLocal(c.channel), likelyOnly: score == 1,
+                                        // Named by its channel name or guide: never put away with the locals.
+                                        local: !named.contains(cid) && !inGuide.contains(cid) && isLocal(c.channel),
+                                        likelyOnly: score == 1,
                                         country: countryOf(c.channel)))
             }
             result.matches[id] = list.sorted {

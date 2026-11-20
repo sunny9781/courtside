@@ -37,15 +37,21 @@ private enum class Section(val title: String, val icon: ImageVector) {
 /** Settings, like the Apple TV app: sections down the left (moving onto one shows it), the section on the right. */
 @Composable
 fun SettingsScreen(model: AppModel) {
-    var section by remember { mutableStateOf(Section.ACCOUNT) }
+    // Kept in the model: coming back from another tab lands on the section you were in.
+    val section = Section.entries.firstOrNull { it.name == model.settingsSection } ?: Section.ACCOUNT
     val side = remember { FocusTargets() }
+    // Back from a setting: its section on the left.
+    LaunchedEffect(Unit) {
+        model.focusMoves.collect { m -> if (m == "side") side.focus(Section.entries.firstOrNull { it.name == model.settingsSection }) }
+    }
     Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { side[section] },
         horizontalArrangement = Arrangement.spacedBy(24.dp)) {
         Column(Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).padding(vertical = 8.dp)
-            .focusRequester(model.leftPanel).enterAt { side[section] },
+            .focusRequester(model.leftPanel).onFocusChanged { model.sideFocused = it.hasFocus }.enterAt { side[section] },
             verticalArrangement = Arrangement.spacedBy(3.dp)) {
             for (item in Section.entries.filter { it != Section.LITE || model.settings.slowDevice }) {
-                TvButton(onClick = { section = item }, selected = section == item, onFocus = { section = item },
+                TvButton(onClick = { model.settingsSection = item.name }, selected = section == item,
+                    onFocus = { model.settingsSection = item.name },
                     modifier = Modifier.fillMaxWidth().tracked(side, item)) { focused ->
                     val color = if (focused) Theme.bg else Theme.text
                     Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
@@ -232,27 +238,28 @@ private fun Info(label: String, value: String) {
 @Composable
 private fun LiteSection(model: AppModel) {
     val s = model.settings
-    Action("Lite mode", "Everything below at once. Turn options on from the bottom up if this TV feels slow.",
+    Action("Lite mode", "Turns everything below off at once. Or turn them off one at a time, from the bottom up, if this TV feels slow.",
         value = when { s.lite -> "On"; s.anyLite -> "Custom"; else -> "Off" }) {
         val on = !s.lite
         s.lite = on
         if (on) model.stopPinned()
     }
     Spacer(Modifier.height(6.dp))
-    Label("FROM LEAST TO MOST EFFECT ON SPEED", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted,
+    // Each option says what you get when it's on (Logos: On), not what Lite mode takes away.
+    Label("TURNING ONE OFF MAKES THIS TV FASTER (MOST AT THE BOTTOM)", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted,
         modifier = Modifier.padding(start = 10.dp))
-    Toggle("Slower page switching", "Moving through sports, tabs and categories shows a page after a slightly longer pause (350 ms instead of 250).",
-        s.liteSettle) { s.liteSettle = it }
-    Toggle("Fold finished games", "Home keeps finished games in one row at the bottom (Finished · 6) instead of showing them.",
-        s.liteFoldFinished) { s.liteFoldFinished = it }
-    Toggle("No logos", "No team logos on Home and the game screen, no channel logos in the EPG and the now-playing bar.",
-        s.liteNoLogos) { s.liteNoLogos = it }
-    Toggle("No live scores", "Today's games load once when the app opens and don't update; Home shows no scores (LIVE instead of the clock).",
-        s.liteNoScores) { s.liteNoScores = it }
-    Toggle("Don't start a stream on the game screen", "Opening a game waits for you to pick a stream.",
-        s.liteNoAutoplay) { s.liteNoAutoplay = it }
-    Toggle("No player in the corner", "Channels open straight in full screen, and leaving full screen stops the stream.",
-        s.liteNoCorner) { s.liteNoCorner = it; if (it) model.stopPinned() }
+    Toggle("Quick page switching", "Moving through sports, tabs and categories shows a page after a short pause (250 ms; off: 350 ms).",
+        !s.liteSettle) { s.liteSettle = !it }
+    Toggle("Finished games", "Home shows finished games (off: they fold into one row at the bottom, Finished · 6).",
+        !s.liteFoldFinished) { s.liteFoldFinished = !it }
+    Toggle("Logos", "Team logos on Home and the game screen, channel logos in the EPG and the now-playing bar.",
+        !s.liteNoLogos) { s.liteNoLogos = !it }
+    Toggle("Live scores", "Scores and clocks update every minute (off: today's games load once when the app opens; LIVE instead of the clock).",
+        !s.liteNoScores) { s.liteNoScores = !it }
+    Toggle("Start a stream on the game screen", "Opening a game plays its first stream (off: it waits for you to pick one).",
+        !s.liteNoAutoplay) { s.liteNoAutoplay = !it }
+    Toggle("Player in the corner", "Channels play in the corner first (off: they open straight in full screen, and leaving full screen stops the stream).",
+        !s.liteNoCorner) { s.liteNoCorner = !it; if (!it) model.stopPinned() }
 }
 
 @Composable

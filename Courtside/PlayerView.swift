@@ -26,7 +26,7 @@ struct VideoSurface: NSViewRepresentable {
 struct PlayerView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
-    @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
+    @AppStorage(Prefs.autoSwitch) private var autoSwitch = false
     /// Streams already tried in this viewing, so automatic switching never loops.
     @State private var tried: Set<Int> = []
     /// When the current stream started buffering (or opening) without playing.

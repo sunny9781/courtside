@@ -198,12 +198,16 @@ fun Field(hint: String, value: String, onChange: (String) -> Unit, type: Keyboar
 fun Shell(model: AppModel) {
     val full = model.nowPlaying != null
     val strip = remember { FocusTargets() }
-    // Back: full screen → the player at the top; game screen → Home list; EPG/Settings → Home; Home → leaves the app.
-    BackHandler(enabled = full || model.openGameId != null || model.tab != Tab.HOME) {
+    // Back goes up one level at a time: full screen → the player; a game → its card on Home; a page (games, channels,
+    // a setting) → its left panel, on the selected item; the left panel → the tab you're on at the top; the EPG or
+    // Settings tab → Home; the Home tab → leaves the app.
+    BackHandler(enabled = full || model.openGameId != null || model.tab != Tab.HOME || !model.tabsFocused) {
         when {
             model.nowPlaying != null -> model.closePlayer()
-            model.tab != Tab.HOME -> model.tab = Tab.HOME
+            model.tabsFocused && model.tab != Tab.HOME -> { model.tab = Tab.HOME; model.focusMoves.tryEmit("tabs") }
             model.openGameId != null -> model.closeGame()
+            model.sideFocused -> model.focusMoves.tryEmit("tabs")
+            else -> model.focusMoves.tryEmit("side")
         }
     }
     // Remember the quality and frame rate each channel really plays at (they beat what its name says).
@@ -232,10 +236,10 @@ fun Shell(model: AppModel) {
         Column(Modifier.fillMaxSize().padding(top = Theme.margin).alpha(if (full) 0f else 1f).enterAt({ full }) { FocusRequester.Default }) {
             TopBar(model)
             Box(Modifier.weight(1f).fillMaxWidth()) {
-            // Moving left or right off the edge of a page goes nowhere (not up to the top bar).
+            // Moving left or right off the edge of a page goes nowhere (not up to a tab at the top, which switched tabs).
             Box(Modifier.fillMaxSize().focusProperties {
                 exit = { d ->
-                    if (d == FocusDirection.Right || d == FocusDirection.Next || d == FocusDirection.Previous)
+                    if (d == FocusDirection.Left || d == FocusDirection.Right || d == FocusDirection.Next || d == FocusDirection.Previous)
                         FocusRequester.Cancel else FocusRequester.Default
                 }
             }.focusGroup()) {
@@ -294,6 +298,10 @@ fun TopBar(model: AppModel) {
     // Moving across the tabs shows a page once you stop on its tab (going from Home to Settings doesn't draw the
     // EPG on the way). Clicking, or pressing down into the page, is instant.
     val settle = rememberSettle()
+    // Back from a left panel: up to the tab you're on.
+    LaunchedEffect(Unit) {
+        model.focusMoves.collect { if (it == "tabs") { settle.cancel(); delay(30); tabs.focus(model.tab) } }
+    }
     Box(Modifier.fillMaxWidth().padding(horizontal = Theme.margin).height(40.dp)) {
         // Coming back up to the tabs lands on the one you're on, so it doesn't switch by accident.
         Row(Modifier.align(Alignment.Center).onFocusChanged { model.tabsFocused = it.hasFocus; if (!it.hasFocus) settle.flush() }
@@ -606,6 +614,10 @@ fun HomeScreen(model: AppModel) {
         if (model.homeSelection == HomeSelection.LiveNow) sports.firstOrNull()?.let { model.homeSelection = HomeSelection.OfSport(it) }
     }
 
+    // Back from the games: the selected sport.
+    LaunchedEffect(Unit) {
+        model.focusMoves.collect { if (it == "side") side.focus(sidebarKey(model.homeSelection)) }
+    }
     // Back from a game: focus goes to its card.
     LaunchedEffect(Unit) {
         val id = model.returnToGame ?: return@LaunchedEffect
@@ -621,6 +633,7 @@ fun HomeScreen(model: AppModel) {
         .enterAt { firstGame?.let { "game:$it" }?.takeIf { it in pane.live }?.let { pane[it] } ?: side[sidebarKey(model.homeSelection)] }) {
         SportList(model, side, compact = false,
             modifier = Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).focusRequester(model.leftPanel)
+                .onFocusChanged { model.sideFocused = it.hasFocus }
                 .enterAt { side[sidebarKey(model.homeSelection)] })
         Spacer(Modifier.width(16.dp))
         GamesPane(model, pane, onOpen = { lastGame = it; model.openGameId = it }, onFocusGame = { lastGame = it },
@@ -785,8 +798,8 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     var showFinished by remember(selection) { mutableStateOf(!Perf.foldFinished) }
     val first = open.firstOrNull()?.games?.firstOrNull()?.id ?: if (showFinished) finished.firstOrNull()?.id else null
     SideEffect { onFirst(first) }
-    // Right on a game (the screen's right edge) jumps to the EPG.
-    val toEpg = Modifier.onEdgeKey(KeyEvent.KEYCODE_DPAD_RIGHT) { model.tab = Tab.EPG }
+    // Right on the last card of a row goes nowhere (no jumping to another tab).
+    val toEpg = Modifier
     var showLater by remember(selection) { mutableStateOf(false) }
     // NFL RedZone: while any NFL game is live, its channels sit in a folder at the top of Live Now and Football.
     val nflLive = selection.let { it is HomeSelection.LiveNow || selectedSport(it) == Sport.FOOTBALL ||
@@ -799,7 +812,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     BoxWithConstraints(modifier.fillMaxHeight()) {
     // Score cards, as many to a row as fit (each at least CARD_MIN_WIDTH wide).
     val cols = maxOf(1, ((maxWidth - 8.dp) / (CARD_MIN_WIDTH + 8.dp)).toInt())
-    // One list item per row of cards. Right on the last card of a row (the screen's right edge) jumps to the EPG.
+    // One list item per row of cards.
     fun LazyListScope.cardRows(games: List<Game>, prefix: String) {
         items(games.chunked(cols), key = { "$prefix:${it.first().id}" }, contentType = { "cards" }) { row ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
@@ -832,14 +845,12 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
                 }
             }
         }
-        if (open.isEmpty()) {
+        // Only when there's nothing at all (no "Nothing live or coming up": the folds below say it).
+        if (open.isEmpty() && (model.error != null || (later.isEmpty() && finished.isEmpty()))) {
             item(key = "empty") {
                 Label(when {
                     model.error != null -> model.error!!
                     model.loading && model.games.isEmpty() -> "Loading today's games…"
-                    selection is HomeSelection.LiveNow -> "Nothing live right now."
-                    later.isNotEmpty() -> "Nothing in the next 2 hours."
-                    finished.isNotEmpty() -> "Nothing live or coming up."
                     else -> "No games today."
                 }, size = 14.sp, color = Theme.muted, maxLines = 3, modifier = Modifier.padding(10.dp))
             }
@@ -981,14 +992,13 @@ private fun SportChannels(model: AppModel, sport: Sport, targets: FocusTargets, 
     }
 }
 
-/** "All · NBA · WNBA · NCAA Men…", leagues with live games first. Moving across them switches straight away. */
+/**
+ * "All · NBA · WNBA · NCAA Men…": always in that order (the most popular league first), so the chips never move.
+ * Moving across them switches straight away.
+ */
 @Composable
 private fun LeagueChips(model: AppModel, sport: Sport, targets: FocusTargets) {
-    val leagues = model.leagues(sport)
-    val ordered = leagues.withIndex().sortedWith(compareBy({ (_, l) ->
-        val g = model.gamesIn(l.id)
-        if (g.any { it.state == GameState.LIVE }) 0 else if (g.isEmpty()) 2 else 1
-    }, { it.index })).map { it.value }
+    val ordered = model.leagues(sport)
     val selection = model.homeSelection
     // Coming up from the games lands on the chip that's selected (All, or the league), not the one above.
     val selectedChip = (selection as? HomeSelection.OfLeague)?.let { "chip:${it.leagueId}" } ?: "chip:all"
@@ -1135,8 +1145,7 @@ fun GameScreen(model: AppModel, gameId: String) {
         horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         // Categories, on top of the player.
         LazyColumn(Modifier.width(Theme.playerWidth).fillMaxHeight().padding(bottom = topInset(model)).focusRequester(model.leftPanel)
-            // Left on the categories (the screen's left edge) goes back to Home, like Back.
-            .onEdgeKey(KeyEvent.KEYCODE_DPAD_LEFT) { model.closeGame() }
+            .onFocusChanged { model.sideFocused = it.hasFocus }
             .flushOn(catSettle, androidx.compose.ui.focus.FocusDirection.Right).enterAt { cats["cat:$selected"] },
             verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             items(categories, key = { it.first }) { (name, streams) ->

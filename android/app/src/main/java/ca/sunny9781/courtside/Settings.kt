@@ -39,7 +39,8 @@ class Settings(context: Context) {
         }
     }
 
-    var autoSwitch by Flag("autoSwitch", true)
+    /** Off by default (1.96): turned off once for everyone, then it's your choice. */
+    var autoSwitch by Flag("autoSwitch", false)
     var matchFrameRate by Flag("matchFrameRate", true)
     /** A less powerful TV (anything but an Nvidia Shield): Settings shows the Lite mode section only here. */
     val slowDevice = !android.os.Build.MANUFACTURER.equals("NVIDIA", ignoreCase = true)
@@ -72,6 +73,11 @@ class Settings(context: Context) {
         if (!p.getBoolean("refreshHours6", false)) {
             if (p.getInt("refreshHours", 6) == 12) refreshHours = 6
             p.edit().putBoolean("refreshHours6", true).apply()
+        }
+        // 1.96: switching to the next stream when one stalls is off by default; turned off once for everyone.
+        if (!p.getBoolean("autoSwitchOff196", false)) {
+            autoSwitch = false
+            p.edit().putBoolean("autoSwitchOff196", true).apply()
         }
     }
     /**

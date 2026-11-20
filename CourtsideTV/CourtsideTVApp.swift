@@ -50,6 +50,18 @@ final class TVNav: ObservableObject {
     /// Focus is on Home / EPG / Settings at the top. The player's video can't take focus then, so pressing down
     /// from the tabs still lands on the page's left column.
     @Published var tabsFocused = false
+    /// Focus is on a screen's left column (sports, EPG categories, Settings sections).
+    @Published var sideFocused = false
+    /// Each tab remembers where you were: the Settings section and the EPG groups you'd opened.
+    @Published var settingsSection = "Account"
+    @Published var guidePath: [String] = []
+    /// Back steps out one level: from a page to its left column's selected row, from the left column up to the
+    /// tabs. These ask the screen (or the tabs) to take focus.
+    @Published var sideRequest = 0
+    @Published var tabsRequest = 0
+
+    enum Zone { case tabs, side, page }
+    var zone: Zone { tabsFocused ? .tabs : (sideFocused ? .side : .page) }
 
     init() {
         switch DemoData.screen {
@@ -177,10 +189,20 @@ struct TVShell: View {
         }
     }
 
+    /// Back steps out one level at a time: a page (games, channels, a setting) → the selected row on the left →
+    /// the tabs → Home's tab → leaves the app. A game screen goes back to its card first.
     private var exitAction: (() -> Void)? {
-        if nav.tab != .home { return { switchTab(.home) } }
-        if !nav.homePath.isEmpty { return { nav.homePath.removeLast() } }
-        return nil
+        if nav.tab == .home && !nav.homePath.isEmpty && nav.zone != .tabs { return { nav.homePath.removeLast() } }
+        switch nav.zone {
+        case .page: return { nav.sideRequest += 1 }
+        case .side: return { nav.tabsRequest += 1 }
+        case .tabs:
+            guard nav.tab != .home || !nav.homePath.isEmpty else { return nil }
+            return {
+                if nav.tab == .home { nav.homePath.removeAll() } else { switchTab(.home) }
+                nav.tabsRequest += 1
+            }
+        }
     }
 
     /// The player at the top keeps playing while you look at another tab.
@@ -234,6 +256,8 @@ struct TVTopBar: View {
             }
             // Coming back up to the tabs lands on the one you're on (so it doesn't switch by accident).
             .defaultFocus($focusedTab, nav.tab, priority: .userInitiated)
+            // Back from a left column comes up to the tab you're on.
+            .onChange(of: nav.tabsRequest) { focusedTab = nav.tab }
             // Moving across Home / EPG / Settings switches once you stop on a tab (a quarter second), so going from
             // Home to Settings doesn't draw the EPG on the way. Leaving the tabs (down into the page) switches now.
             .onChange(of: focusedTab) {

@@ -135,6 +135,27 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     var tab by mutableStateOf(Tab.HOME)
     /** Focus is on Home / EPG / Settings: the player's video can't take focus then, so down lands on the page. */
     var tabsFocused by mutableStateOf(false)
+    /** Focus is in a screen's left panel (sports, EPG categories, settings sections, game categories). */
+    var sideFocused by mutableStateOf(false)
+    /** Settings' section, kept while you visit other tabs (coming back lands where you were). */
+    var settingsSection by mutableStateOf("ACCOUNT")
+    /**
+     * Back moves focus up one level: "side" (from a page to its left panel, onto the selected item) or "tabs" (from a
+     * left panel to the tab you're on). Each screen listens and moves focus itself.
+     */
+    val focusMoves = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 1)
+    /** The app is on screen (not behind the TV's home screen): nothing is fetched while it isn't. */
+    var onScreen = true
+    private var lastScores = 0L
+
+    /** Back on screen: scores right away if they're more than a minute old. */
+    fun cameBack() {
+        onScreen = true
+        if (System.currentTimeMillis() - lastScores > 60_000 && !settings.liteNoScores && allGames.isNotEmpty()) {
+            lastScores = System.currentTimeMillis()
+            viewModelScope.launch { runCatching { loadScores() } }
+        }
+    }
     /** Settings › Account › Edit account is open. */
     var editingAccount by mutableStateOf(false)
     /** The EPG groups you've opened, outermost first. */
@@ -425,13 +446,18 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 loading = false
             }
         }
-        // Scores every minute.
+        // Scores every minute while a game is live or starts within 15 minutes, otherwise every 5 minutes; nothing
+        // while the app isn't on screen (it catches up as soon as it's back).
         scoresJob?.cancel()
         scoresJob = viewModelScope.launch {
             while (true) {
                 delay(60_000)
+                if (!onScreen) continue
+                val soon = System.currentTimeMillis() + 15 * 60_000L
+                val busy = allGames.any { it.state == GameState.LIVE || (it.state == GameState.UPCOMING && (it.start ?: Long.MAX_VALUE) < soon) }
+                if (!busy && System.currentTimeMillis() - lastScores < 290_000) continue
                 // Lite mode: no live scores. Today's games are fetched when the app opens, and not again.
-                if (!settings.liteNoScores) runCatching { loadScores() }
+                if (!settings.liteNoScores) { lastScores = System.currentTimeMillis(); runCatching { loadScores() } }
                 // While something plays, the connection count is checked each minute too.
                 if (pinned != null || nowPlaying != null) refreshAccount()
             }

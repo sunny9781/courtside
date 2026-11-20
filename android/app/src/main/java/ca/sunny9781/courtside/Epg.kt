@@ -61,7 +61,6 @@ fun EpgScreen(model: AppModel) {
         while (true) { delay(60_000 - System.currentTimeMillis() % 60_000 + 50); now = System.currentTimeMillis() }
     }
     val start = Guide.windowStart(now)
-    // Left on the categories (the screen's left edge) goes to Home; not while typing in Filter.
     var filterFocused by remember { mutableStateOf(false) }
     var lastRow by remember { mutableStateOf<String?>(null) }
     var pathMoves by remember { mutableIntStateOf(0) }
@@ -168,7 +167,12 @@ fun EpgScreen(model: AppModel) {
         }
         holding[0] = false
     }
-    BackHandler(enabled = model.guidePath.isNotEmpty() && model.nowPlaying == null) { up() }
+    // Back in the categories: out of the group you're in. From the channels, Back goes to the categories first.
+    BackHandler(enabled = model.guidePath.isNotEmpty() && model.nowPlaying == null && model.sideFocused) { up() }
+    val sideTarget by rememberUpdatedState(listOf("cat:$categoryTarget", "cat:${level.firstOrNull()?.let { key(it) }}"))
+    LaunchedEffect(Unit) {
+        model.focusMoves.collect { m -> if (m == "side") sideTarget.firstOrNull { cats.focus(it) } }
+    }
 
     // Back from full screen: focus goes back to the channel you were watching (the one you flipped to, if it's in
     // this list, otherwise the one you opened). For a moment after, anything that brings focus back onto this page
@@ -202,7 +206,7 @@ fun EpgScreen(model: AppModel) {
         Box(Modifier.size(1.dp).focusRequester(holder).focusProperties { canFocus = holding[0] }
             .focusable())
         LazyColumn(Modifier.width(CATEGORY_WIDTH).fillMaxHeight().padding(bottom = topInset(model)).focusRequester(model.leftPanel)
-            .onEdgeKey(android.view.KeyEvent.KEYCODE_DPAD_LEFT, enabled = { !filterFocused }) { model.tab = Tab.HOME }
+            .onFocusChanged { model.sideFocused = it.hasFocus }
             .flushOn(settle, androidx.compose.ui.focus.FocusDirection.Right).enterAt { if (justBack()) rows[returnRow()] else cats["cat:$categoryTarget"] },
             verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             // One search for categories and channels; results show on the right.

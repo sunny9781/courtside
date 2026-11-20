@@ -2,7 +2,7 @@ import SwiftUI
 
 struct IOSSettingsView: View {
     @EnvironmentObject var model: AppModel
-    @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
+    @AppStorage(Prefs.autoSwitch) private var autoSwitch = false
     @AppStorage(Prefs.hideSD) private var hideSD = true
     @AppStorage(Prefs.guidePreview) private var guidePreview = true
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000

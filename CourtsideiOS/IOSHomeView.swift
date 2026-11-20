@@ -374,13 +374,8 @@ struct IOSGamesList: View {
     @ViewBuilder
     private func leagueItems(_ sport: Sport) -> some View {
         let leagues = model.leagues(for: sport)
-        let ranks: [String: Int] = Dictionary(uniqueKeysWithValues: leagues.map { league in
-            let games = model.games.filter { $0.league.id == league.id }
-            return (league.id, games.contains(where: { $0.state == .live }) ? 0 : (games.isEmpty ? 2 : 1))
-        })
-        let ordered = leagues.enumerated()
-            .sorted { ((ranks[$0.element.id] ?? 2), $0.offset) < ((ranks[$1.element.id] ?? 2), $1.offset) }
-            .map(\.element)
+        // Always the same order: All, then the most popular league first (NBA, WNBA, NCAA...).
+        let ordered = leagues
         ForEach(ordered.reversed()) { league in
             let count = model.games.filter { $0.league.id == league.id }.count
             IOSChip(selected: nav.homeSelection == .league(league.id), action: { nav.homeSelection = .league(league.id) }) {
@@ -424,13 +419,8 @@ struct IOSGamesList: View {
 
     private func leagueChips(_ sport: Sport) -> some View {
         let leagues = model.leagues(for: sport)
-        let ranks: [String: Int] = Dictionary(uniqueKeysWithValues: leagues.map { league in
-            let games = model.games.filter { $0.league.id == league.id }
-            return (league.id, games.contains(where: { $0.state == .live }) ? 0 : (games.isEmpty ? 2 : 1))
-        })
-        let ordered = leagues.enumerated()
-            .sorted { ((ranks[$0.element.id] ?? 2), $0.offset) < ((ranks[$1.element.id] ?? 2), $1.offset) }
-            .map(\.element)
+        // Always the same order: All, then the most popular league first (NBA, WNBA, NCAA...).
+        let ordered = leagues
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 IOSChip(selected: nav.homeSelection == .sport(sport), action: { nav.homeSelection = .sport(sport) }) {
