@@ -350,20 +350,6 @@ struct PlayerView: View {
             }
 
             Button {
-                toggleDetails()
-            } label: {
-                Image(systemName: "info.circle")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(showDetails ? Theme.accent : Theme.text)
-                    .frame(width: 44, height: 44)
-                    .background(Circle().fill(.white.opacity(0.12)))
-                    .contentShape(Circle())
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut("i", modifiers: [])
-            .help("Stream information (I or click the video)")
-
-            Button {
                 exitPlayer()
             } label: {
                 Image(systemName: "arrow.down.right.and.arrow.up.left")
@@ -392,6 +378,8 @@ struct PlayerView: View {
                 .keyboardShortcut(.upArrow, modifiers: [])
             Button("Next stream") { model.step(1) }
                 .keyboardShortcut(.downArrow, modifiers: [])
+            Button("Stream information") { toggleDetails() }
+                .keyboardShortcut("i", modifiers: [])
         }
         .opacity(0)
         .frame(width: 0, height: 0)
