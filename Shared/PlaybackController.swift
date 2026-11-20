@@ -100,7 +100,11 @@ final class PlaybackController: ObservableObject {
     }
 
     /// Called when a stream keeps freezing even after restarting it, so the app can move to the next stream.
+    /// (Not called any more since 2.5: hiccups are waited out and dropped streams reconnect.)
     var onRepeatedFreezing: (() -> Void)?
+    /// When the stream dropped after showing a picture and started being reopened (nil while it plays).
+    private var droppedSince: Date?
+    private var lastReconnect = Date.distantPast
     private let freezeWatch = FreezeWatch()
     private var lastBufferMs = 2000
     /// The next stream, waiting for the old one's connection to close (see open).
@@ -116,6 +120,7 @@ final class PlaybackController: ObservableObject {
             }
         }
         freezeWatch.reset()
+        droppedSince = nil
         #if os(tvOS) && canImport(KSPlayer)
         wantHDR = hdrPlayer && !hdrFailed.contains(url)
         #endif
@@ -125,6 +130,24 @@ final class PlaybackController: ObservableObject {
     #if os(tvOS) && canImport(KSPlayer)
     private var wantHDR = false
     #endif
+
+    /// The stream dropped after it had shown a picture (the provider closed it, or the network went): open the same
+    /// stream again instead of stopping, every 3 seconds for up to 2 minutes, showing it as buffering. The old
+    /// connection is already gone, so this never makes two. False for a stream that never showed a picture (a
+    /// stream that doesn't work, which should fail as before) or after 2 minutes of trying.
+    private func reconnectAfterDrop() -> Bool {
+        guard !resolution.isEmpty, currentURL != nil else { return false }
+        let now = Date()
+        let since = droppedSince ?? now
+        droppedSince = since
+        guard now.timeIntervalSince(since) < 120 else { return false }
+        status = .buffering
+        if now.timeIntervalSince(lastReconnect) >= 3 {
+            lastReconnect = now
+            restartQuietly()
+        }
+        return true
+    }
 
     /// Starts the stream again without showing it: keeps the resolution and frame rate shown as they were.
     private func restartQuietly() {
@@ -283,17 +306,18 @@ final class PlaybackController: ObservableObject {
         case .paused:
             status = .paused
         case .error:
-            status = .failed("This stream couldn't be opened. Try another stream for this game.")
+            if !reconnectAfterDrop() { status = .failed("This stream couldn't be opened. Try another stream for this game.") }
         case .ended:
-            status = .ended
+            if !reconnectAfterDrop() { status = .ended }
         case .stopped:
-            if status == .playing { status = .ended }
+            if status == .playing, !reconnectAfterDrop() { status = .ended }
         default:
             break
         }
+        if status == .playing { droppedSince = nil }
         let size = player.videoSize
         if size.height > 0 { resolution = Self.label(size.height) }
-        // Frozen for 4 seconds: restart quietly; if it keeps happening, move on.
+        // Hiccups are waited out with the connection open; only a minute without progress reopens the stream.
         let watching = !resolution.isEmpty && (status == .playing || status == .buffering || status == .opening)
         switch freezeWatch.check(progress: Double(player.time.intValue), watching: watching) {
         case .restart: restartQuietly()
@@ -329,7 +353,8 @@ final class PlaybackController: ObservableObject {
     /// The HDR player (4K channels): its state, size, frame rate and sound. If it shows no picture within 7 seconds
     /// (or fails before showing one), it is closed and, once its connection is gone, the same stream opens on VLC.
     private func pollHDR() {
-        let noPicture = !hdr.hasShownPicture
+        // (Not while reopening a stream that dropped: that one has worked, so it stays on the HDR player.)
+        let noPicture = !hdr.hasShownPicture && droppedSince == nil
         if noPicture && (hdr.state == .failed || Date().timeIntervalSince(hdr.openedAt) > 7) {
             if let url = currentURL {
                 hdrFailed.insert(url)
@@ -343,9 +368,12 @@ final class PlaybackController: ObservableObject {
         case .buffering: status = .buffering
         case .playing: status = .playing
         case .paused: status = .paused
-        case .ended: status = .ended
-        case .failed: status = .failed("This stream couldn't be opened. Try another stream for this game.")
+        case .ended:
+            if !reconnectAfterDrop() { status = .ended }
+        case .failed:
+            if !reconnectAfterDrop() { status = .failed("This stream couldn't be opened. Try another stream for this game.") }
         }
+        if status == .playing { droppedSince = nil }
         let height = hdr.videoHeight
         if height > 0 { resolution = Self.label(height) }
         let watching = !resolution.isEmpty && (status == .playing || status == .buffering)

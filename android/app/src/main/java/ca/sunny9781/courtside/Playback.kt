@@ -98,13 +98,18 @@ object Playback {
             addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) = refreshStatus()
                 override fun onIsPlayingChanged(isPlaying: Boolean) = refreshStatus()
-                override fun onRenderedFirstFrame() { firstFrame = true }
+                override fun onRenderedFirstFrame() {
+                    firstFrame = true
+                    fallbackUrl = null   // this format works: a later drop reopens it, never the other format
+                }
                 override fun onVideoSizeChanged(size: VideoSize) {
                     if (size.height > 0) resolution = label(size.height)
                     videoFormat?.frameRate?.takeIf { it > 0 }?.let { frameRate = if (it > 61) it / 2 else it }
                 }
                 override fun onPlayerError(error: PlaybackException) {
                     ConnLog.add("Stream error: ${error.errorCodeName}")
+                    // It had been playing: the connection dropped, so open it again instead of stopping.
+                    if (reconnectAfterDrop()) { status = Status.BUFFERING; return }
                     // TS didn't work: try the HLS version once before giving up.
                     val hls = fallbackUrl
                     if (hls != null) {
@@ -155,6 +160,7 @@ object Playback {
             return
         }
         freeze.reset()
+        droppedSince = 0L
         resolution = ""
         frameRate = 0f
         audio = ""
@@ -297,18 +303,45 @@ object Playback {
         if (player.playWhenReady) player.pause() else player.play()
     }
 
+    private var droppedSince = 0L
+    private var lastReconnect = 0L
+
+    /**
+     * The stream dropped after it had shown a picture (the provider closed it, or the network went): open the same
+     * stream again instead of stopping, every 3 seconds for up to 2 minutes. The old connection is already gone, so
+     * this never makes two. False for a stream that never showed a picture (it fails as before) or after 2 minutes.
+     */
+    private fun reconnectAfterDrop(): Boolean {
+        if (resolution.isEmpty() || currentUrl == null) return false
+        val url = player.currentMediaItem?.localConfiguration?.uri?.toString() ?: currentUrl ?: return false
+        val now = System.currentTimeMillis()
+        if (droppedSince == 0L) droppedSince = now
+        if (now - droppedSince >= 120_000) return false
+        if (pendingOpen != null) return true   // already reopening
+        val run = Runnable {
+            pendingOpen = null
+            lastReconnect = System.currentTimeMillis()
+            ConnLog.add("Stream dropped: opening ${ConnLog.stream(url)} again")
+            open(url)
+        }
+        pendingOpen = run
+        mainHandler.postDelayed(run, maxOf(0L, 3000 - (now - lastReconnect)))
+        return true
+    }
+
     private fun refreshStatus() {
         status = when (player.playbackState) {
             Player.STATE_BUFFERING -> if (status == Status.OPENING) Status.OPENING else Status.BUFFERING
-            Player.STATE_READY -> if (player.playWhenReady) Status.PLAYING else Status.PAUSED
-            Player.STATE_ENDED -> Status.ENDED
+            Player.STATE_READY -> if (player.playWhenReady) { droppedSince = 0L; Status.PLAYING } else Status.PAUSED
+            // A live stream never ends by itself: the provider closed the connection, so open it again.
+            Player.STATE_ENDED -> if (reconnectAfterDrop()) Status.BUFFERING else Status.ENDED
             else -> if (currentUrl == null) Status.IDLE else status
         }
     }
 
     /**
-     * No picture 8 seconds after opening: try the stream's other format (HLS or TS) once. Frozen for 4 seconds after
-     * that: restart quietly (the resolution and frame rate stay shown); if it keeps happening, move on.
+     * No picture 8 seconds after opening: try the stream's other format (HLS or TS) once. After that, hiccups are
+     * waited out with the connection open (like other IPTV apps); only a whole minute without progress reopens it.
      */
     private fun poll() {
         if (!::player.isInitialized || currentUrl == null) return
@@ -380,18 +413,19 @@ object Playback {
     }
 }
 
-/** Notices a stream that has stopped moving for 4 seconds: restart quietly, and after 3 times in 2 minutes, move on. */
+/**
+ * Notices a stream that has stopped moving. Hiccups are waited out with the connection open; only after a whole minute
+ * without progress (a connection that died without saying so) does it ask for a quiet restart. Never SKIP any more.
+ */
 class FreezeWatch {
     enum class Action { NONE, RESTART, SKIP }
 
     private var lastProgress = -1.0
     private var lastChange = System.currentTimeMillis()
-    private val restarts = ArrayDeque<Long>()
 
     fun reset() {
         lastProgress = -1.0
         lastChange = System.currentTimeMillis()
-        restarts.clear()
     }
 
     fun check(progress: Double, watching: Boolean): Action {
@@ -402,15 +436,9 @@ class FreezeWatch {
             if (lastChange < now) lastChange = now
             return Action.NONE
         }
-        if (now - lastChange < 4000) return Action.NONE
-        while (restarts.isNotEmpty() && now - restarts.first() > 120_000) restarts.removeFirst()
-        restarts.addLast(now)
+        if (now - lastChange < 60_000) return Action.NONE
         lastProgress = -1.0
         lastChange = now + 6000      // a restart takes a few seconds to show a picture
-        if (restarts.size >= 3) {
-            restarts.clear()
-            return Action.SKIP
-        }
         return Action.RESTART
     }
 }
