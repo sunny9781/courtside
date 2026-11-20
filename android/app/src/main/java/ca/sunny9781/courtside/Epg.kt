@@ -16,6 +16,8 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.background
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.border
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -276,10 +278,11 @@ fun EpgScreen(model: AppModel) {
         }
         }
 
-        // The schedule runs to the bottom of the screen, under the now-playing bar beside the player.
-        Column(Modifier.weight(1f).fillMaxHeight()) { BehindPlayerBar(model) {
+        // The schedule ends level with the bottom of the player in the corner (it doesn't run on under the
+        // now-playing bar), so the screen lines up cleanly.
+        Column(Modifier.weight(1f).fillMaxHeight().padding(bottom = barInset(model)).clipToBounds()) { run {
             LazyColumn(Modifier.fillMaxSize().enterAt { rows[lastRow] }, verticalArrangement = Arrangement.spacedBy(3.dp),
-                contentPadding = PaddingValues(top = 6.dp, bottom = 6.dp + barInset(model))) {
+                contentPadding = PaddingValues(top = 6.dp, bottom = 0.dp)) {
                 item(key = "header") {
                     GuideHeader(if (searching) "Results for “$hitsFor”" else (selected?.name ?: ""), start, now)
                 }
@@ -609,13 +612,13 @@ internal fun GuideRow(model: AppModel, channel: Channel, playing: Boolean, start
             // The channel.
             val color = if (focused) Theme.bg else if (playing) Theme.accent else Theme.text
             Row(Modifier.width(Guide.channelWidth).fillMaxHeight().background(if (focused) Theme.text else Theme.card, shape)
+                .then(if (playing) Modifier.border(2.dp, Theme.accent, shape) else Modifier)
                 .padding(horizontal = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                 if (!Perf.noLogos) ChannelIcon(channel.icon, 20.dp)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                         Label(channel.name, size = 10.sp, weight = FontWeight.SemiBold, color = color, maxLines = 3,
                             modifier = Modifier.weight(1f, fill = false))
-                        if (playing) Icon(Icons.Filled.GraphicEq, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(9.dp))
                         if (model.isFavoriteChannel(channel.id))
                             Icon(Icons.Filled.Favorite, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(8.dp))
                     }
@@ -638,9 +641,10 @@ internal fun GuideRow(model: AppModel, channel: Channel, playing: Boolean, start
                     val lit = focused && isNow
                     val elapsed = ((now - s) * perMs).coerceIn(0f, width)
                     val sub = if (lit) androidx.compose.ui.graphics.Color(0xFF4A4F5C) else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.78f)
+                    // What's playing: an orange outline (the colour of the time line) around its channel and show.
                     Box(Modifier.offset(x = ((s - start) * perMs).dp).width(width.dp).fillMaxHeight().clip(shape)
                         .background(if (lit) Theme.text else Guide.fill(p.title, channel, model.games))
-                        .then(if (lit) Modifier.outline(true, Theme.accent, shape) else Modifier)) {
+                        .then(if (lit || (playing && isNow)) Modifier.border(2.dp, Theme.accent, shape) else Modifier)) {
                         // What's already been on is a shade darker.
                         Box(Modifier.width(elapsed.dp).fillMaxHeight()
                             .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = if (lit) 0.07f else 0.28f)))

@@ -194,7 +194,9 @@ fun Label(
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun ScrollingLabel(text: String, size: TextUnit, color: Color, weight: FontWeight, modifier: Modifier) {
-    Text(text, modifier = modifier.basicMarquee(iterations = Int.MAX_VALUE), color = color, fontSize = size,
+    // Scrolls once, after a second on the row (not over and over): an endless scroll redraws the screen every frame,
+    // which slows low-power TVs and makes the video in the corner stutter.
+    Text(text, modifier = modifier.basicMarquee(iterations = 1, initialDelayMillis = 1200), color = color, fontSize = size,
         fontWeight = weight, maxLines = 1, overflow = TextOverflow.Clip)
 }
 

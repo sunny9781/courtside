@@ -39,6 +39,8 @@ class MainActivity : ComponentActivity() {
         coil.Coil.setImageLoader(coil.ImageLoader.Builder(this)
             .memoryCache { coil.memory.MemoryCache.Builder(this).maxSizePercent(0.08).build() }
             .crossfade(false)
+            // Logos in 16-bit colour: half the memory, so less clearing up (pauses) on 2 GB TVs.
+            .allowRgb565(true)
             .respectCacheHeaders(false)
             .build())
         setContent {

@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.97", date: "2026-11-20", time: "01:30", title: "EPG tidy-up and a faster app", changes: [
+            Change(text: "EPG: what's playing has an orange outline around its channel and the show on now (the colour of the time line), instead of a small icon.", apps: android),
+            Change(text: "EPG: the guide ends level with the bottom of the player in the corner, instead of running on under the now-playing bar.", apps: android),
+            Change(text: "Faster on low-power TVs like the Chromecast: long names scroll once instead of over and over (that redrew the screen nonstop and made the video in the corner stutter), the app's own code is optimised, logos use half the memory, and the app gets more memory to work with.", apps: android)
+        ]),
         Release(version: "1.96", date: "2026-11-20", time: "00:30", title: "Smoother moving around, steady league order", changes: [
             Change(text: "Back goes up one level at a time: from a setting, game or channel to the selected item on the left, then to the tab you're on at the top, then Home.", apps: android),
             Change(text: "Each tab remembers where you were: coming back to Settings lands on the section you left (Lite mode, say), not the first one.", apps: android),
