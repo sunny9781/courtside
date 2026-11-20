@@ -74,6 +74,22 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.96", date: "2026-11-20", time: "00:30", title: "Smoother moving around, steady league order", changes: [
+            Change(text: "Back goes up one level at a time: from a setting, game or channel to the selected item on the left, then to the tab you're on at the top, then Home.", apps: android),
+            Change(text: "Each tab remembers where you were: coming back to Settings lands on the section you left (Lite mode, say), not the first one.", apps: android),
+            Change(text: "Left on a left panel (Settings sections, EPG categories, sports, game categories) stays put instead of jumping to another tab; right on the last score card stays put too.", apps: android),
+            Change(text: "Hold select on the player in the corner to stop the stream (for remotes without Play/Pause, like the Chromecast's). Play/Pause still stops it too.", apps: android),
+            Change(text: "Full screen: no more black flash a few seconds in. Match frame rate now switches the TV only as a channel starts (using the frame rate it played at last time); the first time a channel plays, its frame rate is counted and used from then on.", apps: android),
+            Change(text: "Lite mode options say what you get when they're on: Logos, Live scores, Player in the corner, Finished games, Quick page switching.", apps: android),
+            Change(text: "EPG: no resolution, frame rate or sound tags on the channel names (the now-playing bar shows them for what's playing).", apps: [.mac, .tv, .ios, .android]),
+            Change(text: "League chips are always in the same order: All, then the most popular league first (NBA, WNBA, NCAA...), instead of moving around as games go live.", apps: [.tv, .ios, .android]),
+            Change(text: "Game screen: a 4K stream whose name or guide names the race or game always shows at the top under 4K, never under Local and likely.", apps: [.mac, .tv, .ios, .android]),
+            Change(text: "Switching to the next stream when one stalls is off by default (Settings › Playback turns it back on).", apps: [.mac, .tv, .ios, .android]),
+            Change(text: "Home: no more \"Nothing live or coming up\" or \"Nothing in the next 2 hours\" messages.", apps: [.tv, .android]),
+            Change(text: "Logos are kept once loaded (in memory and on disk), so Home shows them straight away instead of loading them again.", apps: [.mac, .tv, .ios]),
+            Change(text: "Scores update every minute only while a game is live or about to start (otherwise every 5 minutes).", apps: [.mac, .tv, .ios]),
+            Change(text: "Scores update every minute only while a game is live or about to start (otherwise every 5 minutes), and not at all while the app isn't on screen.", apps: android)
+        ], titleApps: [.mac, .tv, .ios, .android]),
         Release(version: "1.95", date: "2026-11-19", time: "13:30", title: "Score cards, and the Mac and iPhone catch up", changes: [
             Change(text: "Home: games are score cards again, as many to a row as fit: the time or live clock, the 4K tag and number of streams on top, then each team with its logo and score.", apps: tvAndroid),
             Change(text: "Home: the Live Now page is gone. Home opens on your favourite sport with something live, or any sport with something live if none of your favourites has.", apps: [.mac, .ios]),

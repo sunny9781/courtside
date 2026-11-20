@@ -189,9 +189,7 @@ struct MacChannelLine: View {
             if playing { model.play(channel, lineup: lineup) } else { model.pin(channel, lineup: lineup) }
         }) {
             HStack(spacing: 12) {
-                AsyncImage(url: channel.icon) { image in
-                    image.resizable().scaledToFit()
-                } placeholder: {
+                SmallLogoImage(url: channel.icon, size: 64) {
                     Text(String(channel.name.prefix(3)).uppercased())
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(Theme.muted)

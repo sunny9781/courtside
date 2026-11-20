@@ -12,7 +12,7 @@ import CoreMedia
 struct TVPlayerView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
-    @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
+    @AppStorage(Prefs.autoSwitch) private var autoSwitch = false
     @AppStorage(Prefs.matchFrameRate) private var matchFrameRate = true
     @ObservedObject private var controller = PlaybackController.shared
     @FocusState private var focused: Bool

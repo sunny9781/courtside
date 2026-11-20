@@ -10,7 +10,7 @@ import UIKit
 struct IOSPlayerView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
-    @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
+    @AppStorage(Prefs.autoSwitch) private var autoSwitch = false
     @ObservedObject private var playback = IOSPlayback.shared
     @ObservedObject private var cast = CastManager.shared
     @State private var tried: Set<Int> = []

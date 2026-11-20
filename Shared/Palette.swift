@@ -66,24 +66,85 @@ extension URL {
     }
 }
 
-/// A logo at the size it's shown; if the small version won't load, the full-size one.
+#if canImport(UIKit)
+import UIKit
+typealias LogoPlatformImage = UIImage
+#else
+import AppKit
+typealias LogoPlatformImage = NSImage
+#endif
+
+/// Logos, kept once they've loaded: in memory for the session (so redrawing Home, switching sports or scrolling
+/// shows them at once, without downloading or decoding them again) and on disk for 30 MB (so the next launch doesn't
+/// download them either). One download per address, however many cards show it.
+@MainActor
+final class LogoCache {
+    static let shared = LogoCache()
+    private let memory = NSCache<NSURL, LogoPlatformImage>()
+    private var loading: [URL: Task<LogoPlatformImage?, Never>] = [:]
+    /// Addresses that failed this session: not tried again until the next launch.
+    private var failed: Set<URL> = []
+    private let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.urlCache = URLCache(memoryCapacity: 4 << 20, diskCapacity: 30 << 20,
+                                   directory: FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?
+                                       .appendingPathComponent("Courtside/logos", isDirectory: true))
+        // A logo doesn't change: use the saved copy without asking the server again.
+        config.requestCachePolicy = .returnCacheDataElseLoad
+        config.httpMaximumConnectionsPerHost = 4
+        return URLSession(configuration: config)
+    }()
+
+    init() { memory.countLimit = 400 }
+
+    func cached(_ url: URL) -> LogoPlatformImage? { memory.object(forKey: url as NSURL) }
+    func hasFailed(_ url: URL) -> Bool { failed.contains(url) }
+
+    func load(_ url: URL) async -> LogoPlatformImage? {
+        if let image = cached(url) { return image }
+        if failed.contains(url) { return nil }
+        if let task = loading[url] { return await task.value }
+        let session = self.session
+        let task = Task<LogoPlatformImage?, Never> {
+            guard let (data, response) = try? await session.data(from: url),
+                  (response as? HTTPURLResponse)?.statusCode ?? 200 < 400 else { return nil }
+            return LogoPlatformImage(data: data)
+        }
+        loading[url] = task
+        let image = await task.value
+        loading[url] = nil
+        if let image { memory.setObject(image, forKey: url as NSURL) } else { failed.insert(url) }
+        return image
+    }
+}
+
+/// A logo at the size it's shown; if the small version won't load, the full-size one. Loaded once (LogoCache), so a
+/// card drawn again shows it straight away.
 struct SmallLogoImage<Placeholder: View>: View {
     let url: URL?
     let size: CGFloat
     var inset: CGFloat = 0
     @ViewBuilder let placeholder: () -> Placeholder
-    @State private var failed = false
+    @State private var image: LogoPlatformImage?
+
+    private var small: URL? { url?.smallLogo(size) }
 
     var body: some View {
-        AsyncImage(url: failed ? url : url?.smallLogo(size)) { phase in
-            switch phase {
-            case .success(let image):
-                image.resizable().scaledToFit().padding(inset)
-            case .failure:
-                placeholder().onAppear { if !failed { failed = true } }
-            default:
+        Group {
+            if let image = image ?? small.flatMap({ LogoCache.shared.cached($0) }) ?? url.flatMap({ LogoCache.shared.cached($0) }) {
+                #if canImport(UIKit)
+                Image(uiImage: image).resizable().scaledToFit().padding(inset)
+                #else
+                Image(nsImage: image).resizable().scaledToFit().padding(inset)
+                #endif
+            } else {
                 placeholder()
             }
+        }
+        .task(id: url) {
+            guard image == nil, let small, let url else { return }
+            if let found = await LogoCache.shared.load(small) { image = found; return }
+            if small != url, let full = await LogoCache.shared.load(url) { image = full }
         }
     }
 }

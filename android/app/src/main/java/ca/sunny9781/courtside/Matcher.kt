@@ -472,8 +472,10 @@ object Matcher {
                     reasons.clear(); reasons += "4K version of ${broadcast[cid] ?: likely[cid] ?: ""}, not confirmed for this game"
                     score = 1
                 }
+                // A stream whose name or guide names the game is never put away with the local stations.
+                val confirmed = cid in named || cid in inGuide
                 list += StreamMatch(c.channel, reasons.joinToString(" · "), score, q.first, q.second, cid in recent,
-                    isLocal(c.channel), score == 1, countryOf(c.channel))
+                    !confirmed && isLocal(c.channel), score == 1, countryOf(c.channel))
             }
             result[id] = list.sortedWith(Comparator { a, b ->
                 when {

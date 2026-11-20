@@ -6,7 +6,7 @@ struct SettingsView: View {
     @AppStorage(Prefs.hideSD) private var hideSD = true
     @AppStorage(Prefs.guideHours) private var guideHours = 6
     @AppStorage(Prefs.refreshHours) private var refreshHours = 6
-    @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
+    @AppStorage(Prefs.autoSwitch) private var autoSwitch = false
     @AppStorage(Prefs.guidePreview) private var guidePreview = true
     @AppStorage(Prefs.sportOrder) private var sportOrder = ""
     @AppStorage(Prefs.hiddenSports) private var hiddenSports = ""

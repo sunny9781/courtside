@@ -76,7 +76,6 @@ struct IOSGuideTimeline: View {
                         .font(.caption.weight(.semibold))
                         .foregroundStyle(playing ? Theme.accent : Theme.text)
                         .lineLimit(2)
-                    tags(channel)
                 }
             }
             .frame(width: channelWidth, alignment: .leading)

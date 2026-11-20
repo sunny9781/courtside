@@ -61,7 +61,6 @@ fun EpgScreen(model: AppModel) {
         while (true) { delay(60_000 - System.currentTimeMillis() % 60_000 + 50); now = System.currentTimeMillis() }
     }
     val start = Guide.windowStart(now)
-    // Left on the categories (the screen's left edge) goes to Home; not while typing in Filter.
     var filterFocused by remember { mutableStateOf(false) }
     var lastRow by remember { mutableStateOf<String?>(null) }
     var pathMoves by remember { mutableIntStateOf(0) }
@@ -168,7 +167,12 @@ fun EpgScreen(model: AppModel) {
         }
         holding[0] = false
     }
-    BackHandler(enabled = model.guidePath.isNotEmpty() && model.nowPlaying == null) { up() }
+    // Back in the categories: out of the group you're in. From the channels, Back goes to the categories first.
+    BackHandler(enabled = model.guidePath.isNotEmpty() && model.nowPlaying == null && model.sideFocused) { up() }
+    val sideTarget by rememberUpdatedState(listOf("cat:$categoryTarget", "cat:${level.firstOrNull()?.let { key(it) }}"))
+    LaunchedEffect(Unit) {
+        model.focusMoves.collect { m -> if (m == "side") sideTarget.firstOrNull { cats.focus(it) } }
+    }
 
     // Back from full screen: focus goes back to the channel you were watching (the one you flipped to, if it's in
     // this list, otherwise the one you opened). For a moment after, anything that brings focus back onto this page
@@ -202,7 +206,7 @@ fun EpgScreen(model: AppModel) {
         Box(Modifier.size(1.dp).focusRequester(holder).focusProperties { canFocus = holding[0] }
             .focusable())
         LazyColumn(Modifier.width(CATEGORY_WIDTH).fillMaxHeight().padding(bottom = topInset(model)).focusRequester(model.leftPanel)
-            .onEdgeKey(android.view.KeyEvent.KEYCODE_DPAD_LEFT, enabled = { !filterFocused }) { model.tab = Tab.HOME }
+            .onFocusChanged { model.sideFocused = it.hasFocus }
             .flushOn(settle, androidx.compose.ui.focus.FocusDirection.Right).enterAt { if (justBack()) rows[returnRow()] else cats["cat:$categoryTarget"] },
             verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             // One search for categories and channels; results show on the right.
@@ -430,7 +434,9 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
             // The game screen shows the stream's tags where the EPG shows what's next.
             if (showNext) Label(next?.let { "${clockTime(it.start)}  ${it.title}" } ?: "", size = 11.sp,
                 color = color.copy(alpha = 0.65f), scroll = focused, modifier = Modifier.width(NEXT_WIDTH).padding(end = COLUMN_GAP))
-            // What it really played at, once it has (resolution, frame rate, sound), on the EPG and the game screen.
+            // What it really played at, once it has (resolution, frame rate, sound): on the game screen and channel
+            // sports only (the EPG leaves it to the now-playing bar).
+            if (!showNext) {
             val quality = badge?.takeIf { it.isNotEmpty() } ?: model.measuredQuality[channel.id]
             val fps = model.measuredFrameRate[channel.id]
             val sound = model.measuredAudio[channel.id]
@@ -440,6 +446,7 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
                     color = if (quality == "4K") Theme.onAccent else Theme.soft)
                 if (fps != null && fps > 0) Badge(Playback.fpsLabel(fps), fill = Theme.raised, color = Theme.soft)
                 if (!sound.isNullOrEmpty()) Badge(sound, fill = Theme.raised, color = Theme.soft)
+            }
             }
         }
     }
@@ -612,17 +619,7 @@ internal fun GuideRow(model: AppModel, channel: Channel, playing: Boolean, start
                         if (model.isFavoriteChannel(channel.id))
                             Icon(Icons.Filled.Favorite, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(8.dp))
                     }
-                    // Always shown, so nothing moves as you go up and down.
-                    val quality = model.measuredQuality[channel.id]
-                    val fps = model.measuredFrameRate[channel.id]
-                    val sound = model.measuredAudio[channel.id]
-                    if (!quality.isNullOrEmpty() || (fps != null && fps > 0) || !sound.isNullOrEmpty())
-                        Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                            if (!quality.isNullOrEmpty()) Badge(quality, fill = if (quality == "4K") Theme.accent else Theme.raised,
-                                color = if (quality == "4K") Theme.onAccent else Theme.soft)
-                            if (fps != null && fps > 0) Badge(Playback.fpsLabel(fps), fill = Theme.raised, color = Theme.soft)
-                            if (!sound.isNullOrEmpty()) Badge(sound, fill = Theme.raised, color = Theme.soft)
-                        }
+                    // No resolution / frame rate / sound tags here: the now-playing bar shows them.
                 }
             }
             // The programmes, by time.

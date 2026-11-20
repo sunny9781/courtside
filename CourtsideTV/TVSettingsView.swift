@@ -3,7 +3,8 @@ import SwiftUI
 /// Settings, laid out like the Mac: sections down the left, the selected section on the right.
 struct TVSettingsView: View {
     @EnvironmentObject var model: AppModel
-    @AppStorage(Prefs.autoSwitch) private var autoSwitch = true
+    @EnvironmentObject var nav: TVNav
+    @AppStorage(Prefs.autoSwitch) private var autoSwitch = false
     @AppStorage(Prefs.matchFrameRate) private var matchFrameRate = true
     @AppStorage(Prefs.hdrPlayerFor4K) private var hdrPlayerFor4K = true
     @AppStorage(Prefs.guideGrouped) private var grouped = true
@@ -12,7 +13,8 @@ struct TVSettingsView: View {
     @AppStorage(Prefs.hiddenSports) private var hiddenSports = ""
     @AppStorage(Prefs.hiddenLeagues) private var hiddenLeagues = ""
     @AppStorage(Prefs.refreshHours) private var refreshHours = 6
-    @State private var section: Section = .account
+    /// Remembered while you're on other tabs, so coming back lands on the section you were in.
+    private var section: Section { Section(rawValue: nav.settingsSection) ?? .account }
     @State private var confirmSignOut = false
     @State private var editingAccount = false
     @FocusState private var focusedSection: Section?
@@ -50,7 +52,7 @@ struct TVSettingsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(Section.allCases) { item in
                     Button {
-                        section = item
+                        nav.settingsSection = item.rawValue
                     } label: {
                         HStack(spacing: 18) {
                             Image(systemName: item.symbol)
@@ -91,8 +93,12 @@ struct TVSettingsView: View {
         // Pressing down from Home / EPG / Settings starts on the section list.
         .defaultFocus($focusedSection, section, priority: .userInitiated)
         .onChange(of: focusedSection) {
-            if let focusedSection { section = focusedSection }
+            nav.sideFocused = focusedSection != nil
+            if let focusedSection { nav.settingsSection = focusedSection.rawValue }
         }
+        // Back from a setting: to its section on the left.
+        .onChange(of: nav.sideRequest) { focusedSection = section }
+        .onDisappear { nav.sideFocused = false }
         .confirmationDialog("Sign out of Courtside?", isPresented: $confirmSignOut) {
             Button("Sign out", role: .destructive) { model.signOut() }
             Button("Cancel", role: .cancel) {}

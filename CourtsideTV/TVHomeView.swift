@@ -44,7 +44,13 @@ struct TVHomeView: View {
             .padding(.horizontal, TVLayout.margin)
             // The navigation container adds wide side margins of its own; use the full width instead.
             .ignoresSafeArea(.container, edges: .horizontal)
-            .onChange(of: sidebarFocus) { if sidebarFocus != nil { inPane = false } }
+            .onChange(of: sidebarFocus) {
+                nav.sideFocused = sidebarFocus != nil
+                if sidebarFocus != nil { inPane = false }
+            }
+            // Back from the games: to the sport you're on.
+            .onChange(of: nav.sideRequest) { if nav.homePath.isEmpty { sidebarFocus = sidebarTarget } }
+            .onDisappear { nav.sideFocused = false }
             // Pressing down from the tabs lands on the first game (left goes to the sports); with no games, on the left
             // column as before.
             .defaultFocus($gameFocus, firstGame, priority: .userInitiated)
@@ -332,7 +338,7 @@ struct TVGamesPane: View {
     /// Score cards, as many to a row as fit (each at least `TVScoreCard.minWidth`).
     private var columns: Int { max(1, Int((paneWidth - 16 + 20) / (TVScoreCard.minWidth + 20))) }
 
-    /// A grid of score cards. Right on a card in the last column (or the last card) jumps to the EPG.
+    /// A grid of score cards.
     private func gameGrid(_ games: [Game]) -> some View {
         let count = columns
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 20, alignment: .top), count: count),
@@ -345,11 +351,7 @@ struct TVGamesPane: View {
                 }
                 .buttonStyle(TVCardButtonStyle())
                 .focused(focusedGame, equals: game.id)
-                if index % count == count - 1 || index == games.count - 1 {
-                    button.tvEdgeJump(.right, to: .epg)
-                } else {
-                    button
-                }
+                button
             }
         }
         .padding(.horizontal, 8)
@@ -379,9 +381,9 @@ struct TVGamesPane: View {
                     }
                 }
 
-                if open.isEmpty {
-                    Text(nav.homeSelection == .liveNow || (finished.isEmpty && later.isEmpty) ? emptyMessage
-                         : (later.isEmpty ? "Nothing live or coming up." : "Nothing in the next 2 hours."))
+                // Only when there's nothing at all (no "Nothing live or coming up": the folds below say it).
+                if open.isEmpty && finished.isEmpty && later.isEmpty {
+                    Text(emptyMessage)
                         .font(.system(size: 26))
                         .foregroundStyle(Theme.muted)
                         .padding(22)
@@ -445,16 +447,11 @@ struct TVGamesPane: View {
         }
     }
 
-    /// "All · NBA · WNBA · NCAA Men…" — leagues with games first.
+    /// "All · NBA · WNBA · NCAA Men…": always in that order (most popular league first), so chips never move.
     private func leagueFilters(_ sport: Sport) -> some View {
         let leagues = model.leagues(for: sport)
-        let ranks: [String: Int] = Dictionary(uniqueKeysWithValues: leagues.map { league in
-            let games = model.games.filter { $0.league.id == league.id }
-            return (league.id, games.contains(where: { $0.state == .live }) ? 0 : (games.isEmpty ? 2 : 1))
-        })
-        let ordered = leagues.enumerated()
-            .sorted { ((ranks[$0.element.id] ?? 2), $0.offset) < ((ranks[$1.element.id] ?? 2), $1.offset) }
-            .map(\.element)
+        // Always the same order: All, then the most popular league first (NBA, WNBA, NCAA...).
+        let ordered = leagues
         return ScrollView(.horizontal) {
             HStack(spacing: 16) {
                 let sportGames = model.games(for: sport)
@@ -510,7 +507,7 @@ struct TVGamesPane: View {
     private var emptyMessage: String {
         if let error = model.errorMessage { return error }
         if model.isLoading && model.games.isEmpty { return "Loading today's games…" }
-        return nav.homeSelection == .liveNow ? "Nothing live right now." : "No games today."
+        return "No games today."
     }
 }
 

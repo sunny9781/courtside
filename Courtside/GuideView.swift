@@ -537,7 +537,6 @@ struct GuideView: View {
 
         return HStack(spacing: 8) {
             ChannelCell(channel: channel, selected: selected, width: column, height: rowHeight,
-                        tags: MacChannelLine.tags(channel, model: model),
                         favorite: model.isFavorite(channel: channel.id),
                         onFavorite: { model.toggleFavorite(channel: channel.id) })
                 .onTapGesture(count: 2) { watch(channel, list) }
@@ -693,9 +692,7 @@ struct ChannelCell: View {
                 .foregroundStyle(selected ? Theme.accent : Theme.muted)
                 .frame(width: 36, alignment: .trailing)
 
-            AsyncImage(url: channel.icon) { image in
-                image.resizable().scaledToFit()
-            } placeholder: {
+            SmallLogoImage(url: channel.icon, size: 64) {
                 Text(String(channel.name.prefix(3)).uppercased())
                     .font(.system(size: 11, weight: .bold))
                     .foregroundStyle(Theme.muted)
@@ -838,9 +835,7 @@ struct GuidePreview: View {
             }
 
             if !enabled || channel == nil || stopped {
-                AsyncImage(url: channel?.icon) { image in
-                    image.resizable().scaledToFit()
-                } placeholder: {
+                SmallLogoImage(url: channel?.icon, size: 64) {
                     Image(systemName: "tv")
                         .font(.system(size: 30))
                         .foregroundStyle(Theme.muted)

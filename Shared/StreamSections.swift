@@ -93,9 +93,12 @@ enum StreamSections {
     }
 
     static func build(_ all: [StreamMatch], league: League, search: String = "") -> Result {
-        let main = all.filter { !$0.hidden }
+        // Event sports (motorsport, golf, tennis, fights): a 4K channel the guide doesn't confirm is still listed up top
+        // under 4K (4K channels carry these events, and the guide often names the race only as "F2 Feature Race").
+        func shown(_ m: StreamMatch) -> Bool { !m.hidden || (league.isEvent && m.is4K) }
+        let main = all.filter(shown)
         let base = main.isEmpty ? all : main
-        let extras = main.isEmpty ? [] : all.filter(\.hidden)
+        let extras = main.isEmpty ? [] : all.filter { !shown($0) }
         let home = homeCountries(league)
 
         let query = search.trimmingCharacters(in: .whitespaces).lowercased()

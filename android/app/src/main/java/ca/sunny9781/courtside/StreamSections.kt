@@ -65,9 +65,12 @@ object StreamSections {
     }
 
     fun build(all: List<StreamMatch>, league: League, search: String = ""): Result {
-        val main = all.filter { !it.hidden }
+        // Event sports (motorsport, golf, tennis, fights): a 4K channel the guide doesn't confirm is still listed up top
+        // under 4K (4K channels carry these events, and the guide often names the race only as "F2 Feature Race").
+        fun shown(m: StreamMatch) = !m.hidden || (league.isEvent && m.is4K)
+        val main = all.filter(::shown)
         val base = main.ifEmpty { all }
-        val extras = if (main.isEmpty()) emptyList() else all.filter { it.hidden }
+        val extras = if (main.isEmpty()) emptyList() else all.filter { !shown(it) }
         val home = homeCountries(league)
         val q = search.trim().lowercase()
         fun matchesSearch(m: StreamMatch) = q.isEmpty() || m.channel.name.lowercase().contains(q) || m.channel.categoryName.lowercase().contains(q)

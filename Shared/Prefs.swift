@@ -43,12 +43,17 @@ enum Prefs {
             sportOrder: "",
             guidePreview: true,
             refreshHours: 6,
-            autoSwitch: true,
+            autoSwitch: false,
             matchFrameRate: true,
             hideAdult: true,
             guideGrouped: true
         ])
         let d = UserDefaults.standard
+        // 1.96: switching to the next stream when one stalls is off by default; turned off once for everyone.
+        if !d.bool(forKey: "autoSwitchOff196") {
+            d.set(false, forKey: autoSwitch)
+            d.set(true, forKey: "autoSwitchOff196")
+        }
         // "UFC" became "Fighting" (with boxing): carry saved sport choices over, once.
         if !d.bool(forKey: "fightingRenamed") {
             for key in [hiddenSports, favoriteSports, sportOrder] {

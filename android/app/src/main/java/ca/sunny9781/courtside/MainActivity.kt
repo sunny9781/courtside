@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
 import kotlin.math.abs
+import kotlinx.coroutines.flow.first
 import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
@@ -43,7 +44,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             CourtsideApp(model)
             // In full screen, switch the TV to a refresh rate that matches the stream (Settings › Player).
-            val fps = Playback.frameRate
             val full = model.nowPlaying != null
             // While a stream is opening or playing (full screen or the player in the corner), keep the TV awake: without
             // this the screensaver comes on mid-game (Chromecast's is quick) and leaving the app stops the stream.
@@ -54,9 +54,19 @@ class MainActivity : ComponentActivity() {
                 else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
             LaunchedEffect(full, model.settings.matchFrameRate) { Playback.setFullScreen(full, model.settings.matchFrameRate) }
-            LaunchedEffect(fps, full) {
-                matchRefreshRate(if (full && model.settings.matchFrameRate) fps else 0f)
+            // The TV's refresh rate changes only as a channel starts (switching it goes black for a moment), never a
+            // few seconds into playback: a channel's frame rate from last time, or the stream's own if it says so
+            // straight away. A rate counted while it plays (that takes about 4 seconds) is kept for next time.
+            val channelId = model.nowPlaying?.channel?.id
+            val target = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+            LaunchedEffect(full, channelId, model.settings.matchFrameRate) {
+                if (!full || !model.settings.matchFrameRate || channelId == null) { target.floatValue = 0f; return@LaunchedEffect }
+                model.measuredFrameRate[channelId]?.takeIf { it > 0f }?.let { target.floatValue = it; return@LaunchedEffect }
+                kotlinx.coroutines.withTimeoutOrNull(1500) {
+                    androidx.compose.runtime.snapshotFlow { Playback.frameRate }.first { it > 0f }
+                }?.let { target.floatValue = it }
             }
+            LaunchedEffect(target.floatValue) { matchRefreshRate(target.floatValue) }
         }
     }
 
@@ -75,8 +85,14 @@ class MainActivity : ComponentActivity() {
         Updater.afterInstall(this)
     }
 
+    override fun onStart() {
+        super.onStart()
+        model.cameBack()
+    }
+
     override fun onStop() {
         super.onStop()
+        model.onScreen = false
         // Leaving the app (Home button) stops the stream, so it doesn't keep using a connection.
         Playback.stop()
         model.pinned = null

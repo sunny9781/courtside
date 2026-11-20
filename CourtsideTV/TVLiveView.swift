@@ -5,10 +5,14 @@ import SwiftUI
 /// goes full screen, where up/down flips through the category.
 struct TVLiveView: View {
     @EnvironmentObject var model: AppModel
+    @EnvironmentObject var nav: TVNav
     @AppStorage(Prefs.guideCategory) private var selectedID = ""
     @AppStorage(Prefs.guideGrouped) private var grouped = true
-    /// The groups you've opened in the category list (ids, outermost first).
-    @State private var path: [String] = []
+    /// The groups you've opened in the category list (ids, outermost first); kept while you're on other tabs.
+    private var path: [String] {
+        get { nav.guidePath }
+        nonmutating set { nav.guidePath = newValue }
+    }
     /// The channel playing in the mini player: only one you clicked.
     @FocusState private var focusedCategory: String?
     @State private var search = ""
@@ -121,7 +125,11 @@ struct TVLiveView: View {
             .padding(.horizontal, TVLayout.margin)
             // Pressing down from Home / EPG / Settings starts on the category list.
             .defaultFocus($focusedCategory, categoryTarget, priority: .userInitiated)
+            // Back from the channels: to the category you're in on the left.
+            .onChange(of: nav.sideRequest) { focusedCategory = categoryTarget }
+            .onDisappear { nav.sideFocused = false }
             .onChange(of: focusedCategory) {
+                nav.sideFocused = focusedCategory != nil
                 // Moving onto a category shows its channels; moving onto a group ("g:" ids) shows all of the group's
                 // channels, and clicking it opens it.
                 if let focusedCategory, focusedCategory != selectedID {
@@ -253,9 +261,8 @@ struct TVLiveView: View {
         }
         // Use the full width: no Apple TV side insets on top of our own small margin.
         .ignoresSafeArea(.container, edges: .horizontal)
+        // Back on the categories inside a group goes up a level; at the top, up to the tabs (TVShell).
         .onExitCommand(perform: path.isEmpty ? nil : { path.removeLast() })
-        // The categories sit at the left edge: pressing left on them goes to Home.
-        .tvEdgeJump(.left, to: .home)
     }
 
     private func categoryRow(_ entry: Entry, count: Int? = nil, symbol: String? = nil) -> some View {
@@ -471,14 +478,15 @@ struct TVChannelRow: View {
                     .padding(.trailing, 24)
                     .frame(width: Self.nextWidth, alignment: .leading)
             }
-            // What it really played at, once it has (resolution, frame rate, sound).
+            // What it really played at, once it has (resolution, frame rate, sound): on the game screen and
+            // channel sports only (the EPG leaves it to the now-playing bar).
             HStack(spacing: 8) {
-                if let quality, !quality.isEmpty {
+                if !showNext, let quality, !quality.isEmpty {
                     TVBadge(text: quality, fill: quality == "4K" ? Theme.accent : Theme.raised,
                             color: quality == "4K" ? Theme.onAccent : Theme.soft)
                 }
-                if fps > 0 { TVBadge(text: PlaybackController.fpsLabel(fps)) }
-                if let sound { TVBadge(text: sound) }
+                if !showNext, fps > 0 { TVBadge(text: PlaybackController.fpsLabel(fps)) }
+                if !showNext, let sound { TVBadge(text: sound) }
             }
             .fixedSize()
             Spacer(minLength: 0)
@@ -609,9 +617,6 @@ struct TVGuideRow: View {
     }
 
     private var tile: some View {
-        let quality = model.measuredQuality[channel.id]
-        let fps = model.measuredFrameRate[channel.id] ?? 0
-        let sound = model.measuredAudio[channel.id]
         return HStack(spacing: 10) {
             TVChannelIcon(url: channel.icon, size: 40)
             VStack(alignment: .leading, spacing: 6) {
@@ -631,18 +636,7 @@ struct TVGuideRow: View {
                         Image(systemName: "heart.fill").font(.system(size: 15)).foregroundStyle(Theme.accent)
                     }
                 }
-                // Always shown (not only on the row you're on), so nothing moves as you go up and down.
-                Group {
-                    HStack(spacing: 8) {
-                        if let quality, !quality.isEmpty {
-                            TVBadge(text: quality, fill: quality == "4K" ? Theme.accent : Theme.raised,
-                                    color: quality == "4K" ? Theme.onAccent : Theme.soft)
-                        }
-                        if fps > 0 { TVBadge(text: PlaybackController.fpsLabel(fps)) }
-                        if let sound { TVBadge(text: sound) }
-                    }
-                    .fixedSize()
-                }
+                // No resolution / frame rate / sound tags here: the now-playing bar shows them.
             }
         }
         .padding(.horizontal, 10)

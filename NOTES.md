@@ -96,3 +96,17 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - iPhone Home "Live Now" blue bar: unexplained; ask for a screenshot if it's still there.
 - Chromecast crashes: Android now saves crash details (shown once on next start, and in Settings › General).
 - Apple TV hasn't got a Lite mode (not needed so far).
+
+## 1.96 (2026-11-20)
+- Android navigation like Apple TV's: Back = page → left panel (selected item) → current tab → Home tab → exit
+  (`model.sideFocused`, `model.focusMoves` "side"/"tabs"); Settings section kept in `model.settingsSection`. No edge
+  shortcuts any more (left on a left panel, right on the last card: nothing). Apple TV already worked this way (TVNav zone).
+- League chips: fixed order (All, then `Sport.leagues` order = popularity); Sunny chose this over favourite leagues.
+- Matcher (both): a match confirmed by channel name or guide is never `local`; event sports list every 4K match under 4K.
+- autoSwitch default off everywhere, turned off once for existing installs (`autoSwitchOff196`).
+- Apple logos: `LogoCache` in Palette.swift (NSCache + 30 MB URLCache, one download per URL); Mac channel icons use it.
+- Scores poll every minute only while a game is live or starts within 15 min, else every 5 min; Android skips polling
+  while the app isn't on screen (`onScreen`, `cameBack()`).
+- Lite mode options are named positively (Logos, Live scores, Player in the corner...); stored flags unchanged.
+- Stopping a stream on Android: Play/Pause on the remote stops the corner player; in Lite (no corner) Back from full
+  screen stops it.
