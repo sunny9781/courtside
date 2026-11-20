@@ -4,6 +4,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.Display
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.runtime.LaunchedEffect
@@ -16,6 +17,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Device.detect(this)
+        if (Device.tv) {
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        } else {
+            // Phones: drawn edge to edge (the app pads for the bars itself), light icons on the dark app, and free to
+            // turn sideways (sideways on a game goes full screen, like the iPhone app).
+            enableEdgeToEdge(
+                statusBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+                navigationBarStyle = androidx.activity.SystemBarStyle.dark(android.graphics.Color.TRANSPARENT))
+        }
         // If the app closed because of an error, keep what happened (it's shown once on the next start and kept in
         // crash.txt), so slow-TV crashes can be tracked down. Nothing is sent anywhere.
         val crashFile = java.io.File(filesDir, "crash.txt")
@@ -55,14 +66,18 @@ class MainActivity : ComponentActivity() {
                 if (awake) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
                 else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
-            LaunchedEffect(full, model.settings.matchFrameRate) { Playback.setFullScreen(full, model.settings.matchFrameRate) }
+            // Phones: leaving the app while something plays carries on in a small floating window (picture in picture).
+            LaunchedEffect(awake) { if (!Device.tv) updatePip(awake) }
+            // Refresh-rate matching is for TVs only.
+            val match = model.settings.matchFrameRate && Device.tv
+            LaunchedEffect(full, match) { Playback.setFullScreen(full, match) }
             // The TV's refresh rate changes only as a channel starts (switching it goes black for a moment), never a
             // few seconds into playback: a channel's frame rate from last time, or the stream's own if it says so
             // straight away. A rate counted while it plays (that takes about 4 seconds) is kept for next time.
             val channelId = model.nowPlaying?.channel?.id
             val target = androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-            LaunchedEffect(full, channelId, model.settings.matchFrameRate) {
-                if (!full || !model.settings.matchFrameRate || channelId == null) { target.floatValue = 0f; return@LaunchedEffect }
+            LaunchedEffect(full, channelId, match) {
+                if (!full || !match || channelId == null) { target.floatValue = 0f; return@LaunchedEffect }
                 model.measuredFrameRate[channelId]?.takeIf { it > 0f }?.let { target.floatValue = it; return@LaunchedEffect }
                 kotlinx.coroutines.withTimeoutOrNull(1500) {
                     androidx.compose.runtime.snapshotFlow { Playback.frameRate }.first { it > 0f }
@@ -80,6 +95,38 @@ class MainActivity : ComponentActivity() {
             return true
         }
         return super.onKeyLongPress(keyCode, event)
+    }
+
+    private var pipReady = false
+
+    private fun pipParams(auto: Boolean): android.app.PictureInPictureParams? {
+        if (Build.VERSION.SDK_INT < 26) return null
+        val b = android.app.PictureInPictureParams.Builder().setAspectRatio(android.util.Rational(16, 9))
+        if (Build.VERSION.SDK_INT >= 31) b.setAutoEnterEnabled(auto).setSeamlessResizeEnabled(false)
+        return b.build()
+    }
+
+    /** Android 12 and up: swiping home while something plays goes into picture in picture by itself. */
+    private fun updatePip(playing: Boolean) {
+        pipReady = playing
+        if (Build.VERSION.SDK_INT >= 31) runCatching { pipParams(playing)?.let { setPictureInPictureParams(it) } }
+    }
+
+    /** The full-screen player's picture-in-picture button, and leaving the app on Android 8 to 11. */
+    fun enterPip(): Boolean {
+        if (Device.tv || Build.VERSION.SDK_INT < 26) return false
+        if (!packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)) return false
+        return runCatching { enterPictureInPictureMode(pipParams(pipReady)!!) }.getOrDefault(false)
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (!Device.tv && pipReady && Build.VERSION.SDK_INT in 26..30) enterPip()
+    }
+
+    override fun onPictureInPictureModeChanged(isInPictureInPictureMode: Boolean, newConfig: android.content.res.Configuration) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        PhoneUi.inPip = isInPictureInPictureMode
     }
 
     override fun onResume() {

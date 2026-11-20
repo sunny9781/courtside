@@ -74,6 +74,13 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.0", date: "2026-11-20", time: "02:10", title: "Courtside on Android phones", changes: [
+            Change(text: "The same app now runs on Android phones and tablets, laid out like the iPhone app: the player pinned at the top while something plays, Home, EPG and Settings tabs along the bottom, and sports, leagues, favourites and the filter at the bottom in reach of your thumb.", apps: android),
+            Change(text: "Phone Home: score cards two to a row under each league, Later today and Finished folds, NFL RedZone, pull down to refresh. Tap a game for its streams in foldable sections; tap a stream to play it at the top, tap it again or turn the phone sideways for full screen.", apps: android),
+            Change(text: "Phone EPG: groups, categories and channels one level at a time with hearts for favourites; sideways on a category shows the timeline guide.", apps: android),
+            Change(text: "Phone player: tap for the quality tags and buttons (fold to one line, full screen, stop); full screen has previous/next stream, pause, and picture in picture (leaving the app keeps it playing in a small window; closing the window or locking the phone stops it).", apps: android),
+            Change(text: "TVs are unchanged (the TV layout is picked automatically on Android TV, Google TV and Fire TV).", apps: android)
+        ]),
         Release(version: "1.99", date: "2026-11-20", time: "01:50", title: "Home folds and full screen", changes: [
             Change(text: "Home: \"Finished\" (and \"Later today\") now sit above their games, like the TVs, instead of under them.", apps: mac),
             Change(text: "Full screen: no info button any more. Click the video or press I for stream information.", apps: mac),

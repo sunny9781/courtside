@@ -79,6 +79,18 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   interval ahead); the raw guide.xml is deleted after parsing. `refresh()` loads it right after saved channels, while
   ESPN downloads (Android does the same via Cache.kt). tvOS can still purge Caches (no persistent storage there).
 
+## Android phone app (2.0, 2026-11-20)
+- Same APK as the TVs. `Device.tv` (Device.kt: UI mode television, leanback, Fire TV, or no touchscreen) picks the
+  layout in `CourtsideApp`: TVs keep `Shell`, phones/tablets get `PhoneApp` (Phone.kt, PhoneHome.kt, PhoneEpg.kt,
+  PhoneSettings.kt), modelled on the iPhone app. Lite mode defaults are off on phones (`slowDevice` needs a TV).
+- Phone: edge to edge, any orientation (TVs set landscape in code; the manifest no longer forces it), pinned player
+  above the tabs (same single SurfaceView placed at `cornerBounds`, overlay for controls), bottom tabs, chips at the
+  bottom starting from the right (`TrailingRow`). Sideways on a game = full screen (back upright closes it);
+  sideways on an EPG category = timeline (reuses `GuideRow`). Picture in picture: auto-enter on Android 12+,
+  onUserLeaveHint on 8-11, PiP button in full screen; closing PiP or locking the phone stops the stream (onStop).
+- No Chromecast/AirPlay on the Android phone app (the iPhone app has them). material3 added for Switch,
+  pull to refresh, spinner, dialog.
+
 ## Working preferences (Sunny)
 - Report how long each request took.
 - Always tell Sunny when a release is actually published (after the main runs finish), not just merged.
