@@ -282,6 +282,16 @@ struct IOSPlayerView: View {
             ViewThatFits(in: .horizontal) {
                 ForEach((1...list.count).reversed(), id: \.self) { n in
                     HStack(spacing: 8) {
+                        // The bin, on the left: clears the list.
+                        Button { model.clearWatched(); poke() } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.6))
+                                .frame(width: 40, height: 40)
+                                .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.18)))
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.08), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
                         ForEach(list.prefix(n), id: \.channel.id) { recent in recentCard(recent) }
                         Spacer(minLength: 0)
                     }
@@ -313,8 +323,8 @@ struct IOSPlayerView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .frame(width: 165, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.55)))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.15), lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.18)))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.08), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }

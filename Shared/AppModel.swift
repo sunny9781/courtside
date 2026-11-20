@@ -307,6 +307,8 @@ final class AppModel: ObservableObject {
         }
     }
 
+    func clearWatched() { watched = [] }
+
     /// The streams to offer while watching `item`: the ones watched before it, most recent first.
     func recentStreams(besides item: NowPlaying, limit: Int = 6) -> [NowPlaying] {
         Array(watched.filter { $0.channel.id != item.channel.id }.prefix(limit))

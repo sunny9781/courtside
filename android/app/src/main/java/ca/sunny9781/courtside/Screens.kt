@@ -644,10 +644,10 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
                     }
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                         if (showDetails && recents.isNotEmpty()) {
-                            // The information is showing: play the picked recent stream.
-                            val pick = recents[recentIndex.coerceIn(0, recents.size - 1)]
+                            // The recent streams are showing: play the picked one, or clear them (the bin, on the left).
                             showDetails = false
-                            model.play(pick.channel, pick.gameTitle, pick.lineup)
+                            if (recentIndex < 0) model.clearWatched()
+                            else recents[recentIndex.coerceIn(0, recents.size - 1)].let { model.play(it.channel, it.gameTitle, it.lineup) }
                         } else {
                             if (!showDetails) recentIndex = 0
                             showDetails = !showDetails
@@ -657,7 +657,7 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
                     KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
                         if (showDetails && recents.isNotEmpty()) {
                             val d = if (e.key.nativeKeyCode == KeyEvent.KEYCODE_DPAD_LEFT) -1 else 1
-                            recentIndex = (recentIndex + d).coerceIn(0, recents.size - 1)
+                            recentIndex = (recentIndex + d).coerceIn(-1, recents.size - 1)
                             detailsTick++
                         }
                         poke++; true
@@ -685,14 +685,14 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
                 Label(it, size = 14.sp, weight = FontWeight.SemiBold)
             }
         }
-        if (showDetails) StreamDetails(model, item, pos, Modifier.align(Alignment.TopEnd).padding(top = 30.dp, end = 40.dp))
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
         if (showDetails && recents.isNotEmpty()) {
             Column(Modifier.padding(horizontal = 40.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Label("RECENTLY WATCHED · OK TO SWITCH", size = 9.sp, weight = FontWeight.Bold, color = Theme.muted)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ClearRecentButton(picked = recentIndex < 0)
                     recents.forEachIndexed { i, r ->
-                        RecentCard(model, r, picked = i == recentIndex.coerceIn(0, recents.size - 1), width = 165.dp)
+                        RecentCard(model, r, picked = i == recentIndex.coerceIn(-1, recents.size - 1), width = 165.dp)
                     }
                 }
             }
@@ -719,13 +719,25 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
     }
 }
 
-/** A recently watched stream in full screen: channel logo, what was on (or the game), and the channel. */
+/** Clears the recent streams: a bin at the left of the strip, as see-through as the cards. */
+@Composable
+fun ClearRecentButton(picked: Boolean, modifier: Modifier = Modifier) {
+    Box(modifier.size(38.dp).clip(RoundedCornerShape(10.dp))
+        .background(Color.Black.copy(alpha = if (picked) 0.35f else 0.18f))
+        .border(if (picked) 2.dp else 1.dp, if (picked) Theme.accent else Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp)),
+        contentAlignment = Alignment.Center) {
+        Icon(Icons.Filled.Delete, "Clear recent streams", tint = Color.White.copy(alpha = if (picked) 0.9f else 0.6f),
+            modifier = Modifier.size(18.dp))
+    }
+}
+
+/** A recently watched stream in full screen: channel logo, what was on (or the game), and the channel. Mostly see-through. */
 @Composable
 fun RecentCard(model: AppModel, recent: NowPlaying, picked: Boolean, width: androidx.compose.ui.unit.Dp,
                modifier: Modifier = Modifier) {
     Row(modifier.width(width).clip(RoundedCornerShape(10.dp))
-        .background(Color.Black.copy(alpha = if (picked) 0.75f else 0.5f))
-        .border(if (picked) 2.dp else 1.dp, if (picked) Theme.accent else Color.White.copy(alpha = 0.12f), RoundedCornerShape(10.dp))
+        .background(Color.Black.copy(alpha = if (picked) 0.35f else 0.18f))
+        .border(if (picked) 2.dp else 1.dp, if (picked) Theme.accent else Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp))
         .padding(horizontal = 9.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         ChannelIcon(recent.channel.icon, 24.dp)
@@ -1553,26 +1565,3 @@ private fun StreamCell(model: AppModel, m: StreamMatch, previewing: Boolean, mod
 }
 
 /** Full screen, the centre button: the channel (which stream of how many), what's on now and next, the picture and sound. */
-@Composable
-private fun StreamDetails(model: AppModel, item: NowPlaying, pos: Int, modifier: Modifier) {
-    val nn = model.nowNext(item.channel)
-    @Composable
-    fun row(label: String, value: String) = Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Label(label, size = 11.sp, weight = FontWeight.SemiBold, color = Theme.muted, modifier = Modifier.width(64.dp))
-        Label(value, size = 12.sp, maxLines = 2)
-    }
-    val video = buildList {
-        if (Playback.resolution.isNotEmpty()) add(Playback.resolution)
-        if (Playback.frameRate > 0) add(Playback.fpsLabel(Playback.frameRate))
-    }
-    Column(modifier.width(380.dp).clip(RoundedCornerShape(12.dp)).background(Color.Black.copy(alpha = 0.82f)).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        Label("Stream information", size = 10.sp, weight = FontWeight.Bold, color = Theme.accent)
-        row("Channel", if (item.lineup.size > 1) "${item.channel.name} · $pos of ${item.lineup.size}" else item.channel.name)
-        row("Now", nn.now?.let { "${it.title}  (${clockTime(it.start)} – ${clockTime(it.end)})" } ?: model.playerTitle(item))
-        nn.next?.let { row("Next", "${clockTime(it.start)}  ${it.title}") }
-        row("Video", if (video.isEmpty()) "Waiting for the picture…" else video.joinToString(" · "))
-        row("Sound", Playback.audio.ifEmpty { "–" })
-        item.channel.number?.let { row("Number", "$it") }
-    }
-}
