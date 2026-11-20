@@ -43,7 +43,7 @@ class Settings(context: Context) {
     var autoSwitch by Flag("autoSwitch", false)
     var matchFrameRate by Flag("matchFrameRate", true)
     /** A less powerful TV (anything but an Nvidia Shield): Settings shows the Lite mode section only here. */
-    val slowDevice = !android.os.Build.MANUFACTURER.equals("NVIDIA", ignoreCase = true)
+    val slowDevice = Device.isTv(context) && !android.os.Build.MANUFACTURER.equals("NVIDIA", ignoreCase = true)
     /** Before 1.94 Lite mode was one switch ("lite"); each option starts where that switch was. */
     private val liteDefault = p.getBoolean("lite", slowDevice)
     // Lite mode's options, from the least to the most effect on speed (the order Settings › Lite mode lists them).
