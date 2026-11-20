@@ -38,9 +38,6 @@ private fun phoneSorted(games: List<Game>) = games.sortedWith(
 
 private data class Sec(val id: String, val league: League, val games: List<Game>)
 
-/** Starting more than 2 hours from now: folded into "Later today · 6". */
-private fun isLater(g: Game) = g.state == GameState.UPCOMING && (g.start ?: 0L) > System.currentTimeMillis() + 2 * 3600_000L
-
 /** Pull down to download fresh channels and guide (with a spinner until it's done). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,7 +98,6 @@ private fun GameList(model: AppModel, selection: HomeSelection, sport: Sport?) {
         else -> emptyList()
     }
     var openFinished by remember { mutableStateOf(setOf<String>()) }
-    var openLater by remember { mutableStateOf(setOf<String>()) }
     var redZoneOpen by remember { mutableStateOf(false) }
     val nflLive = (sport == Sport.FOOTBALL) && model.gamesIn("nfl").any { it.state == GameState.LIVE }
     val redZone = if (nflLive) model.redZoneChannels() else emptyList()
@@ -135,19 +131,14 @@ private fun GameList(model: AppModel, selection: HomeSelection, sport: Sport?) {
                     Label(s.league.name, size = 20.sp, weight = FontWeight.Bold)
                 }
             }
-            val later = s.games.filter { isLater(it) }
             val finished = s.games.filter { it.state == GameState.FINISHED }
             val shown = s.games.filter { g ->
                 when {
                     g.state == GameState.FINISHED -> s.id in openFinished
-                    isLater(g) -> s.id in openLater
                     else -> true
                 }
             }
             cards(shown, s.id)
-            if (later.isNotEmpty()) item(key = "later:${s.id}") {
-                Fold("Later today · ${later.size}", s.id in openLater) { openLater = if (s.id in openLater) openLater - s.id else openLater + s.id }
-            }
             if (finished.isNotEmpty()) item(key = "fin:${s.id}") {
                 Fold("Finished · ${finished.size}", s.id in openFinished) {
                     openFinished = if (s.id in openFinished) openFinished - s.id else openFinished + s.id

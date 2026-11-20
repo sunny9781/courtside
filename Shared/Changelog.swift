@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.2", date: "2026-11-20", time: "12:00", title: "Later games on Home", changes: [
+            Change(text: "Home: games starting more than 2 hours away show as normal cards, after the ones coming up soon (no Later today fold).", apps: [.mac, .tv, .ios, .android]),
+            Change(text: "Lite mode: a new Later games switch. Off folds games starting more than 2 hours away into one Later today row on Home (on when the rest of Lite mode is on).", apps: android),
+        ]),
         Release(version: "2.1", date: "2026-11-20", time: "11:30", title: "A tidier EPG", changes: [
             Change(text: "EPG: once the EPG has downloaded, the top bar says Reading EPG… instead of sitting at 100%.", apps: [.mac, .tv, .ios]),
             Change(text: "EPG: no second \"Updating the guide\" note while the top bar already shows the download.", apps: mac),

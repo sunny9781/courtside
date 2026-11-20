@@ -97,8 +97,6 @@ struct IOSGamesList: View {
     let showsSportChips: Bool
     /// Sections whose finished games are open (they fold into one "Finished · 6" line under the cards).
     @State private var openFinished: Set<String> = []
-    /// Sections whose later games are open (games starting more than 2 hours from now fold into "Later today · 6").
-    @State private var openLater: Set<String> = []
     @State private var redZoneOpen = false
 
     struct GameSection: Identifiable {
@@ -182,11 +180,9 @@ struct IOSGamesList: View {
                                                 ?? (section.id == "finals" ? section.games
                                                     : model.games(for: Sport(rawValue: section.title) ?? .basketball)),
                                               charWidth: 9.5, fixed: 90, minimum: 280, maximum: 560)
-                        let later = section.games.filter { HomeFolds.isLater($0) }
                         let finished = section.id == "finals" ? [] : section.games.filter { $0.state == .finished }
                         let shown = section.games.filter { game in
                             if game.state == .finished && section.id != "finals" { return openFinished.contains(section.id) }
-                            if HomeFolds.isLater(game) { return openLater.contains(section.id) }
                             return true
                         }
                         // iPhone: two cards side by side; iPad: as many as fit.
@@ -202,7 +198,6 @@ struct IOSGamesList: View {
                             }
                         }
                         .padding(.horizontal)
-                        if !later.isEmpty { foldButton("Later today · \(later.count)", id: section.id, in: $openLater) }
                         if !finished.isEmpty { foldButton("Finished · \(finished.count)", id: section.id, in: $openFinished) }
                     }
                 }
@@ -224,7 +219,7 @@ struct IOSGamesList: View {
         .onChange(of: model.games.count) { pickStartingSport() }
     }
 
-    /// "Later today · 6" / "Finished · 6": tap to show or hide them.
+    /// "Finished · 6": tap to show or hide them.
     private func foldButton(_ text: String, id: String, in set: Binding<Set<String>>) -> some View {
         Button {
             if set.wrappedValue.contains(id) { set.wrappedValue.remove(id) } else { set.wrappedValue.insert(id) }

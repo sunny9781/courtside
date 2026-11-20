@@ -51,6 +51,8 @@ class Settings(context: Context) {
     var liteSettle by Flag("liteSettle", liteDefault)
     /** Finished games stay folded on Home. */
     var liteFoldFinished by Flag("liteFoldFinished", liteDefault)
+    /** Games starting more than 2 hours away fold on Home ("Later today · 18"). Only in Lite mode (2.2). */
+    var liteFoldLater by Flag("liteFoldLater", liteDefault)
     /** No team or channel logos. */
     var liteNoLogos by Flag("liteNoLogos", liteDefault)
     /** No live scores: today's games load once when the app opens, and Home shows no scores. */
@@ -61,9 +63,9 @@ class Settings(context: Context) {
     var liteNoCorner by Flag("liteNoCorner", liteDefault)
     /** Every Lite option on (the one switch at the top of the section turns them all on or off). */
     var lite: Boolean
-        get() = liteSettle && liteFoldFinished && liteNoLogos && liteNoScores && liteNoAutoplay && liteNoCorner
-        set(v) { liteSettle = v; liteFoldFinished = v; liteNoLogos = v; liteNoScores = v; liteNoAutoplay = v; liteNoCorner = v }
-    val anyLite get() = liteSettle || liteFoldFinished || liteNoLogos || liteNoScores || liteNoAutoplay || liteNoCorner
+        get() = liteSettle && liteFoldFinished && liteFoldLater && liteNoLogos && liteNoScores && liteNoAutoplay && liteNoCorner
+        set(v) { liteSettle = v; liteFoldFinished = v; liteFoldLater = v; liteNoLogos = v; liteNoScores = v; liteNoAutoplay = v; liteNoCorner = v }
+    val anyLite get() = liteSettle || liteFoldFinished || liteFoldLater || liteNoLogos || liteNoScores || liteNoAutoplay || liteNoCorner
     var bufferMs by Number("bufferMs", 2000)
     /** Opening the app reuses the saved channels and guide until they're this old. */
     var refreshHours by Number("refreshHours", 6)

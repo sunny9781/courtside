@@ -812,10 +812,11 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     }
     // Finished games fold into one row at the bottom ("Finished · 6", click to show them), so a page mostly draws the
     // games that are live or coming up.
-    // Games starting more than 2 hours from now fold the same way ("Later today · 18"), so a busy day (31 basketball
-    // games) mostly draws what's live or about to start.
+    // Lite mode only (2.2): games starting more than 2 hours from now fold the same way ("Later today · 18"), so a
+    // busy day (31 basketball games) mostly draws what's live or about to start. Elsewhere they're ordinary cards.
     val soon = System.currentTimeMillis() + 2 * 3600_000L
-    fun isLater(g: Game) = g.state == GameState.UPCOMING && (g.start ?: 0L) > soon
+    val foldLater = Perf.foldLater
+    fun isLater(g: Game) = foldLater && g.state == GameState.UPCOMING && (g.start ?: 0L) > soon
     val open = sections.map { it.copy(games = it.games.filter { g -> g.state != GameState.FINISHED && !isLater(g) }) }
         .filter { it.games.isNotEmpty() }
     val later = sections.flatMap { it.games.filter { g -> isLater(g) } }

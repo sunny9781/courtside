@@ -252,6 +252,8 @@ private fun LiteSection(model: AppModel) {
         !s.liteSettle) { s.liteSettle = !it }
     Toggle("Finished games", "Home shows finished games (off: they fold into one row at the bottom, Finished · 6).",
         !s.liteFoldFinished) { s.liteFoldFinished = !it }
+    Toggle("Later games", "Home shows games starting more than 2 hours away (off: they fold into one row, Later today · 18).",
+        !s.liteFoldLater) { s.liteFoldLater = !it }
     Toggle("Logos", "Team logos on Home and the game screen, channel logos in the EPG and the now-playing bar.",
         !s.liteNoLogos) { s.liteNoLogos = !it }
     Toggle("Live scores", "Scores and clocks update every minute (off: today's games load once when the app opens; LIVE instead of the clock).",

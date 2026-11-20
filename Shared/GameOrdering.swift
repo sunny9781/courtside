@@ -103,13 +103,8 @@ extension Array where Element == StreamMatch {
         ?? sports.first
 }
 
-/// Home's folds, as on the TVs: games starting more than 2 hours from now fold into "Later today · N".
+/// Home's folds. (No "Later today" on the Apple apps since 2.2: it's an Android Lite mode option.)
 enum HomeFolds {
-    static func isLater(_ game: Game, now: Date = Date()) -> Bool {
-        guard game.state == .upcoming, let start = game.start else { return false }
-        return start.timeIntervalSince(now) > 2 * 3600
-    }
-
     /// While an NFL game is live, the RedZone channels get a folder at the top of Football / NFL.
     @MainActor static func redZone(model: AppModel, sport: Sport?) -> [Channel] {
         guard sport == .football, model.games.contains(where: { $0.league.id == "nfl" && $0.state == .live }) else { return [] }
