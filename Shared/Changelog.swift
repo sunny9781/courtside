@@ -74,6 +74,8 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.9", date: "2026-11-20", time: "17:05", title: "Safer updates", changes: [
+            Change(text: "Fixes the 2.5 update that macOS called damaged: it had been published without the app inside after a failed build. Releases now stop if the build fails, and the app checks an update is complete before installing it.", apps: mac),
         Release(version: "2.8", date: "2026-11-20", time: "17:00", title: "Clear recent streams", changes: [
             Change(text: "Full screen: the centre button no longer shows the stream information panel at the top right, just the recent streams.", apps: android),
             Change(text: "Recent streams: a bin on the left clears the list (on a TV, press left from the first card, then the centre button).", apps: [.mac, .tv, .ios, .android]),
