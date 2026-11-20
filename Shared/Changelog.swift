@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.4", date: "2026-11-20", time: "16:30", title: "Navigation from the left", changes: [
+            Change(text: "No top bar: Home, EPG and Settings are in a rail down the left edge. Left from a left panel (or Back) opens it with names, connections, the EPG time and the version button; right goes back into the page.", apps: android),
+            Change(text: "Home: a sport's leagues are a list beside it instead of chips. Right from the sport moves into them and the sports fold to icons; left (or Back) opens them out again.", apps: android),
+            Change(text: "The EPG download shows at the right end of the now-playing bar.", apps: android),
+        ]),
         Release(version: "2.3", date: "2026-11-20", time: "14:15", title: "More games per row", changes: [
             Change(text: "Home: score cards fill the width, so another card fits on each row when there's room.", apps: mac),
             Change(text: "Home: with one league on screen, its logo, name and \"9 coming up\" sit at the right end of the league chips instead of on a row of their own. With several leagues, each heading is a smaller, single line.", apps: mac),
