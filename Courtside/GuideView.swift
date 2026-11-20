@@ -44,7 +44,8 @@ struct GuideView: View {
                 // What's playing (and what's next) is in the player strip at the top, so the guide starts right
                 // away; the category's name and channel count sit at the left of the time row.
                 VStack(alignment: .leading, spacing: 16) {
-                    if let status = model.guideStatus {
+                    // While it downloads, the top bar already says so ("Refreshing EPG 45%").
+                    if let status = model.guideStatus, !model.guideDownloading {
                         Banner(text: status, icon: "tablecells")
                     }
 
@@ -241,7 +242,8 @@ struct GuideView: View {
         .padding(.bottom, 16)
         .frame(width: categoryWidth)
         .frame(maxHeight: .infinity)
-        .background(Color(hex: 0x11151B))
+        .background(Color(hex: 0x0B0E12))
+        .overlay(alignment: .trailing) { Rectangle().fill(Theme.raised).frame(width: 1) }
     }
 
     /// Favourites at the top of the list: your favourite channels, then favourite categories and groups, then a line.
@@ -437,10 +439,12 @@ struct GuideView: View {
 
     /// Just wide enough for the longest channel name shown, within limits.
     private func channelColumnWidth(_ list: [Channel]) -> CGFloat {
-        let font = NSFont.systemFont(ofSize: 14, weight: .semibold)
+        let font = ChannelCell.nameFont
         let longest = list.prefix(400).map { ($0.name as NSString).size(withAttributes: [.font: font]).width }.max() ?? 100
-        // Wide enough for the longest name on one line (up to a limit), plus the number, logo and heart.
-        return min(max(longest, 80), 480) + 36 + 64 + 20 + 16 + 28
+        // Names wrap onto two lines (longer ones scroll), so the column stays narrow: enough for the longest name
+        // over two lines, between 110 and 180 pt, plus the number, logo and heart. At least room for the time buttons.
+        let name = min(max(ceil(longest / 2) + 12, 110), 180)
+        return max(name + ChannelCell.fixedWidth, 290)
     }
 
     private func grid(_ list: [Channel], selected: Channel?, now: Date) -> some View {
@@ -708,53 +712,78 @@ struct ChannelCell: View {
     var onHide: (() -> Void)? = nil
     @State private var hovering = false
 
+    static let numberWidth: CGFloat = 44
+    static let logoWidth: CGFloat = 52
+    static let heartWidth: CGFloat = 22
+    static let spacing: CGFloat = 8
+    static let padding: CGFloat = 6
+    static let nameFont = NSFont.systemFont(ofSize: 13, weight: .semibold)
+    static let twoLines = ceil(NSLayoutManager().defaultLineHeight(for: nameFont) * 2) + 1
+    /// Everything in the cell but the name.
+    static let fixedWidth = numberWidth + logoWidth + heartWidth + spacing * 3 + padding * 2
+
+    private var nameWidth: CGFloat { max(width - Self.fixedWidth, 40) }
+
+    /// Fits on two lines? Otherwise it scrolls on one line while hovered or selected (like the TVs).
+    private var nameFits: Bool {
+        let box = (channel.name as NSString).boundingRect(
+            with: NSSize(width: nameWidth, height: 1000), options: [.usesLineFragmentOrigin],
+            attributes: [.font: Self.nameFont])
+        return box.height <= Self.twoLines
+    }
+
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: Self.spacing) {
             Text(channel.number.map(String.init) ?? "")
-                .font(.system(size: 13, weight: .medium))
+                .font(.system(size: 12, weight: .medium))
                 .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
                 .foregroundStyle(selected ? Theme.accent : Theme.muted)
-                .frame(width: 36, alignment: .trailing)
+                .frame(width: Self.numberWidth, alignment: .trailing)
 
             SmallLogoImage(url: channel.icon, size: 64) {
                 Text(String(channel.name.prefix(3)).uppercased())
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(Theme.muted)
             }
-            .padding(5)
-            .frame(width: 64, height: height - 14)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Theme.raised))
+            .padding(4)
+            .frame(width: Self.logoWidth, height: height - 18)
+            .background(RoundedRectangle(cornerRadius: 7).fill(Theme.raised))
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(channel.name)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(selected ? Theme.accent : Theme.text)
-                    .lineLimit(1)
-                if !tags.isEmpty {
-                    Text(tags.joined(separator: " · "))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Theme.muted)
-                        .lineLimit(1)
+            Group {
+                if !nameFits && (hovering || selected) {
+                    MacScrollingText(text: channel.name, font: .system(size: 13, weight: .semibold))
+                } else {
+                    Text(channel.name)
+                        .font(.system(size: 13, weight: .semibold))
+                        .lineLimit(2)
+                        .truncationMode(.tail)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
+            .foregroundStyle(selected ? Theme.accent : Theme.text)
+            .frame(width: nameWidth, alignment: .leading)
 
-            Spacer(minLength: 0)
             if let onFavorite {
                 Button(action: onFavorite) {
                     Image(systemName: favorite ? "heart.fill" : "heart")
                         .font(.system(size: 12))
                         .foregroundStyle(favorite ? Theme.accent : Theme.muted)
-                        .frame(width: 24, height: height)
+                        .frame(width: Self.heartWidth, height: height)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .opacity(favorite || hovering ? 1 : 0)
                 .help(favorite ? "Remove from favourites" : "Add to favourites")
+            } else {
+                Color.clear.frame(width: Self.heartWidth)
             }
         }
-        .padding(.horizontal, 6)
+        .padding(.horizontal, Self.padding)
         .frame(width: width, height: height, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Theme.card : Color.clear))
+        // A panel of its own, so the channel names stand apart from the categories and the programmes.
+        .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Theme.cardHover : (hovering ? Theme.card : Theme.sidebar)))
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .contextMenu {
@@ -764,6 +793,38 @@ struct ChannelCell: View {
             if let onHide { Button("Hide", action: onHide) }
         }
         .help(channel.name)
+    }
+}
+
+/// One line that scrolls sideways when it's longer than its box (the Mac version of the TVs' scrolling names).
+struct MacScrollingText: View {
+    let text: String
+    let font: Font
+    @State private var textWidth: CGFloat = 0
+    @State private var boxWidth: CGFloat = 0
+    @State private var offset: CGFloat = 0
+
+    var body: some View {
+        Text(text).font(font).lineLimit(1).fixedSize()
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { textWidth = $0 }
+            .offset(x: offset)
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { boxWidth = $0 }
+            .clipped()
+            .task(id: "\(text)|\(Int(textWidth))|\(Int(boxWidth))") {
+                offset = 0
+                let distance = textWidth - boxWidth
+                guard distance > 1 else { return }
+                let seconds = Double(distance) / 50
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(0.8))
+                    guard !Task.isCancelled else { break }
+                    withAnimation(.linear(duration: seconds)) { offset = -distance }
+                    try? await Task.sleep(for: .seconds(seconds + 1.2))
+                    guard !Task.isCancelled else { break }
+                    offset = 0
+                }
+            }
     }
 }
 

@@ -74,6 +74,13 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.1", date: "2026-11-20", time: "11:30", title: "A tidier EPG", changes: [
+            Change(text: "EPG: once the EPG has downloaded, the top bar says Reading EPG… instead of sitting at 100%.", apps: [.mac, .tv, .ios]),
+            Change(text: "EPG: no second \"Updating the guide\" note while the top bar already shows the download.", apps: mac),
+            Change(text: "EPG: a narrower channel column. Names use up to two lines, and longer ones scroll while you point at or pick them. Channel numbers stay on one line.", apps: mac),
+            Change(text: "EPG: the categories and the channel names stand apart more (a darker category panel with a line, and a panel behind each channel).", apps: mac),
+            Change(text: "Home: with every game folded away (Later today, Finished), the leagues stay on the left instead of moving to the middle.", apps: mac),
+        ]),
         Release(version: "2.0", date: "2026-11-20", time: "02:10", title: "Courtside on Android phones", changes: [
             Change(text: "The same app now runs on Android phones and tablets, laid out like the iPhone app: the player pinned at the top while something plays, Home, EPG and Settings tabs along the bottom, and sports, leagues, favourites and the filter at the bottom in reach of your thumb.", apps: android),
             Change(text: "Phone Home: score cards two to a row under each league, Later today and Finished folds, NFL RedZone, pull down to refresh. Tap a game for its streams in foldable sections; tap a stream to play it at the top, tap it again or turn the phone sideways for full screen.", apps: android),

@@ -287,6 +287,8 @@ struct TVTopBar: View {
                         Text("EPG refreshes after this stream")
                     } else if model.downloadingChannels {
                         Text("Refreshing EPG · channels…")
+                    } else if model.guideReading {
+                        Text("Reading EPG…")
                     } else if model.guideDownloading {
                         HStack(spacing: 12) {
                             if let p = model.guideProgress {

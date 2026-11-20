@@ -39,6 +39,8 @@ struct SportView: View {
                                   showHeading: league == nil, onOpen: onOpen)
                 }
             }
+            // Always full width on the left: with every game folded away it used to shrink and sit in the middle.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 40)
             .padding(.top, 20)
             .padding(.bottom, 48)
