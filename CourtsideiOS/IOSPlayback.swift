@@ -171,7 +171,7 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
                 self?.audio = label
             }
         }
-        // Hiccups are waited out with the connection open; only a minute without progress reopens the stream.
+        // Hiccups are waited out with the connection open; only 10 seconds without progress reopens the stream.
         let watching = !resolution.isEmpty && (status == .playing || status == .buffering || status == .opening)
         switch freezeWatch.check(progress: player.currentTime().seconds, watching: watching) {
         case .restart: restartQuietly()

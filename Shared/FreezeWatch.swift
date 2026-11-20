@@ -1,7 +1,7 @@
 import Foundation
 
 /// Notices a stream that has stopped moving (frozen picture, or stuck "buffering" after it was playing). Hiccups are
-/// waited out with the connection left open, like other IPTV apps: only after a whole minute without any progress
+/// waited out with the connection left open, like other IPTV apps: only after 10 seconds without any progress
 /// does it ask for a quiet restart (a connection that died without saying so). It never asks to move on to another
 /// stream (`.skip` stays for callers but isn't returned).
 @MainActor
@@ -11,7 +11,7 @@ final class FreezeWatch {
     private var lastProgress: Double = -1
     private var lastChange = Date()
     /// How long the picture may stand still before the stream is reopened.
-    static let patience: TimeInterval = 60
+    static let patience: TimeInterval = 10
 
     /// A new stream: forget everything.
     func reset() {
