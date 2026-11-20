@@ -153,3 +153,10 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - "Later today · N" fold on Home is now an Android Lite mode option only (Settings › Lite mode › Later games,
   `liteFoldLater`, `Perf.foldLater` = slowDevice && liteFoldLater). Shield, Android phones, Apple TV, Mac and iPhone
   show later games as ordinary cards after the ones coming up soon (`HomeFolds.isLater` removed).
+
+## 2.4 (2026-11-20, set up from your phone, Android TV)
+- TV sign-in screen (and Edit account) has a right-hand panel: QR code + address + 4-digit PIN (`PhoneSetup.kt`).
+  While it's on screen, `PhoneSetupServer` (plain ServerSocket, port 8642 or any free one) serves a sign-in page on
+  the home network; POST /login checks the PIN (5 wrong = new PIN), then runs signIn/updateAccount on the main thread
+  and answers with the result. Details never logged (ConnLog only says "details received"). QR via zxing core.
+- Not on the Android phone layout. Apple TV/Mac/iPhone not ported yet (Apple TV would use NWListener).
