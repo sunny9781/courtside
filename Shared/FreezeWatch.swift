@@ -1,21 +1,22 @@
 import Foundation
 
-/// Notices a stream that has stopped moving (frozen picture, or stuck "buffering" after it was playing) for
-/// 4 seconds. The first couple of times it asks for a quiet restart; if it keeps freezing (3 times within
-/// 2 minutes) it asks to move on to the next stream.
+/// Notices a stream that has stopped moving (frozen picture, or stuck "buffering" after it was playing). Hiccups are
+/// waited out with the connection left open, like other IPTV apps: only after a whole minute without any progress
+/// does it ask for a quiet restart (a connection that died without saying so). It never asks to move on to another
+/// stream (`.skip` stays for callers but isn't returned).
 @MainActor
 final class FreezeWatch {
     enum Action { case none, restart, skip }
 
     private var lastProgress: Double = -1
     private var lastChange = Date()
-    private var restarts: [Date] = []
+    /// How long the picture may stand still before the stream is reopened.
+    static let patience: TimeInterval = 60
 
     /// A new stream: forget everything.
     func reset() {
         lastProgress = -1
         lastChange = Date()
-        restarts = []
     }
 
     /// After a quiet restart: give it time to start again, but remember the restart.
@@ -37,13 +38,7 @@ final class FreezeWatch {
             if lastChange < now { lastChange = now }   // (after a restart, lastChange is a little in the future)
             return .none
         }
-        guard now.timeIntervalSince(lastChange) >= 4 else { return .none }
-        restarts = restarts.filter { now.timeIntervalSince($0) < 120 } + [now]
-        if restarts.count >= 3 {
-            restarts = []
-            lastChange = now.addingTimeInterval(6)
-            return .skip
-        }
+        guard now.timeIntervalSince(lastChange) >= Self.patience else { return .none }
         restarted()
         return .restart
     }

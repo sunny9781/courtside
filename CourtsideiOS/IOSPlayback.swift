@@ -70,6 +70,7 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
         audioLookup?.cancel()
         lastBufferMs = bufferMs
         freezeWatch.reset()
+        droppedSince = nil
         if player.currentItem != nil { ConnLog.add("Closed \(ConnLog.stream((player.currentItem?.asset as? AVURLAsset)?.url))") }
         ConnLog.add("Opened \(ConnLog.stream(url))")
         let item = AVPlayerItem(url: url)
@@ -85,12 +86,14 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
     /// Called when a stream keeps freezing even after restarting it, so the app can move to the next stream.
     var onRepeatedFreezing: (() -> Void)?
     private let freezeWatch = FreezeWatch()
+    private var droppedSince: Date?
+    private var lastReconnect = Date.distantPast
     private var lastBufferMs = 2000
 
     /// Starts the stream again without showing it (the resolution and frame rate stay as they were).
     private func restartQuietly() {
         guard let url = currentURL else { return }
-        ConnLog.add("Opened \(ConnLog.stream(url)) again (it froze)")
+        ConnLog.add("Opened \(ConnLog.stream(url)) again")
         let item = AVPlayerItem(url: url)
         item.preferredForwardBufferDuration = Double(lastBufferMs) / 1000
         player.replaceCurrentItem(with: item)
@@ -125,6 +128,22 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
         guard let item = player.currentItem else { return }
         switch item.status {
         case .failed:
+            // It had been playing: the connection dropped, so open it again (every 3 s, up to 2 minutes) instead
+            // of stopping.
+            if !resolution.isEmpty, currentURL != nil {
+                let now = Date()
+                let since = droppedSince ?? now
+                droppedSince = since
+                if now.timeIntervalSince(since) < 120 {
+                    status = .buffering
+                    if now.timeIntervalSince(lastReconnect) >= 3 {
+                        lastReconnect = now
+                        ConnLog.add("Stream dropped: opening it again")
+                        restartQuietly()
+                    }
+                    return
+                }
+            }
             status = .failed("This stream couldn't be opened.")
         case .readyToPlay:
             switch player.timeControlStatus {
@@ -135,6 +154,7 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
         default:
             status = .opening
         }
+        if status == .playing { droppedSince = nil }
         let size = item.presentationSize
         if size.height > 0 {
             resolution = size.height >= 2000 ? "4K" : (size.height >= 1000 ? "1080p" : (size.height >= 700 ? "720p" : "\(Int(size.height))p"))
@@ -151,7 +171,7 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
                 self?.audio = label
             }
         }
-        // Frozen for 4 seconds: restart quietly; if it keeps happening, move on.
+        // Hiccups are waited out with the connection open; only a minute without progress reopens the stream.
         let watching = !resolution.isEmpty && (status == .playing || status == .buffering || status == .opening)
         switch freezeWatch.check(progress: player.currentTime().seconds, watching: watching) {
         case .restart: restartQuietly()

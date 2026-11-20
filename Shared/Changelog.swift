@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.4", date: "2026-11-20", time: "16:16", title: "Streams ride out hiccups", changes: [
+            Change(text: "A stream that stalls keeps its connection and carries on when the data comes back, like other IPTV apps, instead of being restarted after 4 seconds. Only a picture that hasn't moved for a whole minute is reopened.", apps: everywhere),
+            Change(text: "No more jumping to another stream because one kept freezing (and no \"kept freezing\" message). Switching only happens if Settings › Switch to the next stream when one stalls is on.", apps: everywhere),
+            Change(text: "If the provider drops a stream that was playing, it opens the same stream again by itself (for up to 2 minutes) instead of stopping with an error.", apps: everywhere)
+        ]),
         Release(version: "2.3", date: "2026-11-20", time: "14:15", title: "More games per row", changes: [
             Change(text: "Home: score cards fill the width, so another card fits on each row when there's room.", apps: mac),
             Change(text: "Home: with one league on screen, its logo, name and \"9 coming up\" sit at the right end of the league chips instead of on a row of their own. With several leagues, each heading is a smaller, single line.", apps: mac),
