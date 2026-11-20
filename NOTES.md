@@ -185,3 +185,8 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   the home network; POST /login checks the PIN (5 wrong = new PIN), then runs signIn/updateAccount on the main thread
   and answers with the result. Details never logged (ConnLog only says "details received"). QR via zxing core.
 - Not on the Android phone layout. Apple TV/Mac/iPhone not ported yet (Apple TV would use NWListener).
+
+## 2.8 (2026-11-20)
+- Android full screen: no stream information panel (StreamDetails removed); the centre button only shows the recent
+  strip. Recent strip (all apps): a bin at the left clears it (`clearWatched()`); on the TVs it's index -1 (left from
+  the first card). Cards and bin at black 0.18 (picked 0.35), border white 0.08 (picked: orange).

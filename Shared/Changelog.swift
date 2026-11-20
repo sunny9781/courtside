@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.8", date: "2026-11-20", time: "17:00", title: "Clear recent streams", changes: [
+            Change(text: "Full screen: the centre button no longer shows the stream information panel at the top right, just the recent streams.", apps: android),
+            Change(text: "Recent streams: a bin on the left clears the list (on a TV, press left from the first card, then the centre button).", apps: [.mac, .tv, .ios, .android]),
+            Change(text: "Recent streams: the cards are much more see-through.", apps: [.mac, .tv, .ios, .android]),
+        ]),
         Release(version: "2.7", date: "2026-11-20", time: "16:45", title: "Navigation from the left", changes: [
             Change(text: "No top bar: Home, EPG and Settings are in a rail down the left edge. Left from a left panel (or Back) opens it with names, connections, the EPG time and the version button; right goes back into the page.", apps: android),
             Change(text: "Home: a sport's leagues are a list beside it instead of chips. Right from the sport moves into them and the sports fold to icons; left (or Back) opens them out again.", apps: android),

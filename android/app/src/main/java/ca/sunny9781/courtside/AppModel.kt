@@ -772,6 +772,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         watchingSince = now
     }
 
+    fun clearWatched() { watched.clear() }
+
     /** The streams to offer while watching [item]: the ones watched before it, most recent first. */
     fun recentStreams(item: NowPlaying, limit: Int = 6): List<NowPlaying> =
         watched.filter { it.channel.id != item.channel.id }.take(limit)

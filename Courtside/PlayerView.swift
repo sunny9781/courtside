@@ -258,6 +258,21 @@ struct PlayerView: View {
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(Theme.muted)
             HStack(spacing: 10) {
+                // The bin, on the left: clears the list.
+                Button {
+                    model.clearWatched()
+                    withAnimation(.easeOut(duration: 0.2)) { showDetails = false }
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .frame(width: 48, height: 48)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.18)))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.08), lineWidth: 1))
+                        .contentShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .help("Clear recent streams")
                 ForEach(Array(list.enumerated()), id: \.element.channel.id) { i, recent in
                     let picked = i == min(recentIndex, list.count - 1)
                     Button { playRecent(recent) } label: {
@@ -280,8 +295,8 @@ struct PlayerView: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 8)
                         .frame(width: 230, alignment: .leading)
-                        .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(picked ? 0.75 : 0.5)))
-                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(picked ? Theme.accent : .white.opacity(0.12),
+                        .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(picked ? 0.35 : 0.18)))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(picked ? Theme.accent : .white.opacity(0.08),
                                                                          lineWidth: picked ? 2 : 1))
                         .contentShape(RoundedRectangle(cornerRadius: 10))
                     }

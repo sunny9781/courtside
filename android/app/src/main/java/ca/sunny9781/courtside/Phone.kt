@@ -400,8 +400,9 @@ private fun PhoneFullScreen(model: AppModel, item: NowPlaying) {
             // The streams watched before this one, most recent on the left (as many as fit): tap one to go back to it.
             val recents = model.recentStreams(item, limit = 4)
             if (recents.isNotEmpty()) BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val fits = maxOf(1, ((maxWidth + 8.dp) / (168.dp)).toInt())
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val fits = maxOf(1, ((maxWidth - 46.dp + 8.dp) / (168.dp)).toInt())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ClearRecentButton(picked = false, modifier = Modifier.clickable { poke++; model.clearWatched() })
                     recents.take(fits).forEach { r ->
                         RecentCard(model, r, picked = false, width = 160.dp,
                             modifier = Modifier.clickable { poke++; model.play(r.channel, r.gameTitle, r.lineup) })

@@ -83,7 +83,7 @@ struct TVPlayerView: View {
             case .up: model.step(-1)
             case .down: model.step(1)
             case .left where showDetails && !recents.isEmpty:
-                recentIndex = max(0, recentIndex - 1)
+                recentIndex = max(-1, recentIndex - 1)   // -1: the bin (clear the list)
                 keepDetails()
             case .right where showDetails && !recents.isEmpty:
                 recentIndex = min(recents.count - 1, recentIndex + 1)
@@ -203,7 +203,9 @@ struct TVPlayerView: View {
         if showDetails {
             withAnimation(.easeOut(duration: 0.2)) { showDetails = false }
             let list = recents
-            if !list.isEmpty {
+            if recentIndex < 0, !list.isEmpty {
+                model.clearWatched()
+            } else if !list.isEmpty {
                 let pick = list[min(recentIndex, list.count - 1)]
                 model.play(pick.channel, gameTitle: pick.gameTitle, lineup: pick.lineup)
             }
@@ -232,8 +234,17 @@ struct TVPlayerView: View {
                 .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(Theme.muted)
             HStack(spacing: 18) {
+                // The bin, on the left: clears the list.
+                Image(systemName: "trash")
+                    .font(.system(size: 30, weight: .semibold))
+                    .foregroundStyle(.white.opacity(recentIndex < 0 ? 0.9 : 0.6))
+                    .frame(width: 76, height: 76)
+                    .background(RoundedRectangle(cornerRadius: 16).fill(.black.opacity(recentIndex < 0 ? 0.35 : 0.18)))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(recentIndex < 0 ? Theme.accent : .white.opacity(0.08),
+                                                                     lineWidth: recentIndex < 0 ? 4 : 1))
+                    .scaleEffect(recentIndex < 0 ? 1.04 : 1)
                 ForEach(Array(list.enumerated()), id: \.element.channel.id) { i, recent in
-                    let picked = i == min(recentIndex, list.count - 1)
+                    let picked = i == recentIndex
                     HStack(spacing: 14) {
                         TVChannelIcon(url: recent.channel.icon, size: 48)
                         VStack(alignment: .leading, spacing: 3) {
@@ -250,8 +261,8 @@ struct TVPlayerView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                     .frame(width: 330, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 16).fill(.black.opacity(picked ? 0.75 : 0.5)))
-                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(picked ? Theme.accent : .white.opacity(0.12),
+                    .background(RoundedRectangle(cornerRadius: 16).fill(.black.opacity(picked ? 0.35 : 0.18)))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(picked ? Theme.accent : .white.opacity(0.08),
                                                                      lineWidth: picked ? 4 : 1))
                     .scaleEffect(picked ? 1.04 : 1)
                     .animation(.easeOut(duration: 0.15), value: recentIndex)
