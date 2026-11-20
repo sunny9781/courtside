@@ -269,20 +269,14 @@ struct IOSGamesList: View {
         nav.homeSelection = .sport(sport)
     }
 
-    /// The EPG download, as on the TVs: "Refreshing EPG 45%" while it downloads, or waiting for the stream to stop.
+    /// The EPG download, as on the TVs: "Refreshing EPG…" while it downloads, or waiting for the stream to stop.
     @ViewBuilder
     var epgStatus: some View {
         if model.guideDownloading || model.downloadingChannels {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(model.downloadingChannels ? "Refreshing channels…"
-                     : model.guideReading ? "Reading EPG…"
-                     : "Refreshing EPG\(model.guideProgress.map { " \(Int($0 * 100))%" } ?? " · \(model.guideMegabytes) MB")")
-                    .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
-                if let p = model.guideProgress, model.guideDownloading, !model.guideReading {
-                    ProgressView(value: p).tint(Theme.accent)
-                }
-            }
-            .padding(.horizontal)
+            Text(model.downloadingChannels ? "Refreshing channels…"
+                 : model.guideReading ? "Reading EPG…" : "Refreshing EPG…")
+                .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)
+                .padding(.horizontal)
         } else if model.refreshWaiting {
             Label("EPG refreshes after this stream", systemImage: "clock")
                 .font(.caption.weight(.semibold)).foregroundStyle(Theme.muted)

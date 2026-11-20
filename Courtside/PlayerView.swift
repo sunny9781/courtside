@@ -43,6 +43,8 @@ struct PlayerView: View {
     /// The stream information panel (click the video or press I), like the TVs' centre button.
     @State private var showDetails = false
     @State private var detailsTask: Task<Void, Never>?
+    /// The recently watched stream picked with the left/right keys (Return plays it).
+    @State private var recentIndex = 0
     let item: NowPlaying
 
     private var position: Int {
@@ -72,9 +74,15 @@ struct PlayerView: View {
                     .transition(.opacity)
             }
 
-            bottomBar
-                .frame(maxHeight: .infinity, alignment: .bottom)
-                .opacity(showControls ? 1 : 0)
+            VStack(spacing: 0) {
+                if showDetails && !recents.isEmpty {
+                    recentStrip
+                        .transition(.opacity)
+                }
+                bottomBar
+                    .opacity(showControls || showDetails ? 1 : 0)
+            }
+            .frame(maxHeight: .infinity, alignment: .bottom)
 
             keyboardShortcuts
 
@@ -219,12 +227,71 @@ struct PlayerView: View {
             withAnimation(.easeOut(duration: 0.2)) { showDetails = false }
             return
         }
+        recentIndex = 0
         withAnimation(.easeOut(duration: 0.2)) { showDetails = true }
+        keepDetails()
+    }
+
+    /// Shows the information (and the recent streams) for another 8 seconds.
+    private func keepDetails() {
         poke()
+        detailsTask?.cancel()
         detailsTask = Task {
             try? await Task.sleep(for: .seconds(8))
             if !Task.isCancelled { withAnimation(.easeOut(duration: 0.4)) { showDetails = false } }
         }
+    }
+
+    private var recents: [NowPlaying] { model.recentStreams(besides: item, limit: 5) }
+
+    private func playRecent(_ recent: NowPlaying) {
+        detailsTask?.cancel()
+        withAnimation(.easeOut(duration: 0.2)) { showDetails = false }
+        model.play(recent.channel, gameTitle: recent.gameTitle, lineup: recent.lineup)
+    }
+
+    /// The streams watched before this one, most recent on the left: click one (or Left/Right and Return) to go back.
+    private var recentStrip: some View {
+        let list = recents
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("RECENTLY WATCHED")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Theme.muted)
+            HStack(spacing: 10) {
+                ForEach(Array(list.enumerated()), id: \.element.channel.id) { i, recent in
+                    let picked = i == min(recentIndex, list.count - 1)
+                    Button { playRecent(recent) } label: {
+                        HStack(spacing: 10) {
+                            SmallLogoImage(url: recent.channel.icon, size: 32) {
+                                Image(systemName: "tv").foregroundStyle(Theme.muted)
+                            }
+                            .frame(width: 32, height: 32)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(model.playerTitle(recent))
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(Theme.text)
+                                Text(recent.channel.name)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(Theme.muted)
+                            }
+                            .lineLimit(1)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .frame(width: 230, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(picked ? 0.75 : 0.5)))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(picked ? Theme.accent : .white.opacity(0.12),
+                                                                         lineWidth: picked ? 2 : 1))
+                        .contentShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { if $0 { recentIndex = i; keepDetails() } }
+                }
+            }
+        }
+        .padding(.horizontal, 28)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Channel (and its place in the lineup), what's on now and next, video, sound and number: as on the TVs.
@@ -330,7 +397,7 @@ struct PlayerView: View {
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Theme.text)
                 Text(item.lineup.count > 1
-                     ? "\(item.channel.name) · \(position) of \(item.lineup.count) · Up/Down to switch · click for info"
+                     ? "\(item.channel.name) · \(position) of \(item.lineup.count) · Up/Down to switch · click for info and recent"
                      : item.channel.name)
                     .font(.system(size: 12))
                     .foregroundStyle(Theme.muted)
@@ -380,6 +447,20 @@ struct PlayerView: View {
                 .keyboardShortcut(.downArrow, modifiers: [])
             Button("Stream information") { toggleDetails() }
                 .keyboardShortcut("i", modifiers: [])
+            // While the information shows: Left/Right pick a recent stream, Return plays it.
+            Button("Previous recent stream") {
+                if showDetails { recentIndex = max(0, recentIndex - 1); keepDetails() }
+            }
+                .keyboardShortcut(.leftArrow, modifiers: [])
+            Button("Next recent stream") {
+                if showDetails { recentIndex = min(max(recents.count - 1, 0), recentIndex + 1); keepDetails() }
+            }
+                .keyboardShortcut(.rightArrow, modifiers: [])
+            Button("Play recent stream") {
+                let list = recents
+                if showDetails, !list.isEmpty { playRecent(list[min(recentIndex, list.count - 1)]) } else { toggleDetails() }
+            }
+                .keyboardShortcut(.return, modifiers: [])
         }
         .opacity(0)
         .frame(width: 0, height: 0)

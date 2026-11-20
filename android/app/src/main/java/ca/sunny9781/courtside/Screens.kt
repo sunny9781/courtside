@@ -349,19 +349,12 @@ fun TopBar(model: AppModel) {
                 }
             }
             // When the EPG was last downloaded (just text: it refreshes by itself, or from Settings › General).
-            // While it downloads: "Refreshing EPG" with how far along it is.
-            val progress = model.guideProgress
+            // While it downloads: "Refreshing EPG…" (2.4: no percentage or bar; the download comes in a burst and most
+            // of the wait is sorting and saving it afterwards, so the bar sat at 100%).
             when {
                 model.refreshWaiting -> Label("EPG refreshes after this stream", size = 12.sp, color = Theme.muted)
                 model.loading -> Label("Refreshing EPG · channels…", size = 12.sp, color = Theme.muted)
-                model.guideLoading -> Row(verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Label(if (progress != null) "Refreshing EPG ${(progress * 100).toInt()}%"
-                        else "Refreshing EPG · ${model.guideMegabytes} MB", size = 12.sp, color = Theme.muted)
-                    if (progress != null) Box(Modifier.width(70.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(Theme.raised)) {
-                        Box(Modifier.fillMaxHeight().fillMaxWidth(progress).background(Theme.accent))
-                    }
-                }
+                model.guideLoading -> Label("Refreshing EPG…", size = 12.sp, color = Theme.muted)
                 else -> model.updatedAt?.let { at -> Label("EPG ${clockTime(at)}", size = 12.sp, color = Theme.muted,
                     modifier = Modifier.padding(horizontal = 10.dp)) }
             }
@@ -489,7 +482,8 @@ fun barInset(model: AppModel) = if (model.pinned != null) Theme.barHeight + Them
 
 /**
  * Full screen. Up/down: previous/next stream for this game (or channel in this category). Any other button shows
- * the info bar. Play/Pause pauses. Back returns to the player at the top. A stream that fails, stops or buffers for
+ * the info bar. The centre button shows the stream information and the streams watched before (most recent on the
+ * left): left/right picks one, the centre button plays it, Back hides them. Play/Pause pauses. Back returns to the player at the top. A stream that fails, stops or buffers for
  * 10 seconds switches to the next one (USA and Canada first).
  */
 @Composable
@@ -501,6 +495,10 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
     var showDetails by remember { mutableStateOf(false) }
     var detailsTick by remember { mutableIntStateOf(0) }
     LaunchedEffect(detailsTick) { if (showDetails) { delay(8000); showDetails = false } }
+    val recents = model.recentStreams(item, limit = 5)
+    var recentIndex by remember { mutableIntStateOf(0) }
+    // Back hides the information first, then closes full screen.
+    BackHandler(enabled = showDetails) { showDetails = false }
     var flip by remember { mutableStateOf<String?>(null) }
     var flipTick by remember { mutableIntStateOf(0) }
     var tried by remember { mutableStateOf(setOf(item.channel.id)) }
@@ -565,9 +563,25 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
                         Playback.togglePause(); poke++; true
                     }
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
-                        showDetails = !showDetails; detailsTick++; poke++; true
+                        if (showDetails && recents.isNotEmpty()) {
+                            // The information is showing: play the picked recent stream.
+                            val pick = recents[recentIndex.coerceIn(0, recents.size - 1)]
+                            showDetails = false
+                            model.play(pick.channel, pick.gameTitle, pick.lineup)
+                        } else {
+                            if (!showDetails) recentIndex = 0
+                            showDetails = !showDetails
+                        }
+                        detailsTick++; poke++; true
                     }
-                    KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> { poke++; true }
+                    KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        if (showDetails && recents.isNotEmpty()) {
+                            val d = if (e.key.nativeKeyCode == KeyEvent.KEYCODE_DPAD_LEFT) -1 else 1
+                            recentIndex = (recentIndex + d).coerceIn(0, recents.size - 1)
+                            detailsTick++
+                        }
+                        poke++; true
+                    }
                     else -> false
                 }
             }
@@ -592,9 +606,20 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
             }
         }
         if (showDetails) StreamDetails(model, item, pos, Modifier.align(Alignment.TopEnd).padding(top = 30.dp, end = 40.dp))
-        if (showInfo) {
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
+        if (showDetails && recents.isNotEmpty()) {
+            Column(Modifier.padding(horizontal = 40.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Label("RECENTLY WATCHED · OK TO SWITCH", size = 9.sp, weight = FontWeight.Bold, color = Theme.muted)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    recents.forEachIndexed { i, r ->
+                        RecentCard(model, r, picked = i == recentIndex.coerceIn(0, recents.size - 1), width = 165.dp)
+                    }
+                }
+            }
+        }
+        if (showInfo || showDetails) {
             Row(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                Modifier.fillMaxWidth()
                     .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))))
                     .padding(horizontal = 40.dp, vertical = 22.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -609,6 +634,24 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
                 if (Playback.frameRate > 0) Badge(Playback.fpsLabel(Playback.frameRate))
                 if (Playback.audio.isNotEmpty()) Badge(Playback.audio)
             }
+        }
+        }
+    }
+}
+
+/** A recently watched stream in full screen: channel logo, what was on (or the game), and the channel. */
+@Composable
+fun RecentCard(model: AppModel, recent: NowPlaying, picked: Boolean, width: androidx.compose.ui.unit.Dp,
+               modifier: Modifier = Modifier) {
+    Row(modifier.width(width).clip(RoundedCornerShape(10.dp))
+        .background(Color.Black.copy(alpha = if (picked) 0.75f else 0.5f))
+        .border(if (picked) 2.dp else 1.dp, if (picked) Theme.accent else Color.White.copy(alpha = 0.12f), RoundedCornerShape(10.dp))
+        .padding(horizontal = 9.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        ChannelIcon(recent.channel.icon, 24.dp)
+        Column(Modifier.weight(1f)) {
+            Label(model.playerTitle(recent), size = 11.sp, weight = FontWeight.SemiBold, color = Color.White, maxLines = 1)
+            Label(recent.channel.name, size = 9.sp, color = Color.White.copy(alpha = 0.7f), maxLines = 1)
         }
     }
 }

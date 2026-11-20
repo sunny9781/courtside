@@ -393,9 +393,22 @@ private fun PhoneFullScreen(model: AppModel, item: NowPlaying) {
                 RoundButton(if (Playback.status == Playback.Status.PAUSED) Icons.Filled.PlayArrow else Icons.Filled.Pause,
                     "Pause", size = 42.dp) { Playback.togglePause(); poke++ }
             }
-            Row(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+            Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))))
                 .windowInsetsPadding(WindowInsets.displayCutout).padding(start = 20.dp, end = 20.dp, top = 40.dp, bottom = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // The streams watched before this one, most recent on the left (as many as fit): tap one to go back to it.
+            val recents = model.recentStreams(item, limit = 4)
+            if (recents.isNotEmpty()) BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val fits = maxOf(1, ((maxWidth + 8.dp) / (168.dp)).toInt())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    recents.take(fits).forEach { r ->
+                        RecentCard(model, r, picked = false, width = 160.dp,
+                            modifier = Modifier.clickable { poke++; model.play(r.channel, r.gameTitle, r.lineup) })
+                    }
+                }
+            }
+            Row(Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Label(model.playerTitle(item), size = 17.sp, weight = FontWeight.Bold, color = Color.White)
@@ -409,6 +422,7 @@ private fun PhoneFullScreen(model: AppModel, item: NowPlaying) {
                     RoundButton(Icons.Filled.KeyboardArrowUp, "Previous stream", size = 42.dp) { poke++; model.step(-1) }
                     RoundButton(Icons.Filled.KeyboardArrowDown, "Next stream", size = 42.dp) { poke++; model.step(1) }
                 }
+            }
             }
         }
     }

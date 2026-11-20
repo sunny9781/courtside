@@ -384,26 +384,18 @@ extension Notification.Name {
     static let openGame = Notification.Name("openGame")
 }
 
-/// "Refreshing EPG 45%" and a thin bar while the channels or guide download.
+/// "Refreshing EPG…" while the channels or guide download (2.4: no percentage or bar; the download comes in a burst
+/// and most of the wait is reading the file afterwards, so the bar sat at 100%).
 struct EPGProgress: View {
     @EnvironmentObject var model: AppModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(model.downloadingChannels ? "Refreshing channels…"
-                 : model.guideReading ? "Reading EPG…"
-                 : "Refreshing EPG" + (model.guideProgress.map { " \(Int($0 * 100))%" } ?? " · \(model.guideMegabytes) MB"))
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Theme.muted)
-                .monospacedDigit()
-            if model.guideDownloading, !model.guideReading, let p = model.guideProgress {
-                ProgressView(value: p)
-                    .progressViewStyle(.linear)
-                    .tint(Theme.accent)
-                    .frame(width: 140)
-            }
-        }
-        .padding(.horizontal, 12)
+        Text(model.downloadingChannels ? "Refreshing channels…"
+             : model.guideReading ? "Reading EPG…"
+             : "Refreshing EPG…")
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(Theme.muted)
+            .padding(.horizontal, 12)
     }
 }
 

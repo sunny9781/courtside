@@ -153,3 +153,15 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - "Later today · N" fold on Home is now an Android Lite mode option only (Settings › Lite mode › Later games,
   `liteFoldLater`, `Perf.foldLater` = slowDevice && liteFoldLater). Shield, Android phones, Apple TV, Mac and iPhone
   show later games as ordinary cards after the ones coming up soon (`HomeFolds.isLater` removed).
+
+## 2.4 (2026-11-20)
+- Recent streams in full screen (all apps): `watched` in both AppModels (most recent first, max 8; a stream counts
+  after 5 s on it, so flipping past doesn't add it; `recentStreams(besides/item, limit)` leaves out the current one).
+  Apple: tracked from nowPlaying/pinned didSet, checked on the next main-actor turn (closePlayer sets two values).
+  Android: `noteWatching` in pin()/play().
+  TVs: centre shows the stream information + a strip of up to 5 cards above the info bar; left/right picks (orange
+  outline), centre plays it, Back hides (Android `BackHandler(enabled = showDetails)`, Apple TV onExitCommand).
+  Mac: click / I shows it, cards clickable, Left/Right + Return. Phones (iPhone, Android): shown with the controls on
+  tap, as many cards as fit (up to 4), tap plays. Android shared card: `RecentCard` in Screens.kt.
+- EPG refresh shows "Refreshing EPG…" only (no % or bar) everywhere; Apple keeps "Reading EPG…" after the download.
+  The % sat at 100%: the file arrives in a burst and the reading/sorting/saving after it isn't measured.

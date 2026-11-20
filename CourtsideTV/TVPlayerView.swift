@@ -5,7 +5,8 @@ import CoreMedia
 
 /// Full-screen player.
 /// - Swipe or press up/down: previous/next stream for this game (or channel in this category).
-/// - Click: stream information (channel, what's on, resolution, frame rate, sound); click again to hide it.
+/// - Click: stream information (channel, what's on, resolution, frame rate, sound) and the streams watched before
+///   (most recent on the left). Left/right picks one, click plays it; Back hides it all again.
 /// - Swipe left/right: show the info bar.
 /// - Play/Pause: pause. Back (Menu): close.
 /// A stream that fails, stops, or buffers for 10 seconds switches to the next one (USA and Canada first).
@@ -23,6 +24,8 @@ struct TVPlayerView: View {
     /// The stream information panel (click the remote's centre button).
     @State private var showDetails = false
     @State private var detailsTask: Task<Void, Never>?
+    /// Which of the recently watched streams is picked (left/right while the information shows).
+    @State private var recentIndex = 0
     @State private var hideTask: Task<Void, Never>?
     @State private var flipLabel: String?
     @State private var flipTask: Task<Void, Never>?
@@ -42,9 +45,15 @@ struct TVPlayerView: View {
 
             statusOverlay
 
-            infoBar
-                .frame(maxHeight: .infinity, alignment: .bottom)
-                .opacity(showInfo ? 1 : 0)
+            VStack(spacing: 0) {
+                if showDetails && !recents.isEmpty {
+                    recentStrip
+                        .transition(.opacity)
+                }
+                infoBar
+                    .opacity(showInfo || showDetails ? 1 : 0)
+            }
+            .frame(maxHeight: .infinity, alignment: .bottom)
 
             if showDetails {
                 detailsPanel
@@ -73,6 +82,12 @@ struct TVPlayerView: View {
             switch direction {
             case .up: model.step(-1)
             case .down: model.step(1)
+            case .left where showDetails && !recents.isEmpty:
+                recentIndex = max(0, recentIndex - 1)
+                keepDetails()
+            case .right where showDetails && !recents.isEmpty:
+                recentIndex = min(recents.count - 1, recentIndex + 1)
+                keepDetails()
             default: poke()
             }
         }
@@ -82,7 +97,15 @@ struct TVPlayerView: View {
             controller.togglePause()
             poke()
         }
-        .onExitCommand { model.closePlayer() }
+        .onExitCommand {
+            // Back hides the information first, then closes full screen.
+            if showDetails {
+                detailsTask?.cancel()
+                withAnimation(.easeOut(duration: 0.2)) { showDetails = false }
+            } else {
+                model.closePlayer()
+            }
+        }
         .onAppear {
             focused = true
             tried = [item.channel.id]
@@ -171,19 +194,72 @@ struct TVPlayerView: View {
 
     // MARK: Overlays
 
-    /// Centre button: show the stream information (and the info bar) for 8 seconds, or hide it again.
+    private var recents: [NowPlaying] { model.recentStreams(besides: item, limit: 5) }
+
+    /// Centre button: show the stream information and the recent streams (and the info bar) for 8 seconds. While
+    /// they show, it plays the picked recent stream (with none, it hides the information again).
     private func toggleDetails() {
         detailsTask?.cancel()
         if showDetails {
             withAnimation(.easeOut(duration: 0.2)) { showDetails = false }
+            let list = recents
+            if !list.isEmpty {
+                let pick = list[min(recentIndex, list.count - 1)]
+                model.play(pick.channel, gameTitle: pick.gameTitle, lineup: pick.lineup)
+            }
             return
         }
+        recentIndex = 0
         withAnimation(.easeOut(duration: 0.2)) { showDetails = true }
+        keepDetails()
+    }
+
+    /// Shows the information for another 8 seconds.
+    private func keepDetails() {
         poke()
+        detailsTask?.cancel()
         detailsTask = Task {
             try? await Task.sleep(for: .seconds(8))
             if !Task.isCancelled { withAnimation(.easeOut(duration: 0.4)) { showDetails = false } }
         }
+    }
+
+    /// The streams watched before this one, most recent on the left, along the bottom above the info bar.
+    private var recentStrip: some View {
+        let list = recents
+        return VStack(alignment: .leading, spacing: 12) {
+            Text("RECENTLY WATCHED · CLICK TO SWITCH")
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(Theme.muted)
+            HStack(spacing: 18) {
+                ForEach(Array(list.enumerated()), id: \.element.channel.id) { i, recent in
+                    let picked = i == min(recentIndex, list.count - 1)
+                    HStack(spacing: 14) {
+                        TVChannelIcon(url: recent.channel.icon, size: 48)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(model.playerTitle(recent))
+                                .font(.system(size: 21, weight: .semibold))
+                                .foregroundStyle(Theme.text)
+                            Text(recent.channel.name)
+                                .font(.system(size: 17))
+                                .foregroundStyle(Theme.soft)
+                        }
+                        .lineLimit(1)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .frame(width: 330, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 16).fill(.black.opacity(picked ? 0.75 : 0.5)))
+                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(picked ? Theme.accent : .white.opacity(0.12),
+                                                                     lineWidth: picked ? 4 : 1))
+                    .scaleEffect(picked ? 1.04 : 1)
+                    .animation(.easeOut(duration: 0.15), value: recentIndex)
+                }
+            }
+        }
+        .padding(.horizontal, 80)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var detailsPanel: some View {

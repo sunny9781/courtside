@@ -167,18 +167,13 @@ private fun HomeStatus(model: AppModel) {
                 if (downloading == null) Label("Install", size = 14.sp, weight = FontWeight.Bold, color = Theme.accent)
             }
         }
-        val progress = model.guideProgress
         when {
             model.refreshWaiting -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Filled.Schedule, null, tint = Theme.muted, modifier = Modifier.size(14.dp))
                 Label("EPG refreshes after this stream", size = 12.sp, weight = FontWeight.SemiBold, color = Theme.muted)
             }
             model.loading -> Label("Refreshing channels…", size = 12.sp, weight = FontWeight.SemiBold, color = Theme.muted)
-            model.guideLoading -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Label(if (progress != null) "Refreshing EPG ${(progress * 100).toInt()}%" else "Refreshing EPG · ${model.guideMegabytes} MB",
-                    size = 12.sp, weight = FontWeight.SemiBold, color = Theme.muted)
-                if (progress != null) ThinProgress(progress)
-            }
+            model.guideLoading -> Label("Refreshing EPG…", size = 12.sp, weight = FontWeight.SemiBold, color = Theme.muted)
         }
         model.error?.let { e ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
