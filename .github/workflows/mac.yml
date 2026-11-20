@@ -38,6 +38,9 @@ jobs:
 
       - name: Build
         run: |
+          # Without this the "| tail" below hid a failed build, and a half-built app (no program inside) was
+          # published as 2.5: macOS said it was damaged.
+          set -o pipefail
           # Build numbers start at 2 so a copy built in Xcode (build 1) is always "older".
           BUILD=$((BUILD_NUMBER + 1))
           # The version is the newest one in What's new (Shared/Changelog.swift), so they always match.
@@ -56,7 +59,9 @@ jobs:
             CURRENT_PROJECT_VERSION="$BUILD" \
             MARKETING_VERSION="$VERSION" \
             build | tail -n 40
-          test -d build/Build/Products/Release/Courtside.app
+          APP=build/Build/Products/Release/Courtside.app
+          test -x "$APP/Contents/MacOS/Courtside"
+          codesign --verify --deep "$APP"
 
       - name: Zip
         run: |

@@ -107,6 +107,11 @@ final class AppUpdater: ObservableObject {
         try Self.run("/usr/bin/ditto", ["-x", "-k", zip.path, folder.path])
         let app = folder.appendingPathComponent("Courtside.app")
         guard FileManager.default.fileExists(atPath: app.path) else { throw URLError(.cannotDecodeContentData) }
+        // Never install a broken copy (2.5 was published without its program after a failed build, and macOS
+        // then said the app was damaged): it must have its program and a valid signature.
+        let program = app.appendingPathComponent("Contents/MacOS/Courtside")
+        guard FileManager.default.isExecutableFile(atPath: program.path) else { throw URLError(.cannotDecodeContentData) }
+        try Self.run("/usr/bin/codesign", ["--verify", "--deep", app.path])
         return app
     }
 

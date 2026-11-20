@@ -2,6 +2,13 @@
 
 Read this at the start of a session. Keep it short and current.
 
+## 2.8 (2026-11-20, broken Mac 2.5)
+- Mac 2.5 (mac-115) was published without Contents/MacOS/Courtside: a Changelog.swift typo failed the build, and
+  `xcodebuild | tail` hid it (no pipefail), so `test -d` passed on the half-built app → "damaged or incomplete".
+  mac.yml now has `set -o pipefail` and checks the program + `codesign --verify --deep`; AppUpdater refuses a
+  download without its program or a valid signature. A Changelog-only fix doesn't republish the Mac app (paths-ignore):
+  after fixing a broken Mac release, run `gh workflow run mac.yml --ref main`.
+
 ## What it is
 Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - **Apple** (Swift/SwiftUI): `Courtside/` (Mac), `CourtsideTV/` (Apple TV), `CourtsideiOS/` (iPhone/iPad), shared code in `Shared/`.
