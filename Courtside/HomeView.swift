@@ -93,20 +93,31 @@ struct LeagueSection: View {
                 }
             }
 
-            // One grid of cards: live first, then coming up (greyed, by start time), then finished.
+            // Live first, then coming up (greyed, by start time). "Later today" and "Finished" fold below, each
+            // heading above its own cards (as on the TVs).
             let byStart: (Game, Game) -> Bool = { ($0.start ?? .distantFuture) < ($1.start ?? .distantFuture) }
-            let cards = live.sorted(by: byStart)
-                + upcoming.filter { showLater || !HomeFolds.isLater($0) }.sorted(by: byStart)
-                + (showFinished ? finished.sorted(by: byStart) : [])
             let width = cardWidth(for: model.games(for: league.sport), charWidth: 9.5, fixed: 112, minimum: 260, maximum: 560)
+            grid(live.sorted(by: byStart) + upcoming.filter { !HomeFolds.isLater($0) }.sorted(by: byStart), width: width)
+            if !later.isEmpty {
+                FoldButton(text: "Later today · \(later.count)", open: $showLater)
+                if showLater { grid(later.sorted(by: byStart), width: width) }
+            }
+            if !finished.isEmpty {
+                FoldButton(text: "Finished · \(finished.count)", open: $showFinished)
+                if showFinished { grid(finished.sorted(by: byStart), width: width) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func grid(_ cards: [Game], width: CGFloat) -> some View {
+        if !cards.isEmpty {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: width, maximum: width), spacing: 16, alignment: .top)],
                       alignment: .leading, spacing: 16) {
                 ForEach(cards) { game in
                     LiveGameCard(game: game, streams: model.streamCount(game.id)) { onOpen(game) }
                 }
             }
-            if !later.isEmpty { FoldButton(text: "Later today · \(later.count)", open: $showLater) }
-            if !finished.isEmpty { FoldButton(text: "Finished · \(finished.count)", open: $showFinished) }
         }
     }
 }

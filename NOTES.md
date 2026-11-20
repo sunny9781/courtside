@@ -102,7 +102,8 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   count only, "Channels" detail, right-click Favourite/Hide. League chips in `Sport.leagues` order with live badge.
 - Score cards: stream count (or "None" in red). Game screen: categories left (All, sections, Foreign, Local and likely),
   `GameStreamLine` rows (logo, name, now + progress, tags); lineup = current category; old StreamRow/FlowLayout unused.
-- Full screen: click / I / info button = stream information panel. Mini player: now times + progress, next.
+- Full screen: click / I = stream information panel (1.99: no info button). 1.99: Home folds (Later today, Finished)
+  sit above their own cards. Mini player: now times + progress, next.
 - EPG: right-click Hide on categories and channels. The Mac mini player stays at the top (not the TVs' corner).
 
 ## 1.96 (2026-11-20)

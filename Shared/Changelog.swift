@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "1.99", date: "2026-11-20", time: "01:50", title: "Home folds and full screen", changes: [
+            Change(text: "Home: \"Finished\" (and \"Later today\") now sit above their games, like the TVs, instead of under them.", apps: mac),
+            Change(text: "Full screen: no info button any more. Click the video or press I for stream information.", apps: mac),
+        ]),
         Release(version: "1.98", date: "2026-11-20", time: "02:00", title: "Polish", changes: [
             Change(text: "Updates: the button shows the download (Downloading 1.98 · 45%), then opens the install. Android's own screen asks you to confirm it.", apps: android),
             Change(text: "Home: once everything has loaded, the top sport is selected (not whichever sport loaded first), until you pick one yourself.", apps: android),
