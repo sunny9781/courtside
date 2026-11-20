@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.3", date: "2026-11-20", time: "14:15", title: "More games per row", changes: [
+            Change(text: "Home: score cards fill the width, so another card fits on each row when there's room.", apps: mac),
+            Change(text: "Home: with one league on screen, its logo, name and \"9 coming up\" sit at the right end of the league chips instead of on a row of their own. With several leagues, each heading is a smaller, single line.", apps: mac),
+        ]),
         Release(version: "2.2", date: "2026-11-20", time: "12:00", title: "Later games on Home", changes: [
             Change(text: "Home: games starting more than 2 hours away show as normal cards, after the ones coming up soon (no Later today fold).", apps: [.mac, .tv, .ios, .android]),
             Change(text: "Lite mode: a new Later games switch. Off folds games starting more than 2 hours away into one Later today row on Home (on when the rest of Lite mode is on).", apps: android),
