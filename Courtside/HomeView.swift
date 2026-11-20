@@ -119,7 +119,6 @@ struct LeagueSection: View {
                 }
             }
         }
-        }
     }
 }
 
