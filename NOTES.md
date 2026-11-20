@@ -115,7 +115,9 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   screen (DashboardView `leagueChips`), otherwise a compact heading per league (SportView `showHeading`).
 - Local Mac build: `shortcuts/Update Mac app.command` → `scripts/mac-install.sh` (xcodebuild Release arm64 into
   build-mac, reuses build-tv/SourcePackages, build number = newest mac-N release so GitHub releases still update it,
-  replaces the installed copy and opens it, prints the time). Merges built this way can use `[skip ci]`.
+  replaces the installed copy and opens it, prints the time). Kept, but NOT the normal flow: Sunny doesn't want to
+  double-click for Mac builds (2026-11-20). Keep the GitHub check + GitHub Mac release; don't merge Mac changes with
+  `[skip ci]` expecting a local build (2.3 was, then published with `gh workflow run mac.yml --ref main`).
 
 ## 2.1 (2026-11-20, Mac EPG)
 - `guideReading` (Shared): after the guide download, while the file is parsed: "Reading EPG…" (Mac/TV/iPhone); a stream
