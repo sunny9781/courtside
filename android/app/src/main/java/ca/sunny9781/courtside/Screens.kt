@@ -113,8 +113,8 @@ fun LoginScreen(model: AppModel, editing: Credentials? = null, onDone: (() -> Un
     var working by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    Row(Modifier.fillMaxSize().padding(40.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
     Column(
-        Modifier.fillMaxSize().padding(40.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -154,6 +154,16 @@ fun LoginScreen(model: AppModel, editing: Credentials? = null, onDone: (() -> Un
             Spacer(Modifier.height(12.dp))
             Label(it, size = 13.sp, color = Theme.losing, maxLines = 3)
         }
+    }
+    // Set up from your phone (2.6): the TV serves a sign-in page on the home network.
+    Spacer(Modifier.width(48.dp))
+    Box(Modifier.width(1.dp).height(320.dp).background(Theme.border))
+    Spacer(Modifier.width(48.dp))
+    PhoneSetupPanel { creds ->
+        val result = if (editing == null) model.signIn(creds) else model.updateAccount(creds)
+        if (result == null) onDone?.invoke()
+        result
+    }
     }
 }
 

@@ -77,6 +77,8 @@ dependencies {
     // headphones and speakers: over HDMI that sound goes to the TV to decode, but Bluetooth needs it decoded here.
     implementation("org.jellyfin.media3:media3-ffmpeg-decoder:1.5.0+1")
     implementation("io.coil-kt:coil-compose:2.7.0")
+    // QR code for "Set up from your phone" on the TV sign-in screen.
+    implementation("com.google.zxing:core:3.5.3")
     // Prepares the app's code for speed when it's installed (the Play Store does this for its apps; sideloaded
     // apps need this library or everything runs slower).
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
