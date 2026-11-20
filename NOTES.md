@@ -178,3 +178,10 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   tap, as many cards as fit (up to 4), tap plays. Android shared card: `RecentCard` in Screens.kt.
 - EPG refresh shows "Refreshing EPG…" only (no % or bar) everywhere; Apple keeps "Reading EPG…" after the download.
   The % sat at 100%: the file arrives in a burst and the reading/sorting/saving after it isn't measured.
+
+## 2.6 (2026-11-20, set up from your phone, Android TV)
+- TV sign-in screen (and Edit account) has a right-hand panel: QR code + address + 4-digit PIN (`PhoneSetup.kt`).
+  While it's on screen, `PhoneSetupServer` (plain ServerSocket, port 8642 or any free one) serves a sign-in page on
+  the home network; POST /login checks the PIN (5 wrong = new PIN), then runs signIn/updateAccount on the main thread
+  and answers with the result. Details never logged (ConnLog only says "details received"). QR via zxing core.
+- Not on the Android phone layout. Apple TV/Mac/iPhone not ported yet (Apple TV would use NWListener).

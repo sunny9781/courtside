@@ -74,15 +74,19 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
-        Release(version: "2.6", date: "2026-11-20", time: "16:40", title: "Navigation from the left", changes: [
+        Release(version: "2.7", date: "2026-11-20", time: "16:45", title: "Navigation from the left", changes: [
             Change(text: "No top bar: Home, EPG and Settings are in a rail down the left edge. Left from a left panel (or Back) opens it with names, connections, the EPG time and the version button; right goes back into the page.", apps: android),
             Change(text: "Home: a sport's leagues are a list beside it instead of chips. Right from the sport moves into them and the sports fold to icons; left (or Back) opens them out again.", apps: android),
             Change(text: "The EPG refresh shows at the right end of the now-playing bar.", apps: android),
         ]),
+        Release(version: "2.6", date: "2026-11-20", time: "16:35", title: "Set up from your phone", changes: [
+            Change(text: "Sign-in screen: scan the QR code with your phone, type your Xtream details there and tap Send to TV. Works over your home Wi-Fi only, with a PIN shown on the TV. Also on Settings › Account › Edit account.", apps: android),
+        ]),
         Release(version: "2.5", date: "2026-11-20", time: "16:26", title: "Streams ride out hiccups", changes: [
             Change(text: "A stream that stalls keeps its connection and carries on when the data comes back, like other IPTV apps, instead of being restarted after 4 seconds. Only a picture that hasn't moved for a whole minute is reopened.", apps: everywhere),
             Change(text: "No more jumping to another stream because one kept freezing (and no \"kept freezing\" message). Switching only happens if Settings › Switch to the next stream when one stalls is on.", apps: everywhere),
-            Change(text: "If the provider drops a stream that was playing, it opens the same stream again by itself (for up to 2 minutes) instead of stopping with an error.", apps: everywhere)
+            Change(text: "If the provider drops a stream that was playing, it opens the same stream again by itself (for up to 2 minutes) instead of stopping with an error.", apps: everywhere),
+        ]),
         Release(version: "2.4", date: "2026-11-20", time: "16:45", title: "Flip back to recent streams", changes: [
             Change(text: "Full screen: the streams you watched before show along the bottom when you press the centre button, most recent on the left. Left and right pick one, the centre button plays it, Back hides them.", apps: [.tv, .android]),
             Change(text: "Full screen: clicking the video (or I) also shows the streams you watched before, most recent on the left. Click one to go back to it, or use Left/Right and Return.", apps: mac),
