@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.4", date: "2026-11-20", time: "16:25", title: "Set up from your phone", changes: [
+            Change(text: "Sign-in screen: scan the QR code with your phone, type your Xtream details there and tap Send to TV. Works over your home Wi-Fi only, with a PIN shown on the TV. Also on Settings › Account › Edit account.", apps: android),
+        ]),
         Release(version: "2.3", date: "2026-11-20", time: "14:15", title: "More games per row", changes: [
             Change(text: "Home: score cards fill the width, so another card fits on each row when there's room.", apps: mac),
             Change(text: "Home: with one league on screen, its logo, name and \"9 coming up\" sit at the right end of the league chips instead of on a row of their own. With several leagues, each heading is a smaller, single line.", apps: mac),
