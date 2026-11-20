@@ -72,13 +72,10 @@ struct LeagueSection: View {
     let onOpen: (Game) -> Void
     /// Finished games show under the cards (as on the TVs); "Finished · 6" folds them away.
     @State private var showFinished = true
-    /// Games starting more than 2 hours from now fold into "Later today · 6"; click it to show them.
-    @State private var showLater = false
 
     var body: some View {
         let live = games.filter { $0.state == .live }
         let upcoming = games.filter { $0.state == .upcoming }
-        let later = upcoming.filter { HomeFolds.isLater($0) }
         let finished = games.filter { $0.state == .finished }
 
         VStack(alignment: .leading, spacing: 16) {
@@ -95,15 +92,11 @@ struct LeagueSection: View {
                 }
             }
 
-            // Live first, then coming up (greyed, by start time). "Later today" and "Finished" fold below, each
+            // Live first, then coming up (greyed, by start time). "Finished" folds below, each
             // heading above its own cards (as on the TVs).
             let byStart: (Game, Game) -> Bool = { ($0.start ?? .distantFuture) < ($1.start ?? .distantFuture) }
             let width = cardWidth(for: model.games(for: league.sport), charWidth: 9.5, fixed: 112, minimum: 260, maximum: 560)
-            grid(live.sorted(by: byStart) + upcoming.filter { !HomeFolds.isLater($0) }.sorted(by: byStart), width: width)
-            if !later.isEmpty {
-                FoldButton(text: "Later today · \(later.count)", open: $showLater)
-                if showLater { grid(later.sorted(by: byStart), width: width) }
-            }
+            grid(live.sorted(by: byStart) + upcoming.sorted(by: byStart), width: width)
             if !finished.isEmpty {
                 FoldButton(text: "Finished · \(finished.count)", open: $showFinished)
                 if showFinished { grid(finished.sorted(by: byStart), width: width) }
@@ -124,7 +117,7 @@ struct LeagueSection: View {
     }
 }
 
-/// "Later today · 6" / "Finished · 6": click to show or hide them.
+/// "Finished · 6": click to show or hide them.
 struct FoldButton: View {
     let text: String
     @Binding var open: Bool

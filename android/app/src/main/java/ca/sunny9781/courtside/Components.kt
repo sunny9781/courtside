@@ -321,6 +321,8 @@ object Perf {
     val noLogos get() = settings?.liteNoLogos == true
     val noScores get() = settings?.liteNoScores == true
     val foldFinished get() = settings?.liteFoldFinished == true
+    /** "Later today · N" on Home: only in Lite mode (and so never on the Shield or phones). */
+    val foldLater get() = settings?.let { it.slowDevice && it.liteFoldLater } == true
     val slowSettle get() = settings?.liteSettle == true
 }
 

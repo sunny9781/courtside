@@ -240,7 +240,6 @@ struct TVGamesPane: View {
     @State private var paneWidth: CGFloat = 1300
     /// Finished games start open on Apple TV (Android folds them in Lite mode only).
     @State private var showFinished = true
-    @State private var showLater = false
     @State private var showRedZone = false
     @FocusState private var focusedChip: TVNav.HomeSelection?
 
@@ -283,21 +282,15 @@ struct TVGamesPane: View {
         }
     }
 
-    /// Games starting more than 2 hours from now fold into "Later today · 18", like finished ones, so a busy day
-    /// mostly shows what's live or about to start.
-    private func isLater(_ g: Game) -> Bool {
-        g.state == .upcoming && (g.start ?? .distantPast) > Date().addingTimeInterval(2 * 3600)
-    }
-
-    /// The sections with only the games that are live or about to start; finished and later ones are folded (below).
+    /// The sections with only the games that are live or coming up; finished ones are folded (below). (No "Later
+    /// today" fold since 2.2: that's an Android Lite mode option only.)
     private var open: [PaneSection] {
         sections.compactMap { s in
-            let games = s.games.filter { $0.state != .finished && !isLater($0) }
+            let games = s.games.filter { $0.state != .finished }
             return games.isEmpty ? nil : PaneSection(id: s.id, title: s.title, symbol: s.symbol, league: s.league, games: games)
         }
     }
 
-    private var later: [Game] { sections.flatMap { $0.games.filter(isLater) } }
     private var finished: [Game] { sections.flatMap { $0.games.filter { $0.state == .finished } } }
 
     /// NFL RedZone: while any NFL game is live, its channels sit in a folder at the top of Live Now and Football.
@@ -382,7 +375,7 @@ struct TVGamesPane: View {
                 }
 
                 // Only when there's nothing at all (no "Nothing live or coming up": the folds below say it).
-                if open.isEmpty && finished.isEmpty && later.isEmpty {
+                if open.isEmpty && finished.isEmpty {
                     Text(emptyMessage)
                         .font(.system(size: 26))
                         .foregroundStyle(Theme.muted)
@@ -403,11 +396,6 @@ struct TVGamesPane: View {
                     gameGrid(section.games)
                 }
 
-                if !later.isEmpty {
-                    fold("Later today · \(later.count)", open: showLater) { showLater.toggle() }
-                    if showLater { gameGrid(later) }
-                }
-
                 // Finished games fold into one row at the bottom ("Finished · 6", click to show them), so a page
                 // mostly shows the games that are live or coming up.
                 if !finished.isEmpty {
@@ -416,7 +404,7 @@ struct TVGamesPane: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .onChange(of: nav.homeSelection) { showFinished = true; showLater = false; showRedZone = false }
+            .onChange(of: nav.homeSelection) { showFinished = true; showRedZone = false }
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { paneWidth = $0 }
             .onChange(of: focusedGame.wrappedValue) { if focusedGame.wrappedValue != nil || focusedChip != nil { inPane = true } }
             .onChange(of: focusedChip) { if focusedGame.wrappedValue != nil || focusedChip != nil { inPane = true } }

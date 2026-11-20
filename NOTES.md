@@ -63,7 +63,7 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   Settings › Playback › "4K with the HDR player" (`hdrPlayerFor4K`, default on). `wantsHDRPlayer` in AppModel picks
   4K by name/category/measured quality. The 1.80 AVPlayer/HLS path is gone. KSPlayer logs are set to panic (URLs).
 - Mac + iPhone (1.95): no Live Now (`startingSport`: favourite with something live, else any live), folds via
-  `HomeFolds` (Later today, RedZone), EPG colours from `Shared/GuideColour.swift` (moved out of TVGuide), sound tags
+  `HomeFolds` (RedZone; no Later today since 2.2), EPG colours from `Shared/GuideColour.swift` (moved out of TVGuide), sound tags
   (iPhone AVPlayer: `AVEngine.soundLabel` from the audio format), EPG download status in the top bar / top of Home,
   Settings sections Account/Playback/General/Hidden/Changelog, Connection log (`Shared/ConnLog.swift`, shared by the
   Apple apps; Android has its own ConnLog.kt). iPhone: two cards per row; sideways on an EPG category =
@@ -121,7 +121,7 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   count only, "Channels" detail, right-click Favourite/Hide. League chips in `Sport.leagues` order with live badge.
 - Score cards: stream count (or "None" in red). Game screen: categories left (All, sections, Foreign, Local and likely),
   `GameStreamLine` rows (logo, name, now + progress, tags); lineup = current category; old StreamRow/FlowLayout unused.
-- Full screen: click / I = stream information panel (1.99: no info button). 1.99: Home folds (Later today, Finished)
+- Full screen: click / I = stream information panel (1.99: no info button). 1.99: Home folds (Finished; Later today gone in 2.2)
   sit above their own cards. Mini player: now times + progress, next.
 - EPG: right-click Hide on categories and channels. The Mac mini player stays at the top (not the TVs' corner).
 
@@ -138,3 +138,8 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Lite mode options are named positively (Logos, Live scores, Player in the corner...); stored flags unchanged.
 - Stopping a stream on Android: Play/Pause on the remote stops the corner player; in Lite (no corner) Back from full
   screen stops it.
+
+## 2.2 (2026-11-20)
+- "Later today · N" fold on Home is now an Android Lite mode option only (Settings › Lite mode › Later games,
+  `liteFoldLater`, `Perf.foldLater` = slowDevice && liteFoldLater). Shield, Android phones, Apple TV, Mac and iPhone
+  show later games as ordinary cards after the ones coming up soon (`HomeFolds.isLater` removed).
