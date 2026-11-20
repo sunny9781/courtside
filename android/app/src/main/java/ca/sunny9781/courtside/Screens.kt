@@ -226,7 +226,15 @@ fun Shell(model: AppModel) {
     LaunchedEffect(Updater.message) { Updater.message?.let { model.notice = it } }
 
     Box(
-        Modifier.fillMaxSize().onKeyEvent { e ->
+        Modifier.fillMaxSize().onPreviewKeyEvent { e ->
+            // Holding select stopped the corner player: the rest of that press (it's still held) mustn't reach
+            // whatever has focus now (it opened that channel's Favourites menu).
+            if (model.swallowSelect && e.nativeKeyEvent.keyCode in listOf(KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
+                    KeyEvent.KEYCODE_NUMPAD_ENTER, KeyEvent.KEYCODE_BUTTON_A)) {
+                if (e.type == KeyEventType.KeyUp) model.swallowSelect = false
+                true
+            } else false
+        }.onKeyEvent { e ->
             // Play/Pause on the remote stops the player at the top (and frees the connection).
             if (e.type == KeyEventType.KeyDown && !full && model.pinned != null &&
                 e.key.nativeKeyCode in listOf(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PAUSE, KeyEvent.KEYCODE_MEDIA_STOP)
@@ -378,8 +386,15 @@ fun TopBar(model: AppModel) {
                 Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                     val color = if (focused) Theme.bg else if (ready != null) Theme.onAccent else Theme.muted
-                    Label(if (Updater.installing || busy) "Getting the latest version…" else if (ready != null) "Install update $ready"
-                          else "v${BuildConfig.VERSION_NAME}", size = 12.sp,
+                    // Downloading first ("Downloading 1.98 · 45%"), then one install: Android's own screen asks you
+                    // to confirm it.
+                    val dl = Updater.downloading
+                    Label(when {
+                        dl != null -> "Downloading $dl" + (Updater.downloadProgress?.let { " · ${(it * 100).toInt()}%" } ?: "…")
+                        Updater.installing || busy -> "Checking for a newer version…"
+                        ready != null -> "Install update $ready"
+                        else -> "v${BuildConfig.VERSION_NAME}"
+                    }, size = 12.sp,
                         weight = FontWeight.SemiBold, color = color)
                     Icon(if (ready != null) Icons.Filled.Download else if (Updater.checking) Icons.Filled.HourglassTop else Icons.Filled.Refresh,
                         null, tint = color, modifier = Modifier.size(13.dp))
@@ -421,7 +436,7 @@ fun PlayerVideo(modifier: Modifier = Modifier) {
 @Composable
 fun PlayerStrip(model: AppModel, item: NowPlaying, targets: FocusTargets, modifier: Modifier = Modifier) {
     TvButton(onClick = { model.play(item.channel, item.gameTitle, item.lineup, from = "strip") }, focusedScale = 1f,
-        onLongClick = { model.stopPinned(); model.notice = "Stopped" },
+        onLongClick = { model.swallowSelect = true; model.stopPinned(); model.notice = "Stopped" },
         modifier = modifier.padding(start = Theme.margin).focusProperties { canFocus = !model.tabsFocused }
             .focusProperties { up = model.leftPanel }
             .tracked(targets, "video").size(Theme.playerWidth, Theme.playerWidth * 9 / 16)) { _ ->
@@ -613,7 +628,13 @@ fun HomeScreen(model: AppModel) {
     // Live Now isn't listed any more (each sport shows its live games): it stands for the first sport.
     val sports = model.orderedSports()
     LaunchedEffect(model.homeSelection, sports.firstOrNull()) {
-        if (model.homeSelection == HomeSelection.LiveNow) sports.firstOrNull()?.let { model.homeSelection = HomeSelection.OfSport(it) }
+        val top = sports.firstOrNull() ?: return@LaunchedEffect
+        val following = !model.pickedSport && System.currentTimeMillis() - model.openedAt < 90_000
+        if (model.homeSelection == HomeSelection.LiveNow || (following && model.homeSelection is HomeSelection.OfSport && model.homeSelection != HomeSelection.OfSport(top))) {
+            model.homeSelection = HomeSelection.OfSport(top)
+            // The highlight on the left follows it too.
+            if (model.sideFocused) { delay(30); side.focus(top.name) }
+        }
     }
 
     // Back from the games: the selected sport.
@@ -668,6 +689,7 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
     var prompt by remember { mutableStateOf<HoldPrompt?>(null) }
     prompt?.let { p -> HoldMenu(p) { prompt = null } }
     fun choose(s: HomeSelection, now: Boolean) {
+        if (model.homeSelection != s) model.pickedSport = true
         val apply = { if (model.homeSelection != s) model.homeSelection = s }
         if (now) settle.now(apply) else settle.later(apply)
     }

@@ -280,7 +280,12 @@ fun EpgScreen(model: AppModel) {
 
         // The schedule ends level with the bottom of the player in the corner (it doesn't run on under the
         // now-playing bar), so the screen lines up cleanly.
-        Column(Modifier.weight(1f).fillMaxHeight().padding(bottom = barInset(model)).clipToBounds()) { run {
+        // Measured from the video itself (its bottom edge on screen), so the two line up exactly.
+        val view = androidx.compose.ui.platform.LocalView.current
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val bottomGap = model.cornerBounds?.takeIf { model.pinned != null }
+            ?.let { with(density) { (view.height - it.bottom).coerceAtLeast(0f).toDp() } } ?: barInset(model)
+        Column(Modifier.weight(1f).fillMaxHeight().padding(bottom = bottomGap).clipToBounds()) { run {
             LazyColumn(Modifier.fillMaxSize().enterAt { rows[lastRow] }, verticalArrangement = Arrangement.spacedBy(3.dp),
                 contentPadding = PaddingValues(top = 6.dp, bottom = 0.dp)) {
                 item(key = "header") {
@@ -415,6 +420,37 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
     TvButton(onClick = onClick, onFocus = onFocus, focusedScale = 1.02f, onLongClick = onLongClick,
         modifier = modifier.fillMaxWidth()) { focused ->
         val color = if (focused) Theme.bg else Theme.text
+        // Game screen and channel sports (no "next" column): the channel and what's on share the row and wrap onto a
+        // second line, so nothing is cut off; with nothing on, the name gets the room.
+        if (!showNext) {
+            Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(COLUMN_GAP)) {
+                Row(Modifier.weight(if (now != null) 0.42f else 1f), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!Perf.noLogos) ChannelIcon(channel.icon, 24.dp)
+                    Label(channel.name, size = 12.sp, weight = FontWeight.SemiBold, color = if (playing && !focused) Theme.accent else color,
+                        maxLines = 2, modifier = Modifier.weight(1f, fill = false))
+                    if (playing) Icon(Icons.Filled.GraphicEq, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(11.dp))
+                    if (model.isFavoriteChannel(channel.id))
+                        Icon(Icons.Filled.Favorite, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(10.dp))
+                }
+                if (now != null) Column(Modifier.weight(0.58f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    Label(now.title, size = 12.sp, color = color, maxLines = 2)
+                    val total = (now.end - now.start).toFloat()
+                    ProgressLine(if (total > 0) (System.currentTimeMillis() - now.start) / total else 0f, focused)
+                }
+                val quality = badge?.takeIf { it.isNotEmpty() } ?: model.measuredQuality[channel.id]
+                val fps = model.measuredFrameRate[channel.id]
+                val sound = model.measuredAudio[channel.id]
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (!quality.isNullOrEmpty()) Badge(quality, fill = if (quality == "4K") Theme.accent else Theme.raised,
+                        color = if (quality == "4K") Theme.onAccent else Theme.soft)
+                    if (fps != null && fps > 0) Badge(Playback.fpsLabel(fps), fill = Theme.raised, color = Theme.soft)
+                    if (!sound.isNullOrEmpty()) Badge(sound, fill = Theme.raised, color = Theme.soft)
+                }
+            }
+            return@TvButton
+        }
         Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             // Fixed columns on every screen (channel, now, next): one line each; on the row you're on, text that
             // doesn't fit scrolls inside its column.
@@ -479,7 +515,7 @@ private fun HitHeader(hit: EpgSearch.Hit, open: Boolean, onClick: () -> Unit) {
  */
 internal object Guide {
     const val SPAN = 150 * 60_000L
-    val channelWidth = 110.dp
+    val channelWidth = 165.dp
     val rowHeight = 46.dp
 
     /** The guide starts at the last half hour, so up to 30 minutes of what's on is behind the line. */
@@ -614,10 +650,10 @@ internal fun GuideRow(model: AppModel, channel: Channel, playing: Boolean, start
             Row(Modifier.width(Guide.channelWidth).fillMaxHeight().background(if (focused) Theme.text else Theme.card, shape)
                 .then(if (playing) Modifier.border(2.dp, Theme.accent, shape) else Modifier)
                 .padding(horizontal = 5.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                if (!Perf.noLogos) ChannelIcon(channel.icon, 20.dp)
+                if (!Perf.noLogos) ChannelIcon(channel.icon, 30.dp)
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Label(channel.name, size = 10.sp, weight = FontWeight.SemiBold, color = color, maxLines = 3,
+                        Label(channel.name, size = 13.sp, weight = FontWeight.SemiBold, color = color, maxLines = 3,
                             modifier = Modifier.weight(1f, fill = false))
                         if (model.isFavoriteChannel(channel.id))
                             Icon(Icons.Filled.Favorite, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(8.dp))
