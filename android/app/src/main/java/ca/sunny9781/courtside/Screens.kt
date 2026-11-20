@@ -64,6 +64,8 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun CourtsideApp(model: AppModel) {
+    // Phones and tablets: the touch app (like the iPhone app).
+    if (!Device.tv) { PhoneApp(model); return }
     Box(Modifier.fillMaxSize().background(Theme.bg)) {
         when {
             model.credentials == null -> LoginScreen(model)
