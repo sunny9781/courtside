@@ -84,7 +84,8 @@ enum Changelog {
             Change(text: "Switching to the next stream when one stalls is off by default (Settings › Playback turns it back on).", apps: [.mac, .tv, .ios, .android]),
             Change(text: "Home: no more \"Nothing live or coming up\" or \"Nothing in the next 2 hours\" messages.", apps: [.tv, .android]),
             Change(text: "Logos are kept once loaded (in memory and on disk), so Home shows them straight away instead of loading them again.", apps: [.mac, .tv, .ios]),
-            Change(text: "Scores update every minute only while a game is live or about to start (otherwise every 5 minutes), and not at all while the app is in the background.", apps: [.mac, .tv, .ios, .android])
+            Change(text: "Scores update every minute only while a game is live or about to start (otherwise every 5 minutes).", apps: [.mac, .tv, .ios]),
+            Change(text: "Scores update every minute only while a game is live or about to start (otherwise every 5 minutes), and not at all while the app isn't on screen.", apps: android)
         ], titleApps: [.mac, .tv, .ios, .android]),
         Release(version: "1.95", date: "2026-11-19", time: "13:30", title: "Score cards, and the Mac and iPhone catch up", changes: [
             Change(text: "Home: games are score cards again, as many to a row as fit: the time or live clock, the 4K tag and number of streams on top, then each team with its logo and score.", apps: tvAndroid),
