@@ -15,6 +15,9 @@ struct TVLiveView: View {
     }
     /// The channel playing in the mini player: only one you clicked.
     @FocusState private var focusedCategory: String?
+    /// A category waiting for you to stop on it (2.25): moving through the list only draws the one you end up on.
+    @State private var pendingCategory: Task<Void, Never>?
+    @State private var waitingCategory: String?
     @State private var search = ""
     @State private var hits: [EPGSearch.Hit] = []
     /// Result groups opened or closed by hand (otherwise they follow Hit.startsOpen).
@@ -130,9 +133,21 @@ struct TVLiveView: View {
             .onDisappear { nav.sideFocused = false }
             .onChange(of: focusedCategory) {
                 nav.sideFocused = focusedCategory != nil
-                // Moving onto a category shows its channels; moving onto a group ("g:" ids) shows all of the group's
-                // channels, and clicking it opens it.
-                if let focusedCategory, focusedCategory != selectedID {
+                // Moving onto a category shows its channels once you stop on it (a quarter second), so passing several
+                // categories doesn't draw each one's guide; moving right into the channels shows it straight away.
+                // A group ("g:" ids) shows all of the group's channels, and clicking it opens it.
+                pendingCategory?.cancel()
+                guard let focusedCategory else {
+                    if let waitingCategory { selectedID = waitingCategory }
+                    waitingCategory = nil
+                    return
+                }
+                guard focusedCategory != selectedID else { waitingCategory = nil; return }
+                waitingCategory = focusedCategory
+                pendingCategory = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(250))
+                    guard !Task.isCancelled else { return }
+                    waitingCategory = nil
                     selectedID = focusedCategory
                 }
             }
@@ -269,6 +284,8 @@ struct TVLiveView: View {
         let key = entry.id.hasPrefix("g:") ? String(entry.id.dropFirst(2)) : entry.id
         let favorite = entry.id != Self.favoritesID && model.isFavorite(category: key)
         return Button {
+            pendingCategory?.cancel()
+            waitingCategory = nil
             selectedID = entry.id
         } label: {
             HStack(spacing: 14) {

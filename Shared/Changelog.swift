@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.25", date: "2026-11-21", time: "11:50", title: "Smoother EPG categories", changes: [
+            Change(text: "EPG: moving through the categories shows a category's channels once you stop on it (a quarter second), so scrolling the list no longer draws every category on the way; clicking or moving right shows it at once.", apps: tv),
+        ]),
         Release(version: "2.24", date: "2026-11-21", time: "11:30", title: "Navigation from the left", changes: [
             Change(text: "No top bar: Home, EPG and Settings are in a rail down the left edge, like Android TV. Left from a left column (or Back) opens it with names, connections, the EPG time and the version; right or clicking a tab goes back into the page on what's selected.", apps: tv),
             Change(text: "Home: a sport's leagues are a list beside it instead of chips. Right from the sport moves into them and the sports fold to icons; left opens them out again, Back from a league goes to its sport.", apps: tv),
