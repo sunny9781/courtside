@@ -208,3 +208,12 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   inside `remember(all, league)`, so rows don't move while you're on the screen; the Apple views recompute live.
 - 2.15: ties on resolution and rounded fps go to HDR (`measuredHDR`/`measuredHdr`, any label), then `soundRank`
   (Atmos 4, Dolby+ 3, 5.1/Dolby 2, Stereo 1, unknown 0), then the matcher's order.
+
+## 2.16 (2026-11-20)
+- Reconnect in full screen (all apps): first tile of the recent strip (strip now shows even with no recents). TVs:
+  strip index -2 = Reconnect, -1 = bin (only with recents), 0… = recents; opens on the first recent, else Reconnect.
+  Android `Playback.reconnect()` (stop, clear, 600 ms, open same URL; ConnLog "Reconnect pressed"). Apple views:
+  `controller.stop()` / `playback.stop()`, 600 ms, `start()`. Apple TV strip shows 4 recents (room for 2 icons).
+- A stream "looping the last ~15 s": likely the provider's restream server replaying its buffer each time the app
+  reconnects to a stalled source (auto-reconnect after a drop since 2.5). If it recurs, the Connection log should
+  show repeated "Stream dropped: opening … again". Possible follow-up: stop auto-reconnecting after a few quick drops.

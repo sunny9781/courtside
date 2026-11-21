@@ -46,7 +46,7 @@ struct TVPlayerView: View {
             statusOverlay
 
             VStack(spacing: 0) {
-                if showDetails && !recents.isEmpty {
+                if showDetails {
                     recentStrip
                         .transition(.opacity)
                 }
@@ -74,12 +74,10 @@ struct TVPlayerView: View {
             switch direction {
             case .up: model.step(-1)
             case .down: model.step(1)
-            case .left where showDetails && !recents.isEmpty:
-                recentIndex = max(-1, recentIndex - 1)   // -1: the bin (clear the list)
-                keepDetails()
-            case .right where showDetails && !recents.isEmpty:
-                recentIndex = min(recents.count - 1, recentIndex + 1)
-                keepDetails()
+            case .left where showDetails:
+                moveInStrip(-1)
+            case .right where showDetails:
+                moveInStrip(1)
             default: poke()
             }
         }
@@ -187,24 +185,46 @@ struct TVPlayerView: View {
 
     // MARK: Overlays
 
-    private var recents: [NowPlaying] { model.recentStreams(besides: item, limit: 5) }
+    private var recents: [NowPlaying] { model.recentStreams(besides: item, limit: 4) }
 
-    /// Centre button: show the recent streams (and the info bar) for 8 seconds (no stream information panel since 2.11). While
-    /// they show, it plays the picked recent stream (with none, it hides the information again).
+    /// What can be picked in the strip: -2 = Reconnect, -1 = the bin, 0… = a recent stream.
+    private var stripItems: [Int] { [-2] + (recents.isEmpty ? [] : [-1] + Array(recents.indices)) }
+    private var picked: Int { stripItems.contains(recentIndex) ? recentIndex : (stripItems.count > 2 ? 0 : -2) }
+
+    private func moveInStrip(_ d: Int) {
+        let items = stripItems
+        let i = items.firstIndex(of: picked) ?? 0
+        recentIndex = items[min(max(i + d, 0), items.count - 1)]
+        keepDetails()
+    }
+
+    /// Reconnect (2.16): close the stream, give the provider a moment to see it gone, then open the same one again.
+    private func reconnect() {
+        ConnLog.add("Reconnect pressed")
+        controller.stop()
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            start()
+        }
+    }
+
+    /// Centre button: show Reconnect, the bin and the recent streams (and the info bar) for 8 seconds (no stream
+    /// information panel since 2.11). While they show, it does what's picked.
     private func toggleDetails() {
         detailsTask?.cancel()
         if showDetails {
             withAnimation(.easeOut(duration: 0.2)) { showDetails = false }
             let list = recents
-            if recentIndex < 0, !list.isEmpty {
-                model.clearWatched()
-            } else if !list.isEmpty {
-                let pick = list[min(recentIndex, list.count - 1)]
+            switch picked {
+            case -2: reconnect()
+            case -1: model.clearWatched()
+            default:
+                let pick = list[picked]
                 model.play(pick.channel, gameTitle: pick.gameTitle, lineup: pick.lineup)
             }
             return
         }
-        recentIndex = 0
+        recentIndex = recents.isEmpty ? -2 : 0
         withAnimation(.easeOut(duration: 0.2)) { showDetails = true }
         keepDetails()
     }
@@ -223,21 +243,16 @@ struct TVPlayerView: View {
     private var recentStrip: some View {
         let list = recents
         return VStack(alignment: .leading, spacing: 12) {
-            Text("RECENTLY WATCHED · CLICK TO SWITCH")
+            Text(picked == -2 ? "RECONNECT TO THIS STREAM · CLICK" : picked == -1 ? "CLEAR RECENT STREAMS · CLICK"
+                 : "RECENTLY WATCHED · CLICK TO SWITCH")
                 .font(.system(size: 17, weight: .bold))
                 .foregroundStyle(Theme.muted)
             HStack(spacing: 18) {
-                // The bin, on the left: clears the list.
-                Image(systemName: "trash")
-                    .font(.system(size: 30, weight: .semibold))
-                    .foregroundStyle(.white.opacity(recentIndex < 0 ? 0.9 : 0.6))
-                    .frame(width: 76, height: 76)
-                    .background(RoundedRectangle(cornerRadius: 16).fill(.black.opacity(recentIndex < 0 ? 0.35 : 0.18)))
-                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(recentIndex < 0 ? Theme.accent : .white.opacity(0.08),
-                                                                     lineWidth: recentIndex < 0 ? 4 : 1))
-                    .scaleEffect(recentIndex < 0 ? 1.04 : 1)
+                // Reconnect, then the bin (clears the list).
+                stripIcon("arrow.clockwise", picked: picked == -2)
+                if !list.isEmpty { stripIcon("trash", picked: picked == -1) }
                 ForEach(Array(list.enumerated()), id: \.element.channel.id) { i, recent in
-                    let picked = i == recentIndex
+                    let picked = i == self.picked
                     HStack(spacing: 14) {
                         TVChannelIcon(url: recent.channel.icon, size: 48)
                         VStack(alignment: .leading, spacing: 3) {
@@ -264,6 +279,18 @@ struct TVPlayerView: View {
         }
         .padding(.horizontal, 80)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func stripIcon(_ symbol: String, picked: Bool) -> some View {
+        Image(systemName: symbol)
+            .font(.system(size: 30, weight: .semibold))
+            .foregroundStyle(.white.opacity(picked ? 0.9 : 0.6))
+            .frame(width: 76, height: 76)
+            .background(RoundedRectangle(cornerRadius: 16).fill(.black.opacity(picked ? 0.35 : 0.18)))
+            .overlay(RoundedRectangle(cornerRadius: 16).stroke(picked ? Theme.accent : .white.opacity(0.08),
+                                                             lineWidth: picked ? 4 : 1))
+            .scaleEffect(picked ? 1.04 : 1)
+            .animation(.easeOut(duration: 0.15), value: picked)
     }
 
     private func poke() {

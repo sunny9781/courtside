@@ -580,7 +580,10 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
     var detailsTick by remember { mutableIntStateOf(0) }
     LaunchedEffect(detailsTick) { if (showDetails) { delay(8000); showDetails = false } }
     val recents = model.recentStreams(item, limit = 5)
+    // What's picked in the strip: -2 = Reconnect, -1 = the bin, 0… = a recent stream.
     var recentIndex by remember { mutableIntStateOf(0) }
+    val stripItems = listOf(-2) + (if (recents.isEmpty()) emptyList() else listOf(-1) + recents.indices)
+    val picked = recentIndex.takeIf { it in stripItems } ?: stripItems.getOrElse(2) { -2 }
     // Back hides the information first, then closes full screen.
     BackHandler(enabled = showDetails) { showDetails = false }
     var flip by remember { mutableStateOf<String?>(null) }
@@ -647,21 +650,24 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
                         Playback.togglePause(); poke++; true
                     }
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
-                        if (showDetails && recents.isNotEmpty()) {
-                            // The recent streams are showing: play the picked one, or clear them (the bin, on the left).
+                        if (showDetails) {
+                            // The strip is showing: reconnect, clear the list (the bin), or play the picked stream.
                             showDetails = false
-                            if (recentIndex < 0) model.clearWatched()
-                            else recents[recentIndex.coerceIn(0, recents.size - 1)].let { model.play(it.channel, it.gameTitle, it.lineup) }
+                            when (picked) {
+                                -2 -> { Playback.reconnect(); message("Reconnecting…") }
+                                -1 -> model.clearWatched()
+                                else -> recents[picked].let { model.play(it.channel, it.gameTitle, it.lineup) }
+                            }
                         } else {
-                            if (!showDetails) recentIndex = 0
-                            showDetails = !showDetails
+                            recentIndex = if (recents.isEmpty()) -2 else 0
+                            showDetails = true
                         }
                         detailsTick++; poke++; true
                     }
                     KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                        if (showDetails && recents.isNotEmpty()) {
+                        if (showDetails) {
                             val d = if (e.key.nativeKeyCode == KeyEvent.KEYCODE_DPAD_LEFT) -1 else 1
-                            recentIndex = (recentIndex + d).coerceIn(-1, recents.size - 1)
+                            recentIndex = stripItems[(stripItems.indexOf(picked) + d).coerceIn(0, stripItems.size - 1)]
                             detailsTick++
                         }
                         poke++; true
@@ -690,13 +696,18 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
             }
         }
         Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
-        if (showDetails && recents.isNotEmpty()) {
+        if (showDetails) {
             Column(Modifier.padding(horizontal = 40.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Label("RECENTLY WATCHED · OK TO SWITCH", size = 9.sp, weight = FontWeight.Bold, color = Theme.muted)
+                Label(when (picked) {
+                    -2 -> "RECONNECT TO THIS STREAM · OK"
+                    -1 -> "CLEAR RECENT STREAMS · OK"
+                    else -> "RECENTLY WATCHED · OK TO SWITCH"
+                }, size = 9.sp, weight = FontWeight.Bold, color = Theme.muted)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ClearRecentButton(picked = recentIndex < 0)
+                    ReconnectButton(picked = picked == -2)
+                    if (recents.isNotEmpty()) ClearRecentButton(picked = picked == -1)
                     recents.forEachIndexed { i, r ->
-                        RecentCard(model, r, picked = i == recentIndex.coerceIn(-1, recents.size - 1), width = 165.dp)
+                        RecentCard(model, r, picked = i == picked, width = 165.dp)
                     }
                 }
             }
@@ -726,13 +737,22 @@ fun FullScreenPlayer(model: AppModel, item: NowPlaying) {
 
 /** Clears the recent streams: a bin at the left of the strip, as see-through as the cards. */
 @Composable
-fun ClearRecentButton(picked: Boolean, modifier: Modifier = Modifier) {
+fun ClearRecentButton(picked: Boolean, modifier: Modifier = Modifier) =
+    StripIcon(Icons.Filled.Delete, "Clear recent streams", picked, modifier)
+
+/** Closes and reopens the stream (for a feed that's stuck or looping): first in the strip. */
+@Composable
+fun ReconnectButton(picked: Boolean, modifier: Modifier = Modifier) =
+    StripIcon(Icons.Filled.Refresh, "Reconnect", picked, modifier)
+
+@Composable
+private fun StripIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, description: String, picked: Boolean,
+                      modifier: Modifier) {
     Box(modifier.size(38.dp).clip(RoundedCornerShape(10.dp))
         .background(Color.Black.copy(alpha = if (picked) 0.35f else 0.18f))
         .border(if (picked) 2.dp else 1.dp, if (picked) Theme.accent else Color.White.copy(alpha = 0.08f), RoundedCornerShape(10.dp)),
         contentAlignment = Alignment.Center) {
-        Icon(Icons.Filled.Delete, "Clear recent streams", tint = Color.White.copy(alpha = if (picked) 0.9f else 0.6f),
-            modifier = Modifier.size(18.dp))
+        Icon(icon, description, tint = Color.White.copy(alpha = if (picked) 0.9f else 0.6f), modifier = Modifier.size(18.dp))
     }
 }
 

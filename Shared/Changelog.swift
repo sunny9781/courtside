@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.16", date: "2026-11-20", time: "23:45", title: "Reconnect button", changes: [
+            Change(text: "Full screen: a Reconnect button at the left of the recent streams closes the stream and opens it again, for a feed that's stuck or keeps repeating the same few seconds. On a TV: centre button, left to the first button, centre again.", apps: [.tv, .android]),
+            Change(text: "Full screen: a Reconnect button at the left of the recent streams closes the stream and opens it again, for a feed that's stuck or keeps repeating the same few seconds.", apps: [.mac, .ios]),
+        ]),
         Release(version: "2.15", date: "2026-11-20", time: "23:25", title: "HDR and sound count too", changes: [
             Change(text: "Game screen: streams with the same resolution and frame rate (59.94 counts as 60) are now ordered by HDR first, then sound (Atmos, Dolby+, 5.1, Stereo), once they've been played.", apps: everywhere),
         ]),
