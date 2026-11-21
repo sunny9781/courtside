@@ -78,7 +78,17 @@ final class PlaybackController: ObservableObject {
         #endif
     }
 
-    init() {
+    /// Whether this player's viewings count towards the reliability dots. StreamStats follows one viewing at a time,
+    /// so a second player (Apple TV multiview, 2.30) leaves it to the main one.
+    private let measuresStats: Bool
+    private var stats: StreamStats? { measuresStats ? StreamStats.shared : nil }
+    /// No sound from this player (Apple TV multiview: only the tile with the sound plays audio).
+    @Published private(set) var muted = false
+    /// The muted volume still has to reach VLC (it only takes it once the sound output exists).
+    private var volumeDirty = false
+
+    init(measuresStats: Bool = true) {
+        self.measuresStats = measuresStats
         view = PlatformView()
         #if os(macOS)
         view.wantsLayer = true
@@ -123,7 +133,7 @@ final class PlaybackController: ObservableObject {
         }
         freezeWatch.reset()
         droppedSince = nil
-        StreamStats.shared.begin(url)
+        stats?.begin(url)
         #if os(tvOS) && canImport(KSPlayer)
         wantHDR = hdrPlayer && !hdrFailed.contains(url)
         #endif
@@ -141,7 +151,7 @@ final class PlaybackController: ObservableObject {
     private func reconnectAfterDrop() -> Bool {
         guard !resolution.isEmpty, currentURL != nil else { return false }
         let now = Date()
-        if droppedSince == nil { StreamStats.shared.dropped() }
+        if droppedSince == nil { stats?.dropped() }
         let since = droppedSince ?? now
         droppedSince = since
         guard now.timeIntervalSince(since) < 120 else { return false }
@@ -202,6 +212,7 @@ final class PlaybackController: ObservableObject {
             media.addOption(":network-caching=\(bufferMs)")
             self.player.media = media
             self.player.play()
+            if self.muted { self.volumeDirty = true }
             #else
             let item = AVPlayerItem(url: url)
             item.preferredForwardBufferDuration = Double(bufferMs) / 1000
@@ -256,6 +267,31 @@ final class PlaybackController: ObservableObject {
         #endif
     }
 
+    /// Turns this player's sound off or back on (Apple TV multiview). Plays on as before either way.
+    func setMuted(_ on: Bool) {
+        muted = on
+        volumeDirty = true
+        applyMute()
+    }
+
+    private func applyMute() {
+        #if canImport(VLCKitSPM)
+        #if os(tvOS) && canImport(KSPlayer)
+        hdr.muted = muted
+        #endif
+        // VLC only keeps a volume once the stream's sound output exists, so while muted it's set again on each poll
+        // (a reopened stream gets a fresh output).
+        if let sound = player.audio as VLCAudio? {
+            let target: Int32 = muted ? 0 : 100
+            if sound.volume != target { sound.volume = target }
+            volumeDirty = muted || sound.volume != target
+        }
+        #else
+        player.isMuted = muted
+        volumeDirty = false
+        #endif
+    }
+
     func togglePause() {
         #if canImport(VLCKitSPM)
         #if os(tvOS) && canImport(KSPlayer)
@@ -271,7 +307,7 @@ final class PlaybackController: ObservableObject {
     }
 
     func stop() {
-        StreamStats.shared.end()
+        stats?.end()
         timer?.invalidate()
         timer = nil
         pendingOpen?.cancel()
@@ -292,7 +328,7 @@ final class PlaybackController: ObservableObject {
                 guard let self else { return }
                 self.poll()
                 let picture = !self.resolution.isEmpty
-                StreamStats.shared.tick(picture: picture, playing: picture && self.status == .playing,
+                self.stats?.tick(picture: picture, playing: picture && self.status == .playing,
                                         buffering: picture && self.status == .buffering)
             }
         }
@@ -327,12 +363,13 @@ final class PlaybackController: ObservableObject {
             break
         }
         if status == .playing { droppedSince = nil }
+        if muted || volumeDirty { applyMute() }
         let size = player.videoSize
         if size.height > 0 { resolution = Self.label(size.height) }
         // Hiccups are waited out with the connection open; only 10 seconds without progress reopens the stream.
         let watching = !resolution.isEmpty && (status == .playing || status == .buffering || status == .opening)
         switch freezeWatch.check(progress: Double(player.time.intValue), watching: watching) {
-        case .restart: StreamStats.shared.froze(); restartQuietly()
+        case .restart: stats?.froze(); restartQuietly()
         case .skip: onRepeatedFreezing?()
         case .none: break
         }
@@ -394,7 +431,7 @@ final class PlaybackController: ObservableObject {
         if height > 0 { resolution = Self.label(height) }
         let watching = !resolution.isEmpty && (status == .playing || status == .buffering)
         switch freezeWatch.check(progress: hdr.time, watching: watching) {
-        case .restart: StreamStats.shared.froze(); restartQuietly()
+        case .restart: stats?.froze(); restartQuietly()
         case .skip: onRepeatedFreezing?()
         case .none: break
         }

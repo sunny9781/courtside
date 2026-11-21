@@ -10,6 +10,8 @@ struct TVPinnedStrip: View {
     @EnvironmentObject var nav: TVNav
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
     @ObservedObject private var controller = PlaybackController.shared
+    /// Multiview shows this player's video in its first tile meanwhile.
+    @ObservedObject private var multiview = TVMultiview.shared
     let item: NowPlaying
     let game: Game?
 
@@ -20,7 +22,7 @@ struct TVPinnedStrip: View {
         } label: {
             ZStack {
                 Color.black
-                if model.nowPlaying == nil && !DemoData.isOn {
+                if model.nowPlaying == nil && !multiview.active && !DemoData.isOn {
                     TVVideoSurface(view: controller.view)
                 }
             }
@@ -29,8 +31,8 @@ struct TVPinnedStrip: View {
         }
         .buttonStyle(.card)
         .disabled(nav.tabsFocused)
-        .task(id: "\(item.channel.id)|\(model.nowPlaying == nil)") {
-            guard model.nowPlaying == nil, !DemoData.isOn else { return }
+        .task(id: "\(item.channel.id)|\(model.nowPlaying == nil)|\(multiview.active)") {
+            guard model.nowPlaying == nil, !multiview.active, !DemoData.isOn else { return }
             // Back from full screen this is the same stream, and play() carries on without reconnecting.
             model.startStream(item.channel, on: controller, bufferMs: bufferMs)
             model.checkConnectionsSoon()
@@ -114,11 +116,14 @@ struct TVPlayPauseHold: UIViewRepresentable {
     let action: () -> Void
     /// A short press (only once it's clear it isn't a hold, so a hold never also counts as a short press).
     var tap: (() -> Void)? = nil
+    /// The remote button held (multiview: select, for a tile's panel).
+    var pressType: UIPress.PressType = .playPause
 
     func makeUIView(context: Context) -> HoldView {
         let view = HoldView()
         view.action = action
         view.tap = tap
+        view.pressType = pressType
         view.isUserInteractionEnabled = false
         return view
     }
@@ -131,6 +136,7 @@ struct TVPlayPauseHold: UIViewRepresentable {
     final class HoldView: UIView {
         var action: (() -> Void)?
         var tap: (() -> Void)?
+        var pressType: UIPress.PressType = .playPause
         private var recognizer: UILongPressGestureRecognizer?
         private var tapRecognizer: UITapGestureRecognizer?
 
@@ -142,13 +148,14 @@ struct TVPlayPauseHold: UIViewRepresentable {
             tapRecognizer = nil
             guard let window else { return }
             let hold = UILongPressGestureRecognizer(target: self, action: #selector(held(_:)))
-            hold.allowedPressTypes = [NSNumber(value: UIPress.PressType.playPause.rawValue)]
+            hold.allowedPressTypes = [NSNumber(value: pressType.rawValue)]
             hold.minimumPressDuration = 0.6
             hold.cancelsTouchesInView = false
             window.addGestureRecognizer(hold)
             recognizer = hold
+            guard tap != nil else { return }
             let press = UITapGestureRecognizer(target: self, action: #selector(tapped))
-            press.allowedPressTypes = [NSNumber(value: UIPress.PressType.playPause.rawValue)]
+            press.allowedPressTypes = [NSNumber(value: pressType.rawValue)]
             press.cancelsTouchesInView = false
             press.require(toFail: hold)
             window.addGestureRecognizer(press)

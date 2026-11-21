@@ -7,6 +7,7 @@ struct TVGameView: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var nav: TVNav
     @AppStorage(Prefs.hideSD) private var hideSD = true
+    @AppStorage(Prefs.multiview) private var multiviewOn = true
     @State private var selected = "All"
     @FocusState private var focusedCategory: String?
     @State private var pendingCategory: Task<Void, Never>?
@@ -176,6 +177,14 @@ struct TVGameView: View {
                         }
                         .buttonStyle(TVRowButtonStyle())
                         .focused($focusedStream, equals: match.channel.id)
+                        // Hold select (2.30): this stream beside the one playing.
+                        .contextMenu {
+                            if multiviewOn && model.pinned != nil && match.channel.id != model.pinned?.channel.id {
+                                Button("Watch alongside", systemImage: "rectangle.split.2x1") {
+                                    TVMultiview.shared.watchAlongside(match.channel, game: game, model: model)
+                                }
+                            }
+                        }
                     }
                 }
             }

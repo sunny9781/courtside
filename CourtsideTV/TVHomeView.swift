@@ -371,6 +371,7 @@ struct TVGamesPane: View {
     var focusedGame: FocusState<String?>.Binding
     @AppStorage(Prefs.hiddenSports) private var hiddenSports = ""
     @AppStorage(Prefs.sportOrder) private var sportOrder = ""
+    @AppStorage(Prefs.multiview) private var multiviewOn = true
     /// Width available for the cards, so they stretch to fill the row (like the Mac) instead of leaving a gap.
     @State private var paneWidth: CGFloat = 1300
     /// Finished games start open on Apple TV (Android folds them in Lite mode only).
@@ -479,6 +480,14 @@ struct TVGamesPane: View {
                 }
                 .buttonStyle(TVCardButtonStyle())
                 .focused(focusedGame, equals: game.id)
+                // Hold select (2.30): this game's best stream beside the one playing.
+                .contextMenu {
+                    if multiviewOn && model.pinned != nil && !model.mainStreams(game.id).isEmpty {
+                        Button("Watch alongside", systemImage: "rectangle.split.2x1") {
+                            TVMultiview.shared.watchAlongside(nil, game: game, model: model)
+                        }
+                    }
+                }
                 button
             }
         }
