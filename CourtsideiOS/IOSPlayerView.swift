@@ -278,13 +278,13 @@ struct IOSPlayerView: View {
     @ViewBuilder
     private var recentStrip: some View {
         let list = model.recentStreams(besides: item, limit: 4)
-        if !list.isEmpty {
+        Group {
             ViewThatFits(in: .horizontal) {
-                ForEach((1...list.count).reversed(), id: \.self) { n in
+                ForEach((0...list.count).reversed(), id: \.self) { n in
                     HStack(spacing: 8) {
-                        // The bin, on the left: clears the list.
-                        Button { model.clearWatched(); poke() } label: {
-                            Image(systemName: "trash")
+                        // Reconnect (2.16): close the stream and open it again, for a feed that's stuck or looping.
+                        Button { reconnect() } label: {
+                            Image(systemName: "arrow.clockwise")
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(.white.opacity(0.6))
                                 .frame(width: 40, height: 40)
@@ -292,6 +292,16 @@ struct IOSPlayerView: View {
                                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.08), lineWidth: 1))
                         }
                         .buttonStyle(.plain)
+                        // The bin: clears the list.
+                        if !list.isEmpty { Button { model.clearWatched(); poke() } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.white.opacity(0.6))
+                                .frame(width: 40, height: 40)
+                                .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.18)))
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.08), lineWidth: 1))
+                        }
+                        .buttonStyle(.plain) }
                         ForEach(list.prefix(n), id: \.channel.id) { recent in recentCard(recent) }
                         Spacer(minLength: 0)
                     }
@@ -299,6 +309,16 @@ struct IOSPlayerView: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 4)
+        }
+    }
+
+    private func reconnect() {
+        ConnLog.add("Reconnect pressed")
+        playback.stop()
+        poke()
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            start()
         }
     }
 

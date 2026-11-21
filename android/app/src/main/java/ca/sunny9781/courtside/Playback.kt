@@ -304,6 +304,26 @@ object Playback {
         mainHandler.postDelayed(close, 800)
     }
 
+    /**
+     * Reconnect (the button in full screen, 2.16): closes the stream, waits a moment so the provider sees it gone
+     * (never two connections), and opens the same one again. For a feed that's stuck or repeating itself.
+     */
+    fun reconnect() {
+        if (!::player.isInitialized) return
+        val url = player.currentMediaItem?.localConfiguration?.uri?.toString() ?: currentUrl ?: return
+        ConnLog.add("Reconnect pressed: reopening ${ConnLog.stream(url)}")
+        pendingOpen?.let { mainHandler.removeCallbacks(it) }
+        player.stop()
+        player.clearMediaItems()
+        droppedSince = 0L
+        val run = Runnable {
+            pendingOpen = null
+            open(url)
+        }
+        pendingOpen = run
+        mainHandler.postDelayed(run, 600)
+    }
+
     fun togglePause() {
         if (player.playWhenReady) player.pause() else player.play()
     }

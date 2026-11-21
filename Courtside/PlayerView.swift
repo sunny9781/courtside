@@ -75,7 +75,7 @@ struct PlayerView: View {
             }
 
             VStack(spacing: 0) {
-                if showDetails && !recents.isEmpty {
+                if showDetails {
                     recentStrip
                         .transition(.opacity)
                 }
@@ -244,6 +244,17 @@ struct PlayerView: View {
 
     private var recents: [NowPlaying] { model.recentStreams(besides: item, limit: 5) }
 
+    private func reconnect() {
+        ConnLog.add("Reconnect pressed")
+        detailsTask?.cancel()
+        withAnimation(.easeOut(duration: 0.2)) { showDetails = false }
+        controller.stop()
+        Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            start()
+        }
+    }
+
     private func playRecent(_ recent: NowPlaying) {
         detailsTask?.cancel()
         withAnimation(.easeOut(duration: 0.2)) { showDetails = false }
@@ -258,8 +269,20 @@ struct PlayerView: View {
                 .font(.system(size: 11, weight: .bold))
                 .foregroundStyle(Theme.muted)
             HStack(spacing: 10) {
-                // The bin, on the left: clears the list.
-                Button {
+                // Reconnect (2.16): close the stream and open it again, for a feed that's stuck or looping.
+                Button { reconnect() } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .frame(width: 48, height: 48)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(.black.opacity(0.18)))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(.white.opacity(0.08), lineWidth: 1))
+                        .contentShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .help("Reconnect to this stream")
+                // The bin: clears the list.
+                if !list.isEmpty { Button {
                     model.clearWatched()
                     withAnimation(.easeOut(duration: 0.2)) { showDetails = false }
                 } label: {
@@ -272,7 +295,7 @@ struct PlayerView: View {
                         .contentShape(RoundedRectangle(cornerRadius: 10))
                 }
                 .buttonStyle(.plain)
-                .help("Clear recent streams")
+                .help("Clear recent streams") }
                 ForEach(Array(list.enumerated()), id: \.element.channel.id) { i, recent in
                     let picked = i == min(recentIndex, list.count - 1)
                     Button { playRecent(recent) } label: {
