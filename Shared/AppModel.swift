@@ -928,6 +928,8 @@ final class AppModel: ObservableObject {
         #if os(tvOS)
         guard PlaybackController.hasHDRPlayer,
               UserDefaults.standard.object(forKey: Prefs.hdrPlayerFor4K) as? Bool ?? true else { return false }
+        // 2.13: every channel, so HDR at 1080p or 720p shows as HDR too (VLC dims it and can't say it's HDR).
+        if UserDefaults.standard.object(forKey: Prefs.hdrPlayerForAll) as? Bool ?? true { return true }
         return CategoryGrouping.isUHD(channel.name) || CategoryGrouping.isUHD(channel.categoryName)
             || measuredQuality[channel.id] == "4K"
         #else
