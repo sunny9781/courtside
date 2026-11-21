@@ -6,7 +6,13 @@ import SwiftUI
 struct TVLiveView: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var nav: TVNav
-    @AppStorage(Prefs.guideCategory) private var selectedID = ""
+    /// The category you're on: kept in memory while you're on the EPG and saved when you leave it (2.28), so moving
+    /// through the list doesn't write settings on every stop.
+    @State private var selectedID = UserDefaults.standard.string(forKey: Prefs.guideCategory) ?? ""
+    @Environment(\.scenePhase) private var scenePhase
+    /// The selected category's channels (favourites first), worked out once when the category or the channels
+    /// change, not on every press in the category list.
+    @State private var guideChannels: [Channel] = []
     @AppStorage(Prefs.guideGrouped) private var grouped = true
     /// The groups you've opened in the category list (ids, outermost first); kept while you're on other tabs.
     private var path: [String] {
@@ -102,6 +108,13 @@ struct TVLiveView: View {
         }
     }
 
+    /// What decides `guideChannels`: the category, the downloaded channels, favourites and grouping.
+    private var channelsKey: String {
+        "\(selectedID)|\(model.channelsVersion)|\(model.favoriteChannels.count)|\(model.favoriteChannels.last ?? 0)|\(grouped)"
+    }
+
+    private func saveSelection() { UserDefaults.standard.set(selectedID, forKey: Prefs.guideCategory) }
+
     /// What the mini player plays: the channel you clicked, or what's still playing from Home.
     private var playingChannel: Channel? { model.pinned?.channel }
 
@@ -115,22 +128,37 @@ struct TVLiveView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
+            // Worked out once per redraw (the rows used to each look the selection up again).
+            let current = selected
             HStack(alignment: .top, spacing: 50) {
                 // Categories on top of the player in the bottom-left corner (what's playing is in the bar along the
                 // bottom); the schedule starts at the top.
-                categoryList
+                categoryList(current?.id)
                     .focusSection()
                     .frame(width: TVLayout.sidebar)
                 .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : TVLayout.margin)
-                channelList
-                    .focusSection()
+                Group {
+                    if searching {
+                        channelList
+                    } else {
+                        // Its own view, redrawn only when what it shows changes (2.28): moving through the
+                        // categories on the left no longer redraws the guide on every press.
+                        TVGuideChannels(title: current?.name ?? "", channels: guideChannels,
+                                        playingID: playingChannel?.id)
+                            .equatable()
+                    }
+                }
+                .focusSection()
             }
             .padding(.trailing, TVLayout.margin)
             // Pressing down from Home / EPG / Settings starts on the category list.
             .defaultFocus($focusedCategory, categoryTarget, priority: .userInitiated)
             // Back from the channels: to the category you're in on the left.
             .onChange(of: nav.sideRequest) { focusedCategory = categoryTarget }
-            .onDisappear { nav.sideFocused = false }
+            .onDisappear { nav.sideFocused = false; saveSelection() }
+            .onAppear { guideChannels = channels }
+            .onChange(of: channelsKey) { guideChannels = channels }
+            .onChange(of: scenePhase) { if scenePhase != .active { saveSelection() } }
             .onChange(of: focusedCategory) {
                 nav.sideFocused = focusedCategory != nil
                 // Moving onto a category shows its channels once you stop on it (a quarter second), so passing several
@@ -168,7 +196,7 @@ struct TVLiveView: View {
 
     // MARK: Categories
 
-    private var categoryList: some View {
+    private func categoryList(_ currentID: String?) -> some View {
         ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: 4) {
                 // One search for categories and channels; results show on the right.
@@ -206,11 +234,11 @@ struct TVLiveView: View {
                 // Favourites first (hold the select button on a category or channel to add or remove one).
                 if path.isEmpty {
                     if !model.favoriteChannels.isEmpty {
-                        categoryRow(Entry(id: Self.favoritesID, name: "Favourites", categories: []),
-                                    count: model.favoriteChannelList.count, symbol: "heart.fill")
+                        categoryRow(Entry(id: Self.favoritesID, name: "Favourites", categories: []), currentID: currentID,
+                                    count: model.favoriteChannels.count, symbol: "heart.fill")
                     }
                     ForEach(favoriteEntries) { entry in
-                        categoryRow(entry)
+                        categoryRow(entry, currentID: currentID)
                     }
                     if !favoriteEntries.isEmpty || !model.favoriteChannels.isEmpty {
                         Rectangle().fill(Theme.raised).frame(height: 2).padding(.horizontal, 16).padding(.vertical, 8)
@@ -259,16 +287,16 @@ struct TVLiveView: View {
                                         .opacity(0.6)
                                 }
                             }
-                            .buttonStyle(TVRowButtonStyle(selected: selected?.id == "g:" + node.id))
+                            .buttonStyle(TVRowButtonStyle(selected: currentID == "g:" + node.id))
                             .focused($focusedCategory, equals: "g:" + node.id)
                             .contextMenu { favoriteButton(category: node.id); hideButton(category: node.id, name: node.name) }
                         } else {
-                            categoryRow(Entry(id: node.id, name: node.name, categories: node.categories))
+                            categoryRow(Entry(id: node.id, name: node.name, categories: node.categories), currentID: currentID)
                         }
                     }
                 } else {
                     ForEach(allEntries.filter { !model.isFavorite(category: $0.id) }) { entry in
-                        categoryRow(entry)
+                        categoryRow(entry, currentID: currentID)
                     }
                 }
             }
@@ -280,7 +308,7 @@ struct TVLiveView: View {
         .onExitCommand(perform: path.isEmpty ? nil : { path.removeLast() })
     }
 
-    private func categoryRow(_ entry: Entry, count: Int? = nil, symbol: String? = nil) -> some View {
+    private func categoryRow(_ entry: Entry, currentID: String?, count: Int? = nil, symbol: String? = nil) -> some View {
         let key = entry.id.hasPrefix("g:") ? String(entry.id.dropFirst(2)) : entry.id
         let favorite = entry.id != Self.favoritesID && model.isFavorite(category: key)
         return Button {
@@ -304,7 +332,7 @@ struct TVLiveView: View {
                     .opacity(0.55)
             }
         }
-        .buttonStyle(TVRowButtonStyle(selected: entry.id == selected?.id))
+        .buttonStyle(TVRowButtonStyle(selected: entry.id == currentID))
         .focused($focusedCategory, equals: entry.id)
         .contextMenu {
             if entry.id != Self.favoritesID {
@@ -355,14 +383,9 @@ struct TVLiveView: View {
             let start = TVGuide.windowStart(now)
             ScrollView(.vertical) {
                 LazyVStack(alignment: .leading, spacing: 6) {
-                    TVGuideHeader(title: searching ? "Results for \u{201C}\(search.trimmingCharacters(in: .whitespaces))\u{201D}" : (selected?.name ?? ""),
+                    TVGuideHeader(title: "Results for \u{201C}\(search.trimmingCharacters(in: .whitespaces))\u{201D}",
                                   start: start, now: now)
-                    if searching {
-                        searchResults(start: start, now: now)
-                    }
-                    ForEach(searching ? [] : channels) { channel in
-                        guideButton(channel, lineup: channels, start: start, now: now)
-                    }
+                    searchResults(start: start, now: now)
                 }
                 .padding(.vertical, 10)
             }
@@ -433,6 +456,72 @@ struct TVLiveView: View {
                 ForEach(hit.channels) { channel in
                     guideButton(channel, lineup: hit.channels, start: start, now: now)
                 }
+            }
+        }
+    }
+}
+
+/// The guide for the selected category (2.28): its own view, compared by what it shows, so moving through the
+/// category list on the left doesn't redraw it. The first click on a channel previews it in the corner, a second
+/// goes full screen.
+struct TVGuideChannels: View, Equatable {
+    @EnvironmentObject var model: AppModel
+    let title: String
+    let channels: [Channel]
+    let playingID: Int?
+    @FocusState private var focusedChannel: Int?
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.title == b.title && a.playingID == b.playingID && a.channels.map(\.id) == b.channels.map(\.id)
+    }
+
+    var body: some View {
+        // Redrawn every minute so the time line and the guide's start move along.
+        TimelineView(.everyMinute) { context in
+            let now = context.date
+            let start = TVGuide.windowStart(now)
+            ScrollView(.vertical) {
+                LazyVStack(alignment: .leading, spacing: 6) {
+                    TVGuideHeader(title: title, start: start, now: now)
+                    ForEach(channels) { channel in
+                        Button {
+                            if channel.id == playingID {
+                                model.play(channel, lineup: channels)
+                            } else {
+                                model.pin(channel, lineup: channels)
+                            }
+                        } label: {
+                            TVGuideRow(channel: channel, playing: channel.id == playingID, start: start, now: now)
+                        }
+                        .buttonStyle(TVGuideButtonStyle())
+                        .focused($focusedChannel, equals: channel.id)
+                        .contextMenu {
+                            let on = model.isFavorite(channel: channel.id)
+                            Button(on ? "Remove from Favourites" : "Add to Favourites", systemImage: on ? "heart.slash" : "heart") {
+                                model.toggleFavorite(channel: channel.id)
+                            }
+                            Button("Hide", systemImage: "eye.slash") {
+                                if model.isFavorite(channel: channel.id) { model.toggleFavorite(channel: channel.id) }
+                                model.setChannelHidden(channel.id, true)
+                                model.notice = "\(channel.name) is hidden. Settings › Hidden brings it back."
+                            }
+                        }
+                    }
+                }
+                .padding(.vertical, 10)
+            }
+            // Use the full width: no Apple TV side insets on top of our own small margin.
+            .ignoresSafeArea(.container, edges: .horizontal)
+            .contentMargins(.bottom, TVLayout.margin, for: .scrollContent)
+            // Ends level with the bottom of the corner player (2.21, like Android), not under the now-playing bar.
+            .padding(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : 0)
+        }
+        // Back from full screen: focus goes back to the channel you were watching.
+        .onChange(of: model.nowPlaying == nil) {
+            guard model.nowPlaying == nil, let id = model.lastPlayedChannelID, channels.contains(where: { $0.id == id }) else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(250))
+                focusedChannel = id
             }
         }
     }

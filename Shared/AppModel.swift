@@ -20,7 +20,9 @@ final class AppModel: ObservableObject {
         redZoneCache = list
         return list
     }
-    @Published var channelsByCategory: [String: [Channel]] = [:]
+    @Published var channelsByCategory: [String: [Channel]] = [:] { didSet { channelsVersion &+= 1 } }
+    /// Goes up whenever `channelsByCategory` changes, so screens can keep their own lists until then (2.28).
+    private(set) var channelsVersion = 0
     @Published var channelByID: [Int: Channel] = [:]
     @Published var games: [Game] = []
     /// Every game fetched, including leagues switched off in Settings.
