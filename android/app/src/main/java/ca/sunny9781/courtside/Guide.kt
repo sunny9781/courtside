@@ -99,7 +99,7 @@ object CategoryGrouping {
         return null
     }
 
-    private fun words(text: String) = text.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }
+    private fun words(text: String) = text.lowercase().split(NonWord).filter { it.isNotEmpty() }
 
     private val movieWords = setOf("movie", "movies", "film", "films", "cinema", "cine", "kino", "peliculas", "filmes", "vod", "boxoffice")
 
@@ -163,11 +163,13 @@ object CategoryGrouping {
 
     private val regionSuffixes = setOf("uk", "us", "usa", "ca", "de", "fr", "es", "it", "au", "nz", "ie", "mx", "br", "latam", "intl", "international")
 
+    private val countSuffix = Regex("\\s*\\(\\d+\\)\\s*$")
+
     /** "DAZN UK (2)", "DAZN CA" and "DAZN" all give "DAZN"; "HBO Max US" gives "HBO Max". */
     fun serviceKey(name: String): String {
         val (prefix, rest0) = Categories.split(name)
         var rest = if (prefix?.lowercase()?.contains("sport") == true) rest0 else name
-        rest = rest.replace(Regex("\\s*\\(\\d+\\)\\s*$"), "")
+        rest = rest.replace(countSuffix, "")
         val pieces = rest.split(" ").filter { it.isNotEmpty() }.toMutableList()
         if (pieces.size > 1 && pieces.last().lowercase() in regionSuffixes) pieces.removeAt(pieces.size - 1)
         val key = pieces.joinToString(" ").trim()
@@ -194,7 +196,7 @@ object EpgSearch {
             val channels = model.channelsByCategory[cat.id] ?: emptyList()
             val catMatch = cat.name.lowercase().contains(q)
             val direct = channels.filter { ch ->
-                ch.name.lowercase().contains(q) || model.currentProgramme(ch, now)?.title?.lowercase()?.contains(q) == true
+                ch.lowerName.contains(q) || model.currentProgramme(ch, now)?.title?.lowercase()?.contains(q) == true
             }
             if (!catMatch && direct.isEmpty()) continue
             hits.add(Hit(cat, paths[cat.id] ?: "", if (catMatch) channels else direct, direct.size))

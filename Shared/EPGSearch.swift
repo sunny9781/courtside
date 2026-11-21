@@ -50,8 +50,8 @@ enum EPGSearch {
             let channels = input.channelsByCategory[cat.id] ?? []
             let catMatch = cat.name.lowercased().contains(query)
             let direct = channels.filter { ch in
-                ch.name.lowercased().contains(query)
-                    || (input.guide[ch.epgID]?.first { $0.start <= now && $0.end > now }?.title.lowercased().contains(query) ?? false)
+                ch.name.range(of: query, options: .caseInsensitive) != nil
+                    || (input.guide[ch.epgID]?.on(now)?.title.lowercased().contains(query) ?? false)
             }
             guard catMatch || !direct.isEmpty else { continue }
             hits.append(Hit(category: cat, path: paths[cat.id] ?? "", channels: catMatch ? channels : direct,

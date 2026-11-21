@@ -609,7 +609,7 @@ struct TVGuideRow: View {
 
     var body: some View {
         let end = start.addingTimeInterval(TVGuide.span)
-        let programmes = (model.guide[channel.epgID] ?? []).filter { $0.end > start && $0.start < end }
+        let programmes = Array((model.guide[channel.epgID] ?? []).overlapping(start, end))
         HStack(spacing: TVGuide.gap) {
             tile
             GeometryReader { geo in

@@ -644,7 +644,7 @@ private fun GuideHeader(title: String, start: Long, now: Long) {
 internal fun GuideRow(model: AppModel, channel: Channel, playing: Boolean, start: Long, now: Long, modifier: Modifier,
                       onLongClick: (() -> Unit)? = null, onFocus: () -> Unit, onClick: () -> Unit) {
     val end = start + Guide.SPAN
-    val programmes = model.guide[channel.epgId].orEmpty().filter { it.end > start && it.start < end }
+    val programmes = model.guide[channel.epgId].orEmpty().overlapping(start, end)
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
     TvButton(onClick = onClick, onFocus = onFocus, onLongClick = onLongClick, focusedFill = androidx.compose.ui.graphics.Color.Transparent,
         modifier = modifier.fillMaxWidth().height(Guide.rowHeight)) { focused ->
