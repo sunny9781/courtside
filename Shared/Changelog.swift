@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.13", date: "2026-11-20", time: "22:28", title: "HDR player for every channel", changes: [
+            Change(text: "Every channel now plays with the HDR player, not just 4K ones, so a 1080p or 720p stream in HDR shows as HDR (the TV's HDR sign in full screen, and the HDR tag) instead of a darker picture from VLC. If a channel shows nothing within a few seconds, VLC takes over as before.", apps: tv),
+            Change(text: "Settings › Playback › HDR player for all channels: on for now while it's being tried; turn it off to play only 4K channels with the HDR player.", apps: tv)
+        ]),
         Release(version: "2.12", date: "2026-11-20", time: "21:56", title: "HDR tag", changes: [
             Change(text: "Streams in HDR get a tag next to their resolution: HDR10, HLG or Dolby Vision, in the now-playing bar, full screen and the stream lists. On Apple TV it shows for 4K channels (the HDR player); VLC doesn't say.", apps: tv),
             Change(text: "Streams in HDR get a tag next to their resolution: HDR10, HLG or Dolby Vision, in the now-playing bar, full screen and the stream lists.", apps: android)

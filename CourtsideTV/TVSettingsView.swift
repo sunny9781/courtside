@@ -7,6 +7,7 @@ struct TVSettingsView: View {
     @AppStorage(Prefs.autoSwitch) private var autoSwitch = false
     @AppStorage(Prefs.matchFrameRate) private var matchFrameRate = true
     @AppStorage(Prefs.hdrPlayerFor4K) private var hdrPlayerFor4K = true
+    @AppStorage(Prefs.hdrPlayerForAll) private var hdrPlayerForAll = true
     @AppStorage(Prefs.guideGrouped) private var grouped = true
     @AppStorage(Prefs.hideSD) private var hideSD = true
     @AppStorage(Prefs.bufferMs) private var bufferMs = 2000
@@ -180,6 +181,11 @@ struct TVSettingsView: View {
                 toggle("4K with the HDR player",
                        detail: "Real HDR: in full screen the TV switches into HDR, like other IPTV apps. If a 4K channel shows nothing within a few seconds, it plays with VLC instead. Off: 4K plays like everything else, in standard range.",
                        $hdrPlayerFor4K)
+                if hdrPlayerFor4K {
+                    toggle("HDR player for all channels",
+                           detail: "Every channel plays with the HDR player, so HDR at 1080p or 720p shows as HDR too (and gets its HDR tag). Off: only 4K channels do; the rest play with VLC.",
+                           $hdrPlayerForAll)
+                }
             }
             action("Buffer", detail: "More buffer means fewer stalls but a longer delay behind live.",
                    value: "\(bufferMs / 1000) s") {
