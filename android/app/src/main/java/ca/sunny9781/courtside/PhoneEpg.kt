@@ -58,8 +58,12 @@ fun PhoneEpg(model: AppModel) {
                     color = Theme.muted, maxLines = 3, modifier = Modifier.align(Alignment.Center).padding(24.dp))
             } else Column(Modifier.fillMaxSize()) {
                 if (id != null && !searching) PageHeader(title(model, id)) { PhoneUi.epgPath = path.dropLast(1) }
+                // The category's channels (favourites first), worked out once per category / channels / favourites
+                // change, not on every redraw (2.30, like the TV EPG).
+                val list = remember(id, model.channelsByCategory, model.settings.favoriteChannels, model.categoryTree) {
+                    if (id != null && id.startsWith("cat:")) channelsOf(model, id.removePrefix("cat:")) else emptyList()
+                }
                 if (id != null && id.startsWith("cat:") && landscape && !searching) {
-                    val list = channelsOf(model, id.removePrefix("cat:"))
                     PhoneTimeline(model, list, playing) { tapChannel(model, it, list) }
                 } else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 30.dp)) {
                     when {
@@ -67,7 +71,6 @@ fun PhoneEpg(model: AppModel) {
                             flipped = if (hid in flipped) flipped - hid else flipped + hid
                         }
                         id != null && id.startsWith("cat:") -> {
-                            val list = channelsOf(model, id.removePrefix("cat:"))
                             if (list.isEmpty()) item { Label("No channels.", size = 14.sp, color = Theme.muted, modifier = Modifier.padding(24.dp)) }
                             items(list, key = { "ch:${it.id}" }, contentType = { "channel" }) { ch ->
                                 PhoneChannelRow(model, ch, ch.id == playing, heart = true) { tapChannel(model, ch, list) }
@@ -106,7 +109,14 @@ private fun channelsOf(model: AppModel, id: String): List<Channel> {
     return model.favoritesFirst(cats.flatMap { model.channelsByCategory[it.id] ?: emptyList() }.distinctBy { it.id })
 }
 
-private fun count(model: AppModel, cats: List<ChannelCategory>) = cats.sumOf { model.channelsByCategory[it.id]?.size ?: 0 }
+/** Channels per category, worked out once per channel download (not per row per redraw). */
+private var countsFor: Map<String, List<Channel>>? = null
+private var countsCache: Map<String, Int> = emptyMap()
+private fun count(model: AppModel, cats: List<ChannelCategory>): Int {
+    val byCat = model.channelsByCategory
+    if (countsFor !== byCat) { countsCache = byCat.mapValues { it.value.size }; countsFor = byCat }
+    return cats.sumOf { countsCache[it.id] ?: 0 }
+}
 
 private fun LazyListScope.nodeRows(model: AppModel, nodes: List<CategoryGrouping.Node>, path: List<String>) {
     val favs = model.favoriteCategoryIds.toSet()
