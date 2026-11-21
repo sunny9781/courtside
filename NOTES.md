@@ -126,6 +126,7 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   pull to refresh, spinner, dialog.
 
 ## Working preferences (Sunny)
+- Auto-merge (2026-11-21): once the build check passes, merge to main and release without asking, in every Courtside chat.
 - Small changes (a number, text, a changelog line) merge straight away without check.yml; the Mac release build
   refuses to publish a broken build (2.9). Anything that changes behaviour or Apple TV/iPhone code still gets check.yml
   first. Always re-check Changelog.swift after resolving a merge conflict in it (2.10 broke the Mac build that way).
