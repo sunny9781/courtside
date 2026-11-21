@@ -231,3 +231,12 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   `playingSince` + 8 s. A real label replaces it later. Recorded in measuredAudio like any sound, so it shows as a tag
   everywhere tags show. `byQuality` puts "No sound" streams last in each section, before any other key.
   Can't spot a sound track that's present but silent (no level metering).
+
+## 2.19 (2026-11-21, stream reliability dots, Android only)
+- `StreamStats.kt`: per stream ID (never the URL) running averages (weight 0.3) of rebuffer ratio, events/hour
+  (buffers + freezes + drops), startup ms, fail rate; last 15 sessions; files/stream-stats.json; dropped after 60 days.
+  Hooks in Playback.kt: begin (play), firstPicture, tick (poll, 500 ms), froze (FreezeWatch restart), dropped
+  (reconnectAfterDrop), end (stop / next play). Sessions under 10 s watched (or failed under 8 s) are ignored.
+- `ReliabilityDot` (Components.kt) on game-screen streams (TV `StreamCell`, phone `StreamRow`): shows after 5 min
+  watched; red at rebuffer >5% / >20 events/h / fail >40% (or 2+ opens failing >50%), amber at >1% / >6 /h / >15% /
+  startup >8 s. `StreamStats.reset()` exists but no Settings button yet. Not on Apple apps yet.
