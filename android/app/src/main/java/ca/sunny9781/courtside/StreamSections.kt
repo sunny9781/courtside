@@ -3,7 +3,9 @@ package ca.sunny9781.courtside
 /**
  * How a game screen lists its streams (the same as the Apple apps): 4K · PPV (fight cards) · the league's own
  * channels · the league's home-country broadcasters · other English-language countries · Other. Foreign-language
- * streams and local stations come back separately, for groups at the bottom that fold open.
+ * streams and local stations come back separately, for groups at the bottom that fold open. Within each section
+ * the highest quality comes first (2.14: resolution, measured when it's been played, else from the name; then frame
+ * rate), and the matcher's order among equals.
  */
 object StreamSections {
     data class Section(val name: String, val streams: List<StreamMatch>)
@@ -64,7 +66,22 @@ object StreamSections {
         return league.keywords.any { it.length in 3..4 && it in words }
     }
 
-    fun build(all: List<StreamMatch>, league: League, search: String = ""): Result {
+    /** 4 = 4K, 3 = 1080p, 2 = 720p / HD (and unknown), 1 = SD. */
+    fun qualityRank(m: StreamMatch, measured: Map<Int, String>): Int = when (measured[m.channel.id]) {
+        "4K" -> 4
+        "1080p" -> 3
+        "720p", "HD" -> 2
+        "SD", "576p", "480p" -> 1
+        else -> m.qualityRank
+    }
+
+    /** Highest quality first, keeping the given order among streams of the same quality (sortedWith is stable). */
+    fun byQuality(list: List<StreamMatch>, measured: Map<Int, String>, fps: Map<Int, Float>): List<StreamMatch> =
+        list.sortedWith(compareByDescending<StreamMatch> { qualityRank(it, measured) }
+            .thenByDescending { Math.round(fps[it.channel.id] ?: 0f) })
+
+    fun build(all: List<StreamMatch>, league: League, search: String = "",
+              measured: Map<Int, String> = emptyMap(), fps: Map<Int, Float> = emptyMap()): Result {
         // Event sports (motorsport, golf, tennis, fights): a 4K channel the guide doesn't confirm is still listed up top
         // under 4K (4K channels carry these events, and the guide often names the race only as "F2 Feature Race").
         fun shown(m: StreamMatch) = !m.hidden || (league.isEvent && m.is4K)
@@ -85,7 +102,7 @@ object StreamSections {
             val picked = list.filter { it.channel.id !in used && pick(it) }
             if (picked.isEmpty()) return
             picked.forEach { used += it.channel.id }
-            sections += Section(name, picked)
+            sections += Section(name, byQuality(picked, measured, fps))
         }
         take("4K") { it.is4K }
         if (league.sport == Sport.FIGHTING) take("PPV") { it.isPPV }
@@ -96,7 +113,7 @@ object StreamSections {
 
         val byGroup = foreignList.groupBy(::foreignGroup)
         val foreign = byGroup.keys.sortedWith(compareByDescending<String> { byGroup[it]!!.size }.thenBy { it })
-            .map { Section(it, byGroup[it]!!) }
-        return Result(sections, foreign, extras.filter(::matchesSearch))
+            .map { Section(it, byQuality(byGroup[it]!!, measured, fps)) }
+        return Result(sections, foreign, byQuality(extras.filter(::matchesSearch), measured, fps))
     }
 }

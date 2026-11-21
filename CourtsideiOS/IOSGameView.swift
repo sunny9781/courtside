@@ -23,7 +23,8 @@ struct IOSGameView: View {
     /// 4K, PPV for fights, the league's own channels, home-country broadcasters, other countries (StreamSections).
     private var listing: StreamSections.Result {
         guard let game else { return .empty }
-        return StreamSections.build(allStreams, league: game.league, search: search)
+        return StreamSections.build(allStreams, league: game.league, search: search,
+                                   measured: model.measuredQuality, fps: model.measuredFrameRate)
     }
 
     private var sections: [StreamSections.Section] { listing.sections }
