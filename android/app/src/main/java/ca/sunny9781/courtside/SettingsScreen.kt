@@ -139,8 +139,8 @@ private fun Updates(model: AppModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val s = model.settings
-    Action("Download fresh channels and guide after",
-        "Opening the app reuses the saved channels and guide until they're this old. Scores always update every minute.",
+    Action("Download a fresh guide after",
+        "The channel list is checked every hour. The guide downloads again after this long, or sooner if your provider's guide runs out. Scores update every minute.",
         value = "${s.refreshHours} h") {
         val list = listOf(1, 3, 6, 12, 24)
         s.refreshHours = list[(list.indexOf(s.refreshHours) + 1) % list.size]

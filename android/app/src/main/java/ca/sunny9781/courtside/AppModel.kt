@@ -124,6 +124,38 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         startGuide(XtreamClient(creds))
     }
 
+    /**
+     * When the downloads are due. The channel list is checked every hour (new event channels appear on game day);
+     * the guide downloads again after Settings › Updates' interval, or sooner when the provider's guide runs out
+     * (an hour before most channels' last programme ends).
+     */
+    private val channelsEvery = 3600_000L
+
+    private fun guideEnd(g: Map<String, List<Programme>>): Long {
+        val ends = g.values.mapNotNull { it.lastOrNull()?.end }.sorted()
+        return if (ends.isEmpty()) 0L else ends[ends.size / 2]
+    }
+
+    private fun guideDue(now: Long = System.currentTimeMillis()): Boolean {
+        val g = guide
+        if (g.isEmpty()) return true
+        if (now - Cache.guideSavedAt(context) >= settings.refreshHours * 3600_000L) return true
+        return now >= guideEnd(g) - 3600_000L
+    }
+
+    /** The last download this check started, so one that fails is tried again in 15 minutes, not every minute. */
+    private var lastAutoRefresh = 0L
+
+    /** Checked every minute while the app is on screen and nothing plays: downloads what's due. */
+    private fun refreshIfDue() {
+        if (loading || guideLoading || guideJob?.isActive == true || streamOpen || credentials == null) return
+        val now = System.currentTimeMillis()
+        if (now - lastAutoRefresh < 15 * 60_000L) return
+        val channelsAge = now - (updatedAt ?: 0L)
+        if (channelsAge >= channelsEvery) { lastAutoRefresh = now; refresh() }
+        else if (guideDue(now)) { lastAutoRefresh = now; credentials?.let { startGuide(XtreamClient(it)) } }
+    }
+
     private fun startGuide(client: XtreamClient) {
         guideJob?.cancel()
         guideJob = viewModelScope.launch {
@@ -159,6 +191,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** Back on screen: scores right away if they're more than a minute old. */
     fun cameBack() {
         onScreen = true
+        refreshIfDue()
         if (System.currentTimeMillis() - lastScores > 60_000 && !settings.liteNoScores && allGames.isNotEmpty()) {
             lastScores = System.currentTimeMillis()
             viewModelScope.launch { runCatching { loadScores() } }
@@ -403,7 +436,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             error = null
             try {
                 val client = XtreamClient(creds)
-                val maxAge = settings.refreshHours * 3600_000L
+                val maxAge = channelsEvery
                 val stored = withContext(Dispatchers.IO) { Cache.loadLive(context) }
                     ?.takeIf { it.server == owner && it.channels.isNotEmpty() }
                 val saved = if (force) null else stored?.takeIf { System.currentTimeMillis() - it.savedAt < maxAge }
@@ -424,7 +457,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                     if (g.isNotEmpty()) { guide = g; matchGuideSports() }
                     loadScores()    // matches today's games with the guide already in place
                     loadBroadcasts()
-                    if (g.isEmpty()) startGuide(client)
+                    if (force || g.isEmpty() || guideDue()) startGuide(client)
                     return@launch
                 }
                 // Channels are due again (or you asked): until the new list is in, show the saved channels and guide
@@ -440,15 +473,26 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 runCatching { account = client.login() }
                 waitForNoStream()
                 val (cats, chans) = client.live()
-                rawCategories = cats
-                rawChannels = chans
-                applyFilters()
+                // The hourly check usually finds the same list: then nothing on screen is rebuilt.
+                val changed = cats != rawCategories || chans != rawChannels
+                if (changed) {
+                    rawCategories = cats
+                    rawChannels = chans
+                    applyFilters()
+                }
+                if (guide.isEmpty()) {
+                    val g = withContext(Dispatchers.IO) { Cache.loadGuide(context) }
+                    if (g.isNotEmpty() && guide.isEmpty()) guide = g
+                }
                 loadScores()
                 loadBroadcasts()
                 updatedAt = System.currentTimeMillis()
                 withContext(Dispatchers.IO) { Cache.saveLive(context, owner, cats, chans) }
                 loading = false
-                startGuide(client)
+                ConnLog.add(if (changed) "Channel list changed: ${chans.size} channels" else "Channel list unchanged")
+                if (force || guideDue()) startGuide(client)
+                // New channels (an event channel added today) are matched straight away, without waiting for the guide.
+                else if (changed) rematch(timed = true)
             } catch (e: Exception) {
                 error = e.message ?: "Couldn't load your channels."
             } finally {
@@ -457,11 +501,13 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         }
         // Scores every minute while a game is live or starts within 15 minutes, otherwise every 5 minutes; nothing
         // while the app isn't on screen (it catches up as soon as it's back).
-        scoresJob?.cancel()
+        // Started once: the loop also starts the hourly refreshes, so a refresh mustn't cancel it.
+        if (scoresJob?.isActive == true) return
         scoresJob = viewModelScope.launch {
             while (true) {
                 delay(60_000)
                 if (!onScreen) continue
+                refreshIfDue()
                 val soon = System.currentTimeMillis() + 15 * 60_000L
                 val busy = allGames.any { it.state == GameState.LIVE || (it.state == GameState.UPCOMING && (it.start ?: Long.MAX_VALUE) < soon) }
                 if (!busy && System.currentTimeMillis() - lastScores < 290_000) continue
@@ -539,9 +585,10 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         guideMegabytes = 0
         try {
             runCatching {
-                // Last hour to the refresh interval ahead (it's downloaded again after that; at least 3 hours, for the
-                // guide's two and a half hours on screen): only what's needed, light on a 2 GB TV.
-                val ahead = maxOf(settings.refreshHours, 3) * 3600_000L
+                // Last hour to the refresh interval ahead (at least 3 hours, for the guide's two and a half hours on
+                // screen) plus 3 hours: only what's needed, light on a 2 GB TV.
+                // Three hours past the next download, so the EPG never runs out before it.
+                val ahead = (maxOf(settings.refreshHours, 3) + 3) * 3600_000L
                 val g = client.guide(wanted, now - 3600_000L, now + ahead) { read, total ->
                     // A stream started: stop reading (the download starts again once it's closed).
                     if (job?.isActive == false) throw java.io.InterruptedIOException("paused")
@@ -558,10 +605,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             guideLoading = false
         }
         if (job?.isActive == false) return
-        rematch()
+        rematch(timed = true)
     }
 
-    private suspend fun rematch() {
+    /** `timed`: after a channel or guide download, the time it took goes in the connection log. */
+    private suspend fun rematch(timed: Boolean = false) {
+        val started = System.nanoTime()
         val g = games
         val ch = indexed
         val gd = guide
@@ -586,6 +635,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             updateGames(visible(allGames) + guideGames)
         }
         matches = found
+        if (timed) ConnLog.add("Matched streams to ${g.size} games in ${(System.nanoTime() - started) / 1_000_000} ms")
         withContext(Dispatchers.IO) { Cache.saveMatches(context, found) }
     }
 

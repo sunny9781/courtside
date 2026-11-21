@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.23", date: "2026-11-21", time: "09:40", title: "Smarter refreshes", changes: [
+            Change(text: "The channel list is checked every hour while the app is open, so event channels added on game day show up and get matched without waiting for the next guide download. When nothing changed, nothing on screen reloads.", apps: [.android]),
+            Change(text: "The guide downloads again after the time in Settings › Updates, or sooner if your provider's guide is about to run out. It now keeps 3 hours more than that, so the EPG never goes blank before the next download.", apps: [.android]),
+            Change(text: "Connection log: how long matching took, after each channel or guide download (instead of every 10 minutes).", apps: [.android]),
+        ]),
         Release(version: "2.22", date: "2026-11-21", time: "09:05", title: "Faster matching and guide", changes: [
             Change(text: "Matching streams to games does less work: guide titles are split into words once, only programmes in today's game times are checked, and networks are looked up by name instead of checking every channel.", apps: [.mac, .tv, .ios, .android]),
             Change(text: "What's on now, the EPG rows and the EPG filter find programmes with a quick search instead of reading each channel's whole schedule.", apps: [.mac, .tv, .ios, .android]),

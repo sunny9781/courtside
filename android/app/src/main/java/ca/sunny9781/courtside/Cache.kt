@@ -88,6 +88,9 @@ object Cache {
         tmp.renameTo(guideFile(context))
     }
 
+    /** When the guide was last downloaded (0 when there's no saved guide). */
+    fun guideSavedAt(context: Context): Long = guideFile(context).let { if (it.exists()) it.lastModified() else 0L }
+
     fun loadGuide(context: Context): Map<String, List<Programme>> = runCatching {
         val file = guideFile(context)
         if (!file.exists()) return emptyMap()
