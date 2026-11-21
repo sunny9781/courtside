@@ -80,6 +80,7 @@ object StreamSections {
         val s = label?.lowercase().orEmpty()
         return when {
             s.isEmpty() -> 0
+            s == "no sound" -> -1
             "atmos" in s -> 4
             "dolby+" in s || "eac3" in s || "dd+" in s -> 3
             "dolby" in s || "5.1" in s || "7.1" in s -> 2
@@ -93,7 +94,9 @@ object StreamSections {
      */
     fun byQuality(list: List<StreamMatch>, measured: Map<Int, String>, fps: Map<Int, Float>,
                   hdr: Map<Int, String> = emptyMap(), audio: Map<Int, String> = emptyMap()): List<StreamMatch> =
-        list.sortedWith(compareByDescending<StreamMatch> { qualityRank(it, measured) }
+        // A dead audio feed ("No sound") goes to the bottom of its category whatever its picture (2.17).
+        list.sortedWith(compareBy<StreamMatch> { audio[it.channel.id] == Playback.NO_SOUND }
+            .thenByDescending { qualityRank(it, measured) }
             .thenByDescending { Math.round(fps[it.channel.id] ?: 0f) }
             .thenByDescending { if (hdr[it.channel.id].isNullOrEmpty()) 0 else 1 }
             .thenByDescending { soundRank(audio[it.channel.id]) })

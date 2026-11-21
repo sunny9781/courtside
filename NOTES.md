@@ -217,3 +217,11 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - A stream "looping the last ~15 s": likely the provider's restream server replaying its buffer each time the app
   reconnects to a stalled source (auto-reconnect after a drop since 2.5). If it recurs, the Connection log should
   show repeated "Stream dropped: opening … again". Possible follow-up: stop auto-reconnecting after a few quick drops.
+
+## 2.17 (2026-11-21)
+- "No sound" (`StreamSections.noSound` / `Playback.NO_SOUND`) becomes the sound label when a stream has shown a
+  picture for 8 s with no sound label: Android `Playback.poll` (firstFrame, PLAYING, 8 s after open), VLC
+  `playingPolls == 16` (asks VLC for the sound every 2 s until then), KSPlayer the same, iPhone AVPlayer
+  `playingSince` + 8 s. A real label replaces it later. Recorded in measuredAudio like any sound, so it shows as a tag
+  everywhere tags show. `byQuality` puts "No sound" streams last in each section, before any other key.
+  Can't spot a sound track that's present but silent (no level metering).

@@ -21,6 +21,8 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
     @Published private(set) var frameRate: Double = 0
     /// The sound ("Stereo", "5.1 Dolby"...), from the audio track's format.
     @Published private(set) var audio = ""
+    /// When the picture started playing (for "No sound").
+    private var playingSince: Date?
     private var audioLookup: Task<Void, Never>?
     @Published private(set) var pipActive = false
     @Published private(set) var pipStarting = false
@@ -67,6 +69,7 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
         resolution = ""
         frameRate = 0
         audio = ""
+        playingSince = nil
         audioLookup?.cancel()
         lastBufferMs = bufferMs
         freezeWatch.reset()
@@ -163,7 +166,13 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
            fps > 0 {
             frameRate = Double(fps > 61 ? fps / 2 : fps)
         }
-        if audio.isEmpty, audioLookup == nil || audioLookup?.isCancelled == true, status == .playing,
+        // No sound 8 seconds into the picture: "No sound" (2.17, a dead audio feed), replaced if it turns up later.
+        if status == .playing, !resolution.isEmpty {
+            let since = playingSince ?? Date()
+            playingSince = since
+            if audio.isEmpty, Date().timeIntervalSince(since) > 8 { audio = StreamSections.noSound }
+        }
+        if audio.isEmpty || audio == StreamSections.noSound, audioLookup == nil || audioLookup?.isCancelled == true, status == .playing,
            let track = item.tracks.first(where: { $0.assetTrack?.mediaType == .audio })?.assetTrack {
             audioLookup = Task { @MainActor [weak self] in
                 guard let formats = try? await track.load(.formatDescriptions), !Task.isCancelled,

@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.17", date: "2026-11-21", time: "00:20", title: "No sound tag", changes: [
+            Change(text: "A stream that shows a picture but no sound for 8 seconds (a dead audio feed) gets a No sound tag where the other tags show, and goes to the bottom of its category on the game screen. The tag goes away if the sound comes back on a later play.", apps: everywhere),
+        ]),
         Release(version: "2.16", date: "2026-11-20", time: "23:45", title: "Reconnect button", changes: [
             Change(text: "Full screen: a Reconnect button at the left of the recent streams closes the stream and opens it again, for a feed that's stuck or keeps repeating the same few seconds. On a TV: centre button, left to the first button, centre again.", apps: [.tv, .android]),
             Change(text: "Full screen: a Reconnect button at the left of the recent streams closes the stream and opens it again, for a feed that's stuck or keeps repeating the same few seconds.", apps: [.mac, .ios]),

@@ -8,6 +8,9 @@ import Foundation
 /// Within each section the highest quality comes first (2.14: resolution, measured when it's been played, else from
 /// the name; then frame rate; 2.15: then HDR, then sound), and the matcher's order (best match first) among equals.
 enum StreamSections {
+    /// The sound label for a stream that shows a picture but has no sound (a dead audio feed, 2.17).
+    static let noSound = "No sound"
+
     struct Section: Identifiable, Hashable {
         let name: String
         let streams: [StreamMatch]
@@ -107,6 +110,7 @@ enum StreamSections {
     /// 4 = Atmos, 3 = Dolby+ (E-AC-3), 2 = 5.1 / Dolby, 1 = Stereo, 0 = not known yet.
     static func soundRank(_ label: String?) -> Int {
         guard let s = label?.lowercased(), !s.isEmpty else { return 0 }
+        if s == "no sound" { return -1 }
         if s.contains("atmos") { return 4 }
         if s.contains("dolby+") || s.contains("eac3") || s.contains("dd+") { return 3 }
         if s.contains("dolby") || s.contains("5.1") || s.contains("7.1") { return 2 }
@@ -119,6 +123,9 @@ enum StreamSections {
                           hdr: [Int: String] = [:], audio: [Int: String] = [:]) -> [StreamMatch] {
         list.enumerated().sorted { a, b in
             let ida = a.element.channel.id, idb = b.element.channel.id
+            // A dead audio feed ("No sound") goes to the bottom of its category whatever its picture (2.17).
+            let da = audio[ida] == StreamSections.noSound, db = audio[idb] == StreamSections.noSound
+            if da != db { return db }
             let ra = qualityRank(a.element, measured: measured), rb = qualityRank(b.element, measured: measured)
             if ra != rb { return ra > rb }
             let fa = Int((fps[ida] ?? 0).rounded()), fb = Int((fps[idb] ?? 0).rounded())

@@ -332,7 +332,11 @@ final class PlaybackController: ObservableObject {
         if status == .playing {
             playingPolls += 1
             if playingPolls == 4 && frameRate == 0, let fps = Self.videoFrameRate(player.media) { frameRate = fps }
-            if playingPolls == 4 && audio.isEmpty, let sound = Self.soundLabel(player.media) { audio = sound }
+            // Sound: asked every 2 seconds until VLC knows it. Still nothing after 8 seconds of picture: "No sound"
+            // (2.17, a dead audio feed), replaced if the sound turns up later.
+            if playingPolls >= 4 && playingPolls % 4 == 0 && (audio.isEmpty || audio == StreamSections.noSound),
+               let sound = Self.soundLabel(player.media) { audio = sound }
+            if playingPolls == 16 && audio.isEmpty { audio = StreamSections.noSound }
         }
         #else
         guard let item = player.currentItem else { return }
@@ -391,7 +395,8 @@ final class PlaybackController: ObservableObject {
                 let fps = hdr.frameRate
                 if fps > 0 { frameRate = fps }
             }
-            if playingPolls >= 4 && audio.isEmpty, let sound = hdr.sound { audio = sound }
+            if playingPolls >= 4 && (audio.isEmpty || audio == StreamSections.noSound), let sound = hdr.sound, !sound.isEmpty { audio = sound }
+            if playingPolls == 16 && audio.isEmpty { audio = StreamSections.noSound }
             if playingPolls >= 4 && dynamicRange.isEmpty, let range = hdr.dynamicRangeLabel { dynamicRange = range }
         }
     }

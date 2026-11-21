@@ -324,6 +324,8 @@ object Playback {
         mainHandler.postDelayed(run, 600)
     }
 
+    const val NO_SOUND = "No sound"
+
     fun togglePause() {
         if (player.playWhenReady) player.pause() else player.play()
     }
@@ -372,6 +374,8 @@ object Playback {
         if (!::player.isInitialized || currentUrl == null) return
         measureFrameRate()
         soundLabel(player.audioFormat).let { if (it.isNotEmpty() && it != audio) audio = it }
+        // A picture for 8 seconds but no sound: "No sound" (2.17, a dead audio feed), replaced if it turns up later.
+        if (firstFrame && audio.isEmpty() && status == Status.PLAYING && System.currentTimeMillis() - openedAt > 8000) audio = NO_SOUND
         hdrLabel(player.videoFormat).let { if (it.isNotEmpty() && it != hdr) hdr = it }
         val fallback = fallbackUrl
         if (!firstFrame && fallback != null && player.playWhenReady && System.currentTimeMillis() - openedAt > 8000) {
