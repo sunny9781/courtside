@@ -55,6 +55,10 @@ final class TVNav: ObservableObject {
     /// Focus is on Home's league list (beside the folded sports): Back goes to the sport, not the rail.
     @Published var leaguesFocused = false
     @Published var sportRequest = 0
+    /// When focus last left the rail into a page, and whether Home has been entered from the rail since the app
+    /// started: the first time lands on the top sport (2.30), later ones on what's selected.
+    var leftRailAt = Date.distantPast
+    var homeEnteredFromRail = false
     /// Each tab remembers where you were: the Settings section and the EPG groups you'd opened.
     @Published var settingsSection = "Account"
     @Published var guidePath: [String] = []
@@ -348,6 +352,7 @@ struct TVRail: View {
             nav.tabsFocused = focused != nil
             pendingTab?.cancel()
             guard let focused else {
+                nav.leftRailAt = Date()
                 if let waitingTab { NotificationCenter.default.post(name: .tvSwitchTab, object: waitingTab) }
                 waitingTab = nil
                 Task { @MainActor in

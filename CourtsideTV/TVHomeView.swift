@@ -15,9 +15,6 @@ struct TVHomeView: View {
     /// leagues and the sports fold to icons; going back onto the sports opens them out again.
     @State private var folded = false
     @FocusState private var leagueFocus: TVNav.HomeSelection?
-    /// An invisible strip at the right edge of the sports: right from a sport with leagues lands here, which opens
-    /// the leagues and moves onto the selected one.
-    @FocusState private var bridge: Bool
 
     /// The sport whose leagues can open beside it (more than one league, and not a channel sport).
     private var leagueSport: Sport? {
@@ -36,6 +33,19 @@ struct TVHomeView: View {
         guard let sport = leagueSport else { return nil }
         if case .league = nav.homeSelection { return nav.homeSelection }
         return .sport(sport)
+    }
+
+    /// The first time after the app starts that you come into Home from the rail: the top sport (usually a
+    /// favourite) is selected and focused. Returns false once that's happened.
+    @discardableResult
+    private func firstEntryFromRail() -> Bool {
+        guard !nav.homeEnteredFromRail, nav.homePath.isEmpty else { return false }
+        nav.homeEnteredFromRail = true
+        guard let top = orderedSports(model: model).first else { return false }
+        folded = false
+        nav.homeSelection = .sport(top)
+        sidebarFocus = .sport(top)
+        return true
     }
 
     private func focusLeagues() {
@@ -66,7 +76,9 @@ struct TVHomeView: View {
             // The left column stays lined up with the player above it (it no longer shrinks), so moving across is smooth.
             HStack(alignment: .top, spacing: TVLayout.playerGap - 24) {
                 HStack(alignment: .top, spacing: 0) {
-                    TVSportList(focused: $sidebarFocus, compact: folded)
+                    TVSportList(focused: $sidebarFocus, compact: folded,
+                                hasLeagues: { model.leagues(for: $0).count > 1 && !isChannelSport($0, model: model) },
+                                openLeagues: { focusLeagues() })
                         .frame(width: folded ? 100 : TVLayout.sidebar)
                         .focusSection()
                         // Coming back from the games lands on the sport you left, not the row beside it.
@@ -80,14 +92,6 @@ struct TVHomeView: View {
                     }
                 }
                 .frame(width: TVLayout.sidebar, alignment: .leading)
-                // Right from a sport with leagues: open them (the strip only takes focus from the sports).
-                .overlay(alignment: .trailing) {
-                    if leagueSport != nil && !folded && (sidebarFocus != nil || bridge) {
-                        Color.clear.frame(width: 4).frame(maxHeight: .infinity)
-                            .focusable()
-                            .focused($bridge)
-                    }
-                }
                 // On top of the player in the bottom-left corner.
                 .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : TVLayout.margin)
                 .zIndex(0)
@@ -103,17 +107,18 @@ struct TVHomeView: View {
             .onChange(of: sidebarFocus) {
                 nav.sideFocused = sidebarFocus != nil || leagueFocus != nil
                 if sidebarFocus != nil { inPane = false; folded = false }
+                if sidebarFocus != nil, Date().timeIntervalSince(nav.leftRailAt) < 0.6 { firstEntryFromRail() }
             }
             .onChange(of: leagueFocus) {
                 nav.sideFocused = sidebarFocus != nil || leagueFocus != nil
                 nav.leaguesFocused = leagueFocus != nil
                 if leagueFocus != nil { inPane = false }
             }
-            .onChange(of: bridge) { if bridge { focusLeagues() } }
             .onChange(of: leagueSport) { if leagueSport == nil { folded = false } }
             // Back from the games (or the rail): to the league you're in when they're out, otherwise the sport.
             .onChange(of: nav.sideRequest) {
                 guard nav.homePath.isEmpty else { return }
+                if Date().timeIntervalSince(nav.leftRailAt) < 0.6, firstEntryFromRail() { return }
                 if folded, let leagueTarget { leagueFocus = leagueTarget } else { sidebarFocus = sidebarTarget }
             }
             // Back from a league: its sport (the sports open out again).
@@ -147,6 +152,12 @@ struct TVSportList: View {
     @State private var waitingSelection: TVNav.HomeSelection?
     /// Just icons and counts (while you're on the games), to leave more room for them.
     var compact = false
+    /// A sport whose leagues open beside it, and opening them (Home).
+    var hasLeagues: (Sport) -> Bool = { _ in false }
+    var openLeagues: () -> Void = {}
+    /// An invisible strip right of the sport you're on (only that row, 2.30): right from it lands here, which opens
+    /// the leagues. Level with the row, so pressing up at the top of the list can't land on it.
+    @FocusState private var bridge: Sport?
 
     private var sports: [Sport] {
         _ = (sportOrder, hiddenSports, favoriteSports)
@@ -177,10 +188,7 @@ struct TVSportList: View {
                         row(.sport(sport), symbol: sport.symbol, name: sport.rawValue,
                             live: channelOnly ? 0 : games.filter { $0.state == .live }.count, total: games.count,
                             detail: games.isEmpty ? "No games" : (channelOnly ? "Channels" : "\(games.count) today"),
-                            favorite: favorites.contains(sport))
-                            .opacity(games.isEmpty ? 0.5 : 1)
-                            // Hold the select button: favourite or hide (switch off) the sport.
-                            .contextMenu {
+                            favorite: favorites.contains(sport), dimmed: games.isEmpty) {
                                 let fav = favorites.contains(sport)
                                 Button(fav ? "Remove from Favourites" : "Add to Favourites",
                                        systemImage: fav ? "heart.slash" : "heart") {
@@ -258,12 +266,32 @@ struct TVSportList: View {
         autoSport = first
     }
 
-    private func row(_ selection: TVNav.HomeSelection, symbol: String, name: String, live: Int, total: Int, detail: String,
-                     favorite: Bool = false) -> some View {
+    private func row<Menu: View>(_ selection: TVNav.HomeSelection, symbol: String, name: String, live: Int, total: Int, detail: String,
+                     favorite: Bool = false, dimmed: Bool = false, @ViewBuilder menu: () -> Menu) -> some View {
+        let sport: Sport? = { if case .sport(let s) = selection { return s } else { return nil } }()
+        let withBridge = !compact && sport.map { s in (focused.wrappedValue == selection || bridge == s) && hasLeagues(s) } == true
+        return HStack(spacing: 0) {
+            rowButton(selection, sport: sport, symbol: symbol, name: name, live: live, total: total, detail: detail, favorite: favorite)
+                .opacity(dimmed ? 0.5 : 1)
+                // Hold the select button: favourite or hide (switch off) the sport.
+                .contextMenu { menu() }
+            if withBridge, let sport {
+                Color.clear.frame(width: 4, height: 60)
+                    .focusable()
+                    .focused($bridge, equals: sport)
+            }
+        }
+        .onChange(of: bridge) { if bridge != nil, bridge == sport { openLeagues() } }
+    }
+
+    private func rowButton(_ selection: TVNav.HomeSelection, sport: Sport?, symbol: String, name: String, live: Int, total: Int,
+                           detail: String, favorite: Bool) -> some View {
         Button {
             pendingSelection?.cancel()
             waitingSelection = nil
             nav.homeSelection = selection
+            // Clicking a sport with several leagues opens them beside it, like pressing right.
+            if let sport, hasLeagues(sport) { openLeagues() }
         } label: {
             HStack(spacing: 18) {
                 Image(systemName: symbol)
@@ -531,8 +559,13 @@ struct TVGamesPane: View {
                 // Finished games fold into one row at the bottom ("Finished · 6", click to show them), so a page
                 // mostly shows the games that are live or coming up.
                 if !finished.isEmpty {
-                    fold("Finished · \(finished.count)", open: showFinished) { showFinished.toggle() }
-                    if showFinished { gameGrid(finished) }
+                    // Finished games under their own heading (2.30: no longer a fold to open).
+                    Text("FINISHED")
+                        .font(.system(size: 19, weight: .bold))
+                        .foregroundStyle(Theme.muted)
+                        .padding(.leading, 22)
+                        .padding(.top, 16)
+                    gameGrid(finished)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
