@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.12", date: "2026-11-20", time: "21:56", title: "HDR tag", changes: [
+            Change(text: "Streams in HDR get a tag next to their resolution: HDR10, HLG or Dolby Vision, in the now-playing bar, full screen and the stream lists. On Apple TV it shows for 4K channels (the HDR player); VLC doesn't say.", apps: tv),
+            Change(text: "Streams in HDR get a tag next to their resolution: HDR10, HLG or Dolby Vision, in the now-playing bar, full screen and the stream lists.", apps: android)
+        ], titleApps: tvAndroid),
         Release(version: "2.11", date: "2026-11-20", time: "21:52", title: "No information panel in full screen", changes: [
             Change(text: "Full screen: the centre button no longer shows the stream information panel at the top right; the bar along the bottom already shows what's on and the stream's tags. It still shows the recently watched streams.", apps: tv)
         ]),

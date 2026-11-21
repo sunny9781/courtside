@@ -122,6 +122,7 @@ struct TVPlayerView: View {
             }
         }
         .onChange(of: controller.audio) { model.recordAudio(item.channel.id, controller.audio) }
+        .onChange(of: controller.dynamicRange) { model.recordHDR(item.channel.id, controller.dynamicRange) }
         .onChange(of: controller.frameRate) {
             model.recordFrameRate(item.channel.id, controller.frameRate)
             // The HDR player (4K) says exactly what the TV should switch to, HDR included (below); until it has,
@@ -342,6 +343,9 @@ struct TVPlayerView: View {
             Spacer()
             if !controller.resolution.isEmpty {
                 TVBadge(text: controller.resolution)
+            }
+            if !controller.dynamicRange.isEmpty {
+                TVBadge(text: controller.dynamicRange)
             }
             if controller.frameRate > 0 {
                 TVBadge(text: PlaybackController.fpsLabel(controller.frameRate))

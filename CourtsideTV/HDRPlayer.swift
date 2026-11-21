@@ -97,6 +97,16 @@ final class HDRPlayer: NSObject, KSPlayerLayerDelegate {
         return fps
     }
 
+    /// "HDR10", "HLG" or "Dolby Vision" when the stream is HDR (nil for standard range or while unknown).
+    var dynamicRangeLabel: String? {
+        switch track(.video)?.dynamicRange {
+        case .hdr10: return "HDR10"
+        case .hlg: return "HLG"
+        case .dolbyVision: return "Dolby Vision"
+        default: return nil
+        }
+    }
+
     /// "Stereo", "5.1 Dolby", "5.1 Dolby+", like the VLC path.
     var sound: String? {
         guard let audio = track(.audio) else { return nil }

@@ -210,11 +210,13 @@ fun PhoneChannelRow(model: AppModel, channel: Channel, playing: Boolean, heart: 
                     val quality = model.measuredQuality[channel.id]
                     val fps = model.measuredFrameRate[channel.id]
                     val sound = model.measuredAudio[channel.id]
+                    val hdr = model.measuredHdr[channel.id]
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         if (!quality.isNullOrEmpty()) Badge(quality, fill = if (quality == "4K") Theme.accent else Theme.raised,
                             color = if (quality == "4K") Theme.onAccent else Theme.soft)
                         if (fps != null && fps > 0) Badge(Playback.fpsLabel(fps))
                         if (!sound.isNullOrEmpty()) Badge(sound)
+                        if (!hdr.isNullOrEmpty()) Badge(hdr)
                     }
                 }
             }

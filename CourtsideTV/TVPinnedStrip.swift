@@ -44,6 +44,9 @@ struct TVPinnedStrip: View {
         .onChange(of: controller.audio) {
             if model.nowPlaying == nil { model.recordAudio(item.channel.id, controller.audio) }
         }
+        .onChange(of: controller.dynamicRange) {
+            if model.nowPlaying == nil { model.recordHDR(item.channel.id, controller.dynamicRange) }
+        }
     }
 }
 
@@ -67,6 +70,7 @@ struct TVNowPlayingBar: View {
                 TVChannelIcon(url: channel.icon, size: 44)
                 Text(channel.name).font(.system(size: 24, weight: .semibold)).foregroundStyle(Theme.soft).lineLimit(1)
                 if !controller.resolution.isEmpty { TVBadge(text: controller.resolution) }
+                if !controller.dynamicRange.isEmpty { TVBadge(text: controller.dynamicRange) }
                 if controller.frameRate > 0 { TVBadge(text: PlaybackController.fpsLabel(controller.frameRate)) }
                 if !controller.audio.isEmpty { TVBadge(text: controller.audio) }
                 Text(title).font(.system(size: 26, weight: .bold)).foregroundStyle(Theme.text).lineLimit(1)

@@ -48,6 +48,9 @@ object Playback {
         private set
     var frameRate by mutableStateOf(0f)
         private set
+    /** "HDR10", "HLG" or "Dolby Vision" when the stream is HDR (empty otherwise). */
+    var hdr by mutableStateOf("")
+        private set
 
     /** Called when a stream keeps freezing even after restarting it, so the app can move to the next stream. */
     var onRepeatedFreezing: (() -> Unit)? = null
@@ -161,6 +164,7 @@ object Playback {
         }
         freeze.reset()
         droppedSince = 0L
+        hdr = ""
         resolution = ""
         frameRate = 0f
         audio = ""
@@ -244,6 +248,7 @@ object Playback {
         resolution = ""
         frameRate = 0f
         audio = ""
+        hdr = ""
     }
 
     /**
@@ -347,6 +352,7 @@ object Playback {
         if (!::player.isInitialized || currentUrl == null) return
         measureFrameRate()
         soundLabel(player.audioFormat).let { if (it.isNotEmpty() && it != audio) audio = it }
+        hdrLabel(player.videoFormat).let { if (it.isNotEmpty() && it != hdr) hdr = it }
         val fallback = fallbackUrl
         if (!firstFrame && fallback != null && player.playWhenReady && System.currentTimeMillis() - openedAt > 8000) {
             ConnLog.add("No picture after 8 s: trying the other format")
@@ -403,6 +409,17 @@ object Playback {
             else -> ""
         }
         return listOf(layout, codec).filter { it.isNotEmpty() }.joinToString(" ")
+    }
+
+    /** The stream's dynamic range from its video format: "Dolby Vision", "HDR10", "HLG", or "" for standard range. */
+    fun hdrLabel(f: androidx.media3.common.Format?): String {
+        if (f == null) return ""
+        if (f.sampleMimeType == androidx.media3.common.MimeTypes.VIDEO_DOLBY_VISION) return "Dolby Vision"
+        return when (f.colorInfo?.colorTransfer) {
+            C.COLOR_TRANSFER_ST2084 -> "HDR10"
+            C.COLOR_TRANSFER_HLG -> "HLG"
+            else -> ""
+        }
     }
 
     private const val Format_NO_VALUE = androidx.media3.common.Format.NO_VALUE

@@ -91,6 +91,7 @@ private fun PhoneShell(model: AppModel) {
     LaunchedEffect(Playback.resolution, current?.channel?.id) { current?.let { model.recordQuality(it.channel.id, Playback.resolution) } }
     LaunchedEffect(Playback.frameRate, current?.channel?.id) { current?.let { model.recordFrameRate(it.channel.id, Playback.frameRate) } }
     LaunchedEffect(Playback.audio, current?.channel?.id) { current?.let { model.recordAudio(it.channel.id, Playback.audio) } }
+    LaunchedEffect(Playback.hdr, current?.channel?.id) { current?.let { model.recordHdr(it.channel.id, Playback.hdr) } }
     LaunchedEffect(Updater.message) { Updater.message?.let { model.notice = it } }
 
     // Back: full screen → the player at the top; a game → Home; an EPG category → the level above; another tab → Home.
@@ -246,6 +247,7 @@ private fun PinnedOverlay(model: AppModel, item: NowPlaying, modifier: Modifier)
                 .padding(start = 10.dp, end = 10.dp, top = 26.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (Playback.resolution.isNotEmpty()) Badge(Playback.resolution)
+                if (Playback.hdr.isNotEmpty()) Badge(Playback.hdr)
                 if (Playback.frameRate > 0) Badge(Playback.fpsLabel(Playback.frameRate))
                 if (Playback.audio.isNotEmpty()) Badge(Playback.audio)
                 Spacer(Modifier.weight(1f))
@@ -417,6 +419,7 @@ private fun PhoneFullScreen(model: AppModel, item: NowPlaying) {
                         size = 12.sp, color = Color.White.copy(alpha = 0.75f))
                 }
                 if (Playback.resolution.isNotEmpty()) Badge(Playback.resolution)
+                if (Playback.hdr.isNotEmpty()) Badge(Playback.hdr)
                 if (Playback.frameRate > 0) Badge(Playback.fpsLabel(Playback.frameRate))
                 if (Playback.audio.isNotEmpty()) Badge(Playback.audio)
                 if (item.lineup.size > 1) {
