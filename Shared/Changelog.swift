@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.31", date: "2026-11-21", time: "15:00", title: "Back from full screen", changes: [
+            Change(text: "Back from full screen always returns to the screen you were on (and the stream you watched), instead of sometimes jumping to the Home / EPG / Settings menu on the left.", apps: tv)
+        ]),
         Release(version: "2.30", date: "2026-11-21", time: "14:27", title: "Multiview: two games at once", changes: [
             Change(text: "Multiview: while a stream plays, hold select on a Home score card or a game's stream and pick Watch alongside to watch two games side by side (needs a second free connection).", apps: [.tv, .android]),
             Change(text: "In multiview, Select gives a tile the sound and makes it big; hold select swaps its stream, picks another game or removes it; Back keeps the game with sound playing on its own.", apps: [.tv, .android]),
