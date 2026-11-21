@@ -442,11 +442,13 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
                 val quality = badge?.takeIf { it.isNotEmpty() } ?: model.measuredQuality[channel.id]
                 val fps = model.measuredFrameRate[channel.id]
                 val sound = model.measuredAudio[channel.id]
+                val hdr = model.measuredHdr[channel.id]
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (!quality.isNullOrEmpty()) Badge(quality, fill = if (quality == "4K") Theme.accent else Theme.raised,
                         color = if (quality == "4K") Theme.onAccent else Theme.soft)
                     if (fps != null && fps > 0) Badge(Playback.fpsLabel(fps), fill = Theme.raised, color = Theme.soft)
                     if (!sound.isNullOrEmpty()) Badge(sound, fill = Theme.raised, color = Theme.soft)
+                    if (!hdr.isNullOrEmpty()) Badge(hdr, fill = Theme.raised, color = Theme.soft)
                 }
             }
             return@TvButton
@@ -479,12 +481,14 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
             val quality = badge?.takeIf { it.isNotEmpty() } ?: model.measuredQuality[channel.id]
             val fps = model.measuredFrameRate[channel.id]
             val sound = model.measuredAudio[channel.id]
+            val hdr = model.measuredHdr[channel.id]
             Row(Modifier.then(if (showNext) Modifier else Modifier.width(NEXT_WIDTH)),
                 horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (!quality.isNullOrEmpty()) Badge(quality, fill = if (quality == "4K") Theme.accent else Theme.raised,
                     color = if (quality == "4K") Theme.onAccent else Theme.soft)
                 if (fps != null && fps > 0) Badge(Playback.fpsLabel(fps), fill = Theme.raised, color = Theme.soft)
                 if (!sound.isNullOrEmpty()) Badge(sound, fill = Theme.raised, color = Theme.soft)
+                if (!hdr.isNullOrEmpty()) Badge(hdr, fill = Theme.raised, color = Theme.soft)
             }
             }
         }

@@ -439,6 +439,7 @@ struct TVChannelRow: View {
         let quality = (badge?.isEmpty == false ? badge : nil) ?? model.measuredQuality[channel.id]
         let fps = model.measuredFrameRate[channel.id] ?? 0
         let sound = model.measuredAudio[channel.id]
+        let range = model.measuredHDR[channel.id]
         // Fixed columns on every screen (channel, now, next), one line each; on the row you're on, text that doesn't
         // fit scrolls inside its column.
         HStack(spacing: 0) {
@@ -485,6 +486,7 @@ struct TVChannelRow: View {
                     TVBadge(text: quality, fill: quality == "4K" ? Theme.accent : Theme.raised,
                             color: quality == "4K" ? Theme.onAccent : Theme.soft)
                 }
+                if !showNext, let range { TVBadge(text: range) }
                 if !showNext, fps > 0 { TVBadge(text: PlaybackController.fpsLabel(fps)) }
                 if !showNext, let sound { TVBadge(text: sound) }
             }

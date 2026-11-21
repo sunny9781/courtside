@@ -26,6 +26,8 @@ final class PlaybackController: ObservableObject {
     @Published var frameRate: Double = 0
     /// The sound: "Stereo", "5.1 Dolby", "5.1 Dolby+" (VLC engine only).
     @Published var audio = ""
+    /// "HDR10", "HLG", "Dolby Vision" when the stream is HDR (Apple TV's HDR player only; VLC doesn't say).
+    @Published var dynamicRange = ""
     /// Half-second ticks the current stream has been playing (to time the frame-rate check).
     private var playingPolls = 0
     /// Called when a stream starts or stops (the app uses it to re-check connections in use).
@@ -164,6 +166,7 @@ final class PlaybackController: ObservableObject {
             resolution = ""
             frameRate = 0
             audio = ""
+            dynamicRange = ""
             playingPolls = 0
         }
         // One connection at a time: close the old stream first and give the provider a moment to see it gone
@@ -389,6 +392,7 @@ final class PlaybackController: ObservableObject {
                 if fps > 0 { frameRate = fps }
             }
             if playingPolls >= 4 && audio.isEmpty, let sound = hdr.sound { audio = sound }
+            if playingPolls >= 4 && dynamicRange.isEmpty, let range = hdr.dynamicRangeLabel { dynamicRange = range }
         }
     }
     #endif

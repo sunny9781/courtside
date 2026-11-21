@@ -645,6 +645,14 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         // Shown on the stream straight away; the order catches up at the next rematch.
     }
 
+    /** Each channel's HDR kind ("HDR10", "HLG", "Dolby Vision"), once it has played; shown with its other tags. */
+    var measuredHdr by mutableStateOf<Map<Int, String>>(emptyMap())
+
+    fun recordHdr(channelId: Int, label: String) {
+        if (label.isEmpty() || measuredHdr[channelId] == label) return
+        measuredHdr = measuredHdr + (channelId to label)
+    }
+
     fun recordAudio(channelId: Int, label: String) {
         if (label.isEmpty() || measuredAudio[channelId] == label) return
         measuredAudio = measuredAudio + (channelId to label)

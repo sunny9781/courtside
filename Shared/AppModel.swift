@@ -163,6 +163,14 @@ final class AppModel: ObservableObject {
     /// The sound each channel played with ("Stereo", "5.1 Dolby"), shown with its quality and frame rate.
     @Published var measuredAudio: [Int: String] = [:]
 
+    /// Each channel's HDR kind ("HDR10", "HLG", "Dolby Vision"), once it has played; shown with its other tags.
+    @Published var measuredHDR: [Int: String] = [:]
+
+    func recordHDR(_ channelID: Int, _ label: String) {
+        guard !label.isEmpty, measuredHDR[channelID] != label else { return }
+        measuredHDR[channelID] = label
+    }
+
     func recordAudio(_ channelID: Int, _ label: String) {
         guard !label.isEmpty, measuredAudio[channelID] != label else { return }
         measuredAudio[channelID] = label

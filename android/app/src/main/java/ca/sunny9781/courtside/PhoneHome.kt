@@ -451,6 +451,7 @@ private fun StreamRow(model: AppModel, m: StreamMatch, previewing: Boolean, modi
     val quality = model.measuredQuality[m.channel.id] ?: m.quality
     val fps = model.measuredFrameRate[m.channel.id]
     val sound = model.measuredAudio[m.channel.id]
+    val hdr = model.measuredHdr[m.channel.id]
     val shape = RoundedCornerShape(12.dp)
     Row(modifier.fillMaxWidth().clip(shape).background(Theme.card)
         .border(2.dp, if (previewing) Theme.accent else Color.Transparent, shape).clickable(onClick = onClick).padding(12.dp),
@@ -471,6 +472,7 @@ private fun StreamRow(model: AppModel, m: StreamMatch, previewing: Boolean, modi
                 color = if (quality == "4K") Theme.onAccent else Theme.soft)
             if (fps != null && fps > 0) Badge(Playback.fpsLabel(fps))
             if (!sound.isNullOrEmpty()) Badge(sound)
+            if (!hdr.isNullOrEmpty()) Badge(hdr)
         }
     }
 }
