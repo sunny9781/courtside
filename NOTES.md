@@ -128,6 +128,12 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - To save credits: build and settle features on Android first, then port to Apple TV/Mac/iPhone in one batch.
   Batch requests into one release. Use quick mock-ups before coding big layout changes. Start fresh sessions
   instead of one very long one.
+- Speed (agreed 2026-11-21, after a 75-minute Apple batch): for big batches across apps, work on the apps in
+  parallel (one helper agent per app: Apple TV, Mac, iPhone, Android), then merge their changes into one release.
+- Compiling: when the request comes from Sunny's Mac (the Claude desktop app, with the device tools present),
+  compile the Apple apps there with xcodebuild in ~/projects/courtside (ask for that folder with
+  device_request_folder_access the first time), instead of the GitHub check.yml. When it comes from another device
+  (iPhone etc.), use check.yml as before. Release builds stay on GitHub either way.
 
 ## Open items
 - 1.87 Apple TV HDR player (KSPlayer): HDR badge confirmed on the TV in full screen. Still to confirm: 1/2 connections,
