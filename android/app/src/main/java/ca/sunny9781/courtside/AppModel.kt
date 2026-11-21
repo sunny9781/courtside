@@ -172,6 +172,8 @@ class AppModel(app: Application) : AndroidViewModel(app) {
      * order settles once the scores, channels and guide are in), so it doesn't stay on whichever sport loaded first.
      */
     var pickedSport = false
+    /** Home's left menu has had focus since the app started: the first time, it lands on the top sport (2.30). */
+    var homeEnteredFromRail = false
     /** The select button is still held after it stopped the corner player: ignore it until it's let go. */
     var swallowSelect = false
     val openedAt = System.currentTimeMillis()

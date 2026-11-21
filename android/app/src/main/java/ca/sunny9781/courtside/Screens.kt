@@ -831,7 +831,20 @@ fun HomeScreen(model: AppModel) {
     // Back from the games: the selected league (when the leagues are out), otherwise the selected sport.
     LaunchedEffect(Unit) {
         model.focusMoves.collect {
-            if (it == "side") { if (folded && leagueTargets.focus(leagueKey())) Unit else side.focus(sidebarKey(model.homeSelection)) }
+            if (it != "side") return@collect
+            // The first time after the app starts: the top sport (usually a favourite), whatever was selected.
+            if (!model.homeEnteredFromRail) {
+                model.homeEnteredFromRail = true
+                val top = model.orderedSports().firstOrNull()
+                if (top != null) {
+                    folded = false
+                    model.homeSelection = HomeSelection.OfSport(top)
+                    delay(30)
+                    side.focus(top.name)
+                    return@collect
+                }
+            }
+            if (folded && leagueTargets.focus(leagueKey())) Unit else side.focus(sidebarKey(model.homeSelection))
         }
     }
     // Back from a league: its sport (the sports open out again).
@@ -851,7 +864,7 @@ fun HomeScreen(model: AppModel) {
     Row(Modifier.fillMaxSize().padding(end = Theme.margin)
         .enterAt { firstGame?.let { "game:$it" }?.takeIf { it in pane.live }?.let { pane[it] } ?: side[sidebarKey(model.homeSelection)] }) {
         Row(Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).focusRequester(model.leftPanel)
-            .onFocusChanged { model.sideFocused = it.hasFocus }
+            .onFocusChanged { model.sideFocused = it.hasFocus; if (it.hasFocus) model.homeEnteredFromRail = true }
             .enterAt { if (folded) leagueTargets[leagueKey()] else side[sidebarKey(model.homeSelection)] }) {
             SportList(model, side, compact = folded, onRight = { openLeagues() },
                 modifier = (if (folded) Modifier.width(48.dp) else Modifier.weight(1f))
@@ -949,6 +962,8 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
                     // Coming back to the sport whose league you picked on the right keeps that league.
                     onFocus = { if (selectedSport(model.homeSelection) != sport) choose(HomeSelection.OfSport(sport), false) else settle.cancel() }) {
                     if (selectedSport(model.homeSelection) != sport) choose(HomeSelection.OfSport(sport), true)
+                    // Clicking a sport with several leagues opens them beside it, the same as pressing right.
+                    onRight()
                 }
             }
         }
@@ -1141,7 +1156,16 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             }
             if (showLater) cardRows(later, "l")
         }
-        if (finished.isNotEmpty()) {
+        if (finished.isNotEmpty() && !Perf.foldFinished) {
+            // 2.30: finished games under their own plain heading (not a fold), always shown.
+            item(key = "finished", contentType = "heading") {
+                Row(Modifier.padding(start = 10.dp, top = 10.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Label("FINISHED", size = 10.sp, weight = FontWeight.Bold, color = Theme.muted)
+                }
+            }
+            cardRows(finished, "f")
+        } else if (finished.isNotEmpty()) {
+            // Lite mode's "Finished games" option still folds them.
             item(key = "finished", contentType = "finished") {
                 TvButton(onClick = { showFinished = !showFinished }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                     .tracked(targets, "finished")) { focused ->
