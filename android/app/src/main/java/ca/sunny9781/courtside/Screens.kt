@@ -209,6 +209,8 @@ fun Field(hint: String, value: String, onChange: (String) -> Unit, type: Keyboar
 @Composable
 fun Shell(model: AppModel) {
     val full = model.nowPlaying != null
+    // Multiview (2.30) covers everything, like full screen; its own Back handler (composed later) wins.
+    val multi = model.multiview
     val strip = remember { FocusTargets() }
     // Back goes up one level at a time: full screen → the player; a game → its card on Home; a page (games, channels,
     // a setting) → its left panel, on the selected item; the left panel → the tab you're on in the rail down the left
@@ -251,14 +253,14 @@ fun Shell(model: AppModel) {
             } else false
         }.onKeyEvent { e ->
             // Play/Pause on the remote stops the player at the top (and frees the connection).
-            if (e.type == KeyEventType.KeyDown && !full && model.pinned != null &&
+            if (e.type == KeyEventType.KeyDown && !full && !multi && model.pinned != null &&
                 e.key.nativeKeyCode in listOf(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PAUSE, KeyEvent.KEYCODE_MEDIA_STOP)
             ) { model.stopPinned(); true } else false
         }
     ) {
         // No top bar (2.4): the tabs and the status (connections, EPG, version) are in the rail down the left edge, so
         // every page starts at the top of the screen.
-        Column(Modifier.fillMaxSize().padding(start = RAIL_WIDTH, top = Theme.margin).alpha(if (full) 0f else 1f).enterAt({ full }) { FocusRequester.Default }) {
+        Column(Modifier.fillMaxSize().padding(start = RAIL_WIDTH, top = Theme.margin).alpha(if (full || multi) 0f else 1f).enterAt({ full || multi }) { FocusRequester.Default }) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
             // Left off the left edge of a page goes to the rail; right off the right edge goes nowhere.
             Box(Modifier.fillMaxSize().focusProperties {
@@ -288,8 +290,14 @@ fun Shell(model: AppModel) {
         if (model.nowPlaying != null || model.pinned != null) {
             val b = model.cornerBounds
             val density = androidx.compose.ui.platform.LocalDensity.current
+            val t = model.tileBounds
             val place = when {
                 full -> Modifier.fillMaxSize()
+                // Multiview: tile 1 is this same view, in its tile.
+                multi -> if (t == null) Modifier.size(0.dp) else with(density) {
+                    Modifier.offset { androidx.compose.ui.unit.IntOffset(t.left.toInt(), t.top.toInt()) }
+                        .size(t.width.toDp(), t.height.toDp())
+                }
                 b != null -> with(density) {
                     Modifier.offset { androidx.compose.ui.unit.IntOffset(b.left.toInt(), b.top.toInt()) }
                         .size(b.width.toDp(), b.height.toDp())
@@ -299,7 +307,8 @@ fun Shell(model: AppModel) {
             PlayerVideo(place)
         }
         // After the video, so the open rail (and its shade over the page) draws on top of the player in the corner.
-        if (!full) NavRail(model)
+        if (!full && !multi) NavRail(model)
+        if (multi && !full) MultiviewScreen(model)
         model.nowPlaying?.let { FullScreenPlayer(model, it) }
         model.notice?.let { message ->
             Box(Modifier.fillMaxWidth().padding(top = 24.dp), contentAlignment = Alignment.TopCenter) {
@@ -1058,6 +1067,10 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
         (it is HomeSelection.OfLeague && it.leagueId == "nfl") } && model.gamesIn("nfl").any { it.state == GameState.LIVE }
     val redZone = if (nflLive) model.redZoneChannels() else emptyList()
     var showRedZone by remember(selection) { mutableStateOf(false) }
+    // Hold select on a score card (2.30): Watch alongside (multiview), while a stream plays.
+    var prompt by remember { mutableStateOf<HoldPrompt?>(null) }
+    prompt?.let { p -> HoldMenu(p) { prompt = null } }
+    val alongside = model.canWatchAlongside
     // An EPG-like list, like the channel sports: a row per game (status, the teams and scores), under a heading per
     // league. It runs to the bottom of the screen, under the now-playing bar.
     BehindPlayerBar(model) {
@@ -1088,6 +1101,10 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
                     GameCard(game, main.size, main.any { it.is4K },
                         modifier = Modifier.weight(1f).tracked(targets, "game:${game.id}")
                             .then(if (i == row.size - 1) toEpg else Modifier),
+                        onHold = if (alongside && main.isNotEmpty() && game.state != GameState.FINISHED) {
+                            { prompt = HoldPrompt(game.title, listOf(
+                                HoldOption("Watch alongside", Icons.Filled.ViewColumn) { model.watchAlongside(game.id) })) }
+                        } else null,
                         onFocus = {
                             onFocusGame(game.id)
                             if (firstRow && (headed || first)) showHeading("$prefix:${row.first().id}", headed, first)
@@ -1169,10 +1186,11 @@ private val CARD_MIN_WIDTH = 200.dp
  * logo and score. Upcoming games are dimmer, so live games stand out. Lite mode: no scores or logos.
  */
 @Composable
-private fun GameCard(game: Game, streams: Int, has4K: Boolean, modifier: Modifier, onFocus: () -> Unit, onClick: () -> Unit) {
+private fun GameCard(game: Game, streams: Int, has4K: Boolean, modifier: Modifier, onFocus: () -> Unit,
+                     onHold: (() -> Unit)? = null, onClick: () -> Unit) {
     // Only plain values come in (not the whole app model), so when the scores update, a card whose game didn't
     // change isn't drawn again.
-    TvButton(onClick = onClick, onFocus = onFocus, modifier = modifier, background = Theme.card,
+    TvButton(onClick = onClick, onFocus = onFocus, modifier = modifier, background = Theme.card, onLongClick = onHold,
         shape = RoundedCornerShape(12.dp)) { focused ->
         val text = if (focused) Theme.bg else Theme.text
         val dim = if (game.state == GameState.UPCOMING && !focused) 0.7f else 1f
@@ -1414,6 +1432,14 @@ fun GameScreen(model: AppModel, gameId: String) {
         if (previewId == m.channel.id) model.play(m.channel, game.title, lineup, from = "game")
         else model.pin(m.channel, game.title, lineup)
     }
+    // Hold select on a stream (2.30): Watch alongside, while another stream plays (multiview with exactly this one).
+    var prompt by remember { mutableStateOf<HoldPrompt?>(null) }
+    prompt?.let { p -> HoldMenu(p) { prompt = null } }
+    val alongside = model.canWatchAlongside
+    fun hold(m: StreamMatch): (() -> Unit)? =
+        if (!alongside || m.channel.id == model.pinned?.channel?.id) null
+        else ({ prompt = HoldPrompt(m.channel.name, listOf(
+            HoldOption("Watch alongside", Icons.Filled.ViewColumn) { model.watchAlongside(gameId, m) })) })
 
     Row(Modifier.fillMaxSize().background(Theme.bg).padding(end = Theme.margin).enterAt { rows["s:$previewId"] },
         horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -1451,7 +1477,7 @@ fun GameScreen(model: AppModel, gameId: String) {
                     val k = "s:${m.channel.id}"
                     ChannelRow(model, m.channel, m.channel.id == previewId, Modifier.tracked(rows, k),
                         badge = model.measuredQuality[m.channel.id] ?: m.quality, nameWidth = nameWidth, showNext = false,
-                        onFocus = { lastRow = k }) { select(m) }
+                        onLongClick = hold(m), onFocus = { lastRow = k }) { select(m) }
                 }
             }
         } } }

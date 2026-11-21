@@ -61,6 +61,8 @@ object Playback {
     var attempt by mutableStateOf(0)
         private set
     private var firstFrame = false
+    /** The stream has shown its first picture (since it was last opened). */
+    val hasPicture: Boolean get() = firstFrame
     /**
      * Low-power players (the Chromecast with Google TV has 2 GB): full screen always uses the fast video surface,
      * since drawing 4K the other way is too much for them.
@@ -176,7 +178,8 @@ object Playback {
         open(url)
     }
 
-    private fun source(url: String): MediaSource {
+    /** The player for a stream address (also used by multiview's second tile, TilePlayer). */
+    internal fun source(url: String): MediaSource {
         val item = MediaItem.fromUri(url)
         return if (url.endsWith(".m3u8")) {
             HlsMediaSource.Factory(http)
@@ -497,7 +500,7 @@ class FreezeWatch {
  * stream over left the picture fuzzy and unwatchable on the Chromecast with Google TV.
  */
 @OptIn(UnstableApi::class)
-private class FreshDecoderRenderers(context: Context) : DefaultRenderersFactory(context) {
+internal class FreshDecoderRenderers(context: Context) : DefaultRenderersFactory(context) {
     init {
         // Sound the TV box can't play itself (Dolby over Bluetooth headphones) is decoded by the app's own decoder,
         // used only when the box's own can't; over HDMI, Dolby still goes straight to the TV.

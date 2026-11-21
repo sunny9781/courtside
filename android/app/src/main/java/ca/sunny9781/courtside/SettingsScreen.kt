@@ -111,6 +111,10 @@ private fun PlaybackSection(model: AppModel) {
     Toggle("Switch to the next stream when one stalls", "USA and Canada streams are tried first.", s.autoSwitch) { s.autoSwitch = it }
     Toggle("Match frame rate", "Switches your TV to each stream's frame rate (50 or 60 fps) in full screen, for smoother motion.",
         s.matchFrameRate) { s.matchFrameRate = it }
+    Toggle("Multiview", "Hold select on a stream or a score card and choose Watch alongside to watch two at once. Needs a second free connection.",
+        s.multiview) { s.multiview = it }
+    if (s.multiview) Action("Select in multiview", "What pressing select on a tile does. Either way, only one tile plays sound.",
+        value = if (s.multiviewMakeBig) "Make big" else "Move sound only") { s.multiviewMakeBig = !s.multiviewMakeBig }
     Action("Stream format", "Which version of each stream to open first. If it shows no picture within 8 seconds, the other one is tried.",
         value = if (s.preferHls) "HLS first" else "TS first") { s.preferHls = !s.preferHls }
     Action("Buffer", "More buffer means fewer stalls but a longer delay behind live. Takes effect the next time the app opens.",

@@ -26,6 +26,17 @@ final class HDRPlayer: NSObject, KSPlayerLayerDelegate {
 
     var isOpen: Bool { layer != nil }
 
+    /// No sound (multiview: only the tile with the sound plays audio).
+    var muted = false {
+        didSet { applyMute() }
+    }
+
+    private func applyMute() {
+        guard let layer else { return }
+        var player = layer.player
+        player.isMuted = muted
+    }
+
     private static var configured = false
     private static func configure() {
         guard !configured else { return }
@@ -62,6 +73,7 @@ final class HDRPlayer: NSObject, KSPlayerLayerDelegate {
         host.addSubview(view)
         self.layer = layer
         playerView = view
+        if muted { applyMute() }
     }
 
     /// Stops the stream and closes its connection.

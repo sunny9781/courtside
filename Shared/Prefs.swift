@@ -32,6 +32,8 @@ enum Prefs {
     static let hiddenCategories = "hiddenCategories"     // hidden: category or group ids, newline-separated
     static let refreshHours = "refreshHours"     // how long saved channels and guide are reused
     static let guideGrouped = "guideGroupedOn"   // renamed so grouping starts switched on
+    static let multiview = "multiview"           // Apple TV: "Watch alongside" (two streams side by side); default on
+    static let multiviewSelect = "multiviewSelect" // Apple TV multiview, Select on a tile: "big" (make big + sound) | "sound"
 
     static func register() {
         UserDefaults.standard.register(defaults: [
@@ -47,7 +49,9 @@ enum Prefs {
             autoSwitch: false,
             matchFrameRate: true,
             hideAdult: true,
-            guideGrouped: true
+            guideGrouped: true,
+            multiview: true,
+            multiviewSelect: "big"
         ])
         let d = UserDefaults.standard
         // 1.96: switching to the next stream when one stalls is off by default; turned off once for everyone.

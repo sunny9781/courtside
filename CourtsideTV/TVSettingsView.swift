@@ -14,6 +14,8 @@ struct TVSettingsView: View {
     @AppStorage(Prefs.hiddenSports) private var hiddenSports = ""
     @AppStorage(Prefs.hiddenLeagues) private var hiddenLeagues = ""
     @AppStorage(Prefs.refreshHours) private var refreshHours = 6
+    @AppStorage(Prefs.multiview) private var multiview = true
+    @AppStorage(Prefs.multiviewSelect) private var multiviewSelect = "big"
     /// Remembered while you're on other tabs, so coming back lands on the section you were in.
     private var section: Section { Section(rawValue: nav.settingsSection) ?? .account }
     @State private var confirmSignOut = false
@@ -190,6 +192,17 @@ struct TVSettingsView: View {
             action("Buffer", detail: "More buffer means fewer stalls but a longer delay behind live.",
                    value: "\(bufferMs / 1000) s") {
                 bufferMs = next(after: bufferMs, in: [1000, 2000, 3000, 5000])
+            }
+            toggle("Multiview",
+                   detail: "Hold select on a stream or a game and choose Watch alongside: two streams side by side, when your provider has a connection free.",
+                   $multiview)
+            if multiview {
+                action("Select in multiview",
+                       detail: multiviewSelect == "sound" ? "Select on a tile moves the sound there; the tiles stay the same size."
+                           : "Select on a tile moves the sound there and makes it big; again goes back to side by side.",
+                       value: multiviewSelect == "sound" ? "Move sound only" : "Make big") {
+                    multiviewSelect = multiviewSelect == "sound" ? "big" : "sound"
+                }
             }
 
         case .general:

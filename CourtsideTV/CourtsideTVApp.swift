@@ -98,16 +98,22 @@ struct TVShell: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var nav: TVNav
     @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var multiview = TVMultiview.shared
 
     var body: some View {
         // Full screen is drawn on top of everything in this same screen (like the Mac), not as a separate
         // presentation: moving the video between two windows is what left the player at the top black.
         ZStack {
             shell
-                .opacity(model.nowPlaying == nil ? 1 : 0)
-                .disabled(model.nowPlaying != nil)
+                .opacity(model.nowPlaying == nil && !multiview.active ? 1 : 0)
+                .disabled(model.nowPlaying != nil || multiview.active)
             if let item = model.nowPlaying {
                 TVPlayerView(item: item)
+                    .transition(.opacity)
+                    .zIndex(1)
+            } else if multiview.active {
+                // Multiview (2.30): two streams side by side, over everything.
+                TVMultiviewView()
                     .transition(.opacity)
                     .zIndex(1)
             }
@@ -128,6 +134,7 @@ struct TVShell: View {
             }
         }
         .animation(.easeOut(duration: 0.2), value: model.nowPlaying == nil)
+        .animation(.easeOut(duration: 0.2), value: multiview.active)
     }
 
     private var shell: some View {
@@ -184,10 +191,10 @@ struct TVShell: View {
         // Both from the same place, so on every screen a hold is never also taken as a short press (on Home the short
         // press used to stop the player before the hold could open it).
         .background(TVPlayPauseHold(action: {
-            guard model.nowPlaying == nil, let item = model.pinned else { return }
+            guard model.nowPlaying == nil, !multiview.active, let item = model.pinned else { return }
             model.play(item.channel, gameTitle: item.gameTitle, lineup: item.lineup)
         }, tap: {
-            guard model.nowPlaying == nil, model.pinned != nil else { return }
+            guard model.nowPlaying == nil, !multiview.active, model.pinned != nil else { return }
             PlaybackController.shared.stop()
             model.pinned = nil
             model.checkConnectionsSoon()
@@ -196,6 +203,8 @@ struct TVShell: View {
         .task { await model.refresh() }
         .onChange(of: scenePhase) {
             if scenePhase == .active { Task { await model.refresh() } }
+            // Leaving the app: multiview's second stream closes; the first stays as normal playback does.
+            if scenePhase == .background { multiview.end(model: model) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .tvSwitchTab)) { note in
             if let tab = note.object as? TVTab { switchTab(tab) }
