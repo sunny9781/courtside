@@ -181,7 +181,7 @@ struct TVShell: View {
                 .frame(maxHeight: .infinity, alignment: .top)
                 // Leaving full screen: focus goes back into the page (the screen you were on, then the stream you
                 // watched), not to the rail, which tvOS sometimes picked first as the screen came back.
-                .focusDisabled(model.nowPlaying != nil || leavingFullScreen)
+                .disabled(model.nowPlaying != nil || leavingFullScreen)
         }
         .onChange(of: model.nowPlaying == nil) {
             guard model.nowPlaying == nil else { return }
