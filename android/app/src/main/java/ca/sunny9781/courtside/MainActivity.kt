@@ -54,6 +54,12 @@ class MainActivity : ComponentActivity() {
             .allowRgb565(true)
             .respectCacheHeaders(false)
             .build())
+        if (!Device.tv) {
+            // Chromecast (phone app only).
+            Cast.setUp(this)
+            Cast.onChange = { model.castChanged() }
+            Cast.onMessage = { model.notice = it }
+        }
         setContent {
             CourtsideApp(model)
             // In full screen, switch the TV to a refresh rate that matches the stream (Settings › Player).
@@ -67,7 +73,7 @@ class MainActivity : ComponentActivity() {
                 else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             }
             // Phones: leaving the app while something plays carries on in a small floating window (picture in picture).
-            LaunchedEffect(awake) { if (!Device.tv) updatePip(awake) }
+            LaunchedEffect(awake, Cast.connected) { if (!Device.tv) updatePip(awake && !Cast.connected) }
             // Refresh-rate matching is for TVs only.
             val match = model.settings.matchFrameRate && Device.tv
             LaunchedEffect(full, match) { Playback.setFullScreen(full, match) }
@@ -132,6 +138,22 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         Updater.afterInstall(this)
+        Cast.discover(true)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        Cast.discover(false)
+    }
+
+    /** While casting, the phone's volume buttons change the TV's volume. */
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        if (!Device.tv && Cast.connected &&
+            (event.keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP || event.keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN)) {
+            if (event.action == android.view.KeyEvent.ACTION_DOWN) Cast.volumeStep(event.keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP)
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onStart() {
@@ -142,6 +164,8 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         model.onScreen = false
+        // Casting: the TV carries on playing (the phone isn't using a connection).
+        if (Cast.connected) { Playback.stop(); return }
         // Leaving the app (Home button) stops the stream, so it doesn't keep using a connection.
         Playback.stop()
         model.pinned = null

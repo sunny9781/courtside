@@ -100,7 +100,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     private var guideJob: kotlinx.coroutines.Job? = null
 
     /** A stream is open (or about to be). Downloads wait until it's closed, so only one connection is ever in use. */
-    private val streamOpen get() = Playback.currentUrl != null
+    private val streamOpen get() = Playback.currentUrl != null || Cast.hasMedia
 
     private suspend fun waitForNoStream() {
         if (!streamOpen) return
@@ -376,6 +376,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     fun signOut() {
         Playback.stop()
+        Cast.stopMedia()
         Cache.clear(context)
         rawCategories = emptyList(); rawChannels = emptyList(); categoryTree = emptyList()
         channelsByCategory = emptyMap(); channelById = emptyMap()
@@ -786,6 +787,28 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun recentStreams(item: NowPlaying, limit: Int = 6): List<NowPlaying> =
         watched.filter { it.channel.id != item.channel.id }.take(limit)
 
+    /** Opens a stream here, or on the Chromecast while one is connected (phone app; the phone's player then stops). */
+    private fun startStream(item: NowPlaying) {
+        val (ts, hls) = urls(item.channel) ?: return
+        pauseDownloads()
+        if (Cast.connected) {
+            Playback.stop()
+            Cast.load(XtreamClient(credentials ?: return).streamUrl(item.channel, hls = true), playerTitle(item),
+                item.channel.name, item.channel.icon)
+        } else Playback.play(ts, hls)
+        checkAccountSoon()
+    }
+
+    /** A Chromecast connected or disconnected: move what's playing there, or back to the phone. */
+    fun castChanged() {
+        val current = nowPlaying ?: pinned ?: return
+        when {
+            Cast.connected -> startStream(current)
+            onScreen -> startStream(current)
+            else -> { Playback.stop(); nowPlaying = null; pinned = null }
+        }
+    }
+
     /** Plays in the player at the top. */
     fun pin(channel: Channel, gameTitle: String? = null, lineup: List<Channel> = emptyList()) {
         // Lite mode has no player in the corner: a channel goes straight to full screen.
@@ -800,10 +823,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         recent.add(channel.id)
         pinned = NowPlaying(channel, gameTitle, lineup.ifEmpty { listOf(channel) })
         noteWatching(pinned!!)
-        val (ts, hls) = urls(channel) ?: return
-        pauseDownloads()
-        Playback.play(ts, hls)
-        checkAccountSoon()
+        startStream(pinned!!)
     }
 
     /** Full screen. */
@@ -813,10 +833,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val item = NowPlaying(channel, gameTitle, lineup.ifEmpty { listOf(channel) })
         nowPlaying = item
         noteWatching(item)
-        val (ts, hls) = urls(channel) ?: return
-        pauseDownloads()
-        Playback.play(ts, hls)
-        checkAccountSoon()
+        startStream(item)
     }
 
     /** Leaving full screen: the stream carries on in the player at the top. */
@@ -827,6 +844,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         if (settings.liteNoCorner) {
             // Lite mode: no player in the corner, so leaving full screen stops the stream (and frees the connection).
             Playback.stop()
+            Cast.stopMedia()
             pinned = null
             checkAccountSoon()
         } else pinned = closing
@@ -834,6 +852,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     fun stopPinned() {
         Playback.stop()
+        Cast.stopMedia()
         pinned = null
         checkAccountSoon()
     }
@@ -847,7 +866,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         play(next, current.gameTitle, current.lineup)
     }
 
-    private fun stepPinned(delta: Int) {
+    fun stepPinned(delta: Int) {
         val current = pinned ?: return
         if (current.lineup.size < 2) return
         val i = current.lineup.indexOfFirst { it.id == current.channel.id }.coerceAtLeast(0)
