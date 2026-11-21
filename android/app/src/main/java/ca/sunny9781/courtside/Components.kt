@@ -212,13 +212,15 @@ fun Badge(text: String, fill: Color = Theme.raised, color: Color = Theme.soft) {
  * stream has enough history (StreamStats).
  */
 @Composable
-fun ReliabilityDot(channelId: Int) {
+fun ReliabilityDot(channelId: Int, bare: Boolean = false) {
     val rating = StreamStats.ratings[channelId] ?: return
     val dot = when (rating) {
         StreamStats.Rating.GOOD -> Theme.winning
         StreamStats.Rating.OK -> Color(0xFFF59E0B)
         StreamStats.Rating.POOR -> Theme.losing
     }
+    // Bare: just the dot, for tight spots (the EPG's channel names).
+    if (bare) { Box(Modifier.size(7.dp).clip(CircleShape).background(dot)); return }
     Box(Modifier.clip(RoundedCornerShape(6.dp)).background(Theme.raised).padding(horizontal = 6.dp, vertical = 5.dp)) {
         Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
     }

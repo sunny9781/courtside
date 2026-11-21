@@ -74,8 +74,17 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
-        Release(version: "2.25", date: "2026-11-21", time: "11:50", title: "Smoother EPG categories", changes: [
+        Release(version: "2.27", date: "2026-11-21", time: "13:10", title: "Smoother EPG categories", changes: [
             Change(text: "EPG: moving through the categories shows a category's channels once you stop on it (a quarter second), so scrolling the list no longer draws every category on the way; clicking or moving right shows it at once.", apps: tv),
+        ]),
+        Release(version: "2.26", date: "2026-11-21", time: "12:05", title: "Reliability dots in the EPG", changes: [
+            Change(text: "The green, amber or red reliability dot now shows next to channel names in the EPG (list and timeline) too.", apps: android),
+            Change(text: "Fixed: on the TVs the dot didn't show on the game screen's streams (only on phones).", apps: android),
+        ]),
+        Release(version: "2.25", date: "2026-11-21", time: "11:55", title: "Android tablets and small touches", changes: [
+            Change(text: "Tablets get their own layout, like the iPad: sports down the left, and on the right the player (under half the width, titles beside it), league chips along the top and as many score cards per row as fit. Games open on the right with the sports still showing. Turning a tablet sideways no longer jumps to full screen.", apps: android),
+            Change(text: "Phone and tablet EPG: what's playing has an orange outline around its row, instead of a speaker icon.", apps: android),
+            Change(text: "Phone and tablet Home: when channels were last downloaded shows at the top right (Updated 9:41 AM); tap it to refresh.", apps: android)
         ]),
         Release(version: "2.24", date: "2026-11-21", time: "11:30", title: "Navigation from the left", changes: [
             Change(text: "No top bar: Home, EPG and Settings are in a rail down the left edge, like Android TV. Left from a left column (or Back) opens it with names, connections, the EPG time and the version; right or clicking a tab goes back into the page on what's selected.", apps: tv),

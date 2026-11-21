@@ -112,6 +112,10 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   bottom starting from the right (`TrailingRow`). Sideways on a game = full screen (back upright closes it);
   sideways on an EPG category = timeline (reuses `GuideRow`). Picture in picture: auto-enter on Android 12+,
   onUserLeaveHint on 8-11, PiP button in full screen; closing PiP or locking the phone stops the stream (onStop).
+- Tablets (2.25, `isTablet()` = smallestScreenWidthDp >= 600, like iPad's regular size class): `TabletHome`
+  (sports sidebar, `PinnedSlot` at the top of the right column, league chips on top, cards per row = width / 210 dp);
+  EPG and Settings keep the phone layout with `PinnedSlot` above them. No sideways-to-full-screen on tablets.
+  EPG rows: orange outline for what's playing (no speaker icon). Home: "Updated 9:41 AM" top right, tap = refresh.
 - Chromecast on the phone app (2.17, Cast.kt): play-services-cast-framework + the Default Media Receiver, own Compose
   picker (MediaRouter routes; no MediaRouteButton, which needs AppCompat/FragmentActivity). `AppModel.startStream`
   loads the HLS URL on the Chromecast instead of Playback while connected; `castChanged` moves the current stream
@@ -122,6 +126,7 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   pull to refresh, spinner, dialog.
 
 ## Working preferences (Sunny)
+- Auto-merge (2026-11-21): once the build check passes, merge to main and release without asking, in every Courtside chat.
 - Small changes (a number, text, a changelog line) merge straight away without check.yml; the Mac release build
   refuses to publish a broken build (2.9). Anything that changes behaviour or Apple TV/iPhone code still gets check.yml
   first. Always re-check Changelog.swift after resolving a merge conflict in it (2.10 broke the Mac build that way).
@@ -247,7 +252,7 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   (buffers + freezes + drops), startup ms, fail rate; last 15 sessions; files/stream-stats.json; dropped after 60 days.
   Hooks in Playback.kt: begin (play), firstPicture, tick (poll, 500 ms), froze (FreezeWatch restart), dropped
   (reconnectAfterDrop), end (stop / next play). Sessions under 10 s watched (or failed under 8 s) are ignored.
-- `ReliabilityDot` (Components.kt) on game-screen streams (TV `StreamCell`, phone `StreamRow`): shows after 5 min
+- `ReliabilityDot` (Components.kt; `bare` = dot only) in `ChannelRow` (TV game screen + list EPG), `GuideRow`, `PhoneChannelRow`, phone `StreamRow` (2.26; TV `StreamCell` is unused): shows after 5 min
   watched; red at rebuffer >5% / >20 events/h / fail >40% (or 2+ opens failing >50%), amber at >1% / >6 /h / >15% /
   startup >8 s. `StreamStats.reset()` exists but no Settings button yet. Not on Apple apps yet.
 

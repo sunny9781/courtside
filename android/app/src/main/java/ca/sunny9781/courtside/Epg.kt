@@ -444,6 +444,7 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
                 val sound = model.measuredAudio[channel.id]
                 val hdr = model.measuredHdr[channel.id]
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    ReliabilityDot(channel.id)
                     if (!quality.isNullOrEmpty()) Badge(quality, fill = if (quality == "4K") Theme.accent else Theme.raised,
                         color = if (quality == "4K") Theme.onAccent else Theme.soft)
                     if (fps != null && fps > 0) Badge(Playback.fpsLabel(fps), fill = Theme.raised, color = Theme.soft)
@@ -461,6 +462,7 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
                 ChannelIcon(channel.icon, 24.dp)
                 Label(channel.name, size = 12.sp, weight = FontWeight.SemiBold, color = if (playing && !focused) Theme.accent else color,
                     scroll = focused, modifier = Modifier.weight(1f, fill = false))
+                ReliabilityDot(channel.id, bare = true)
                 if (playing) Icon(Icons.Filled.GraphicEq, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(11.dp))
                 if (model.isFavoriteChannel(channel.id))
                     Icon(Icons.Filled.Favorite, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(10.dp))
@@ -659,6 +661,7 @@ internal fun GuideRow(model: AppModel, channel: Channel, playing: Boolean, start
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                         Label(channel.name, size = 13.sp, weight = FontWeight.SemiBold, color = color, maxLines = 3,
                             modifier = Modifier.weight(1f, fill = false))
+                        ReliabilityDot(channel.id, bare = true)
                         if (model.isFavoriteChannel(channel.id))
                             Icon(Icons.Filled.Favorite, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(8.dp))
                     }
