@@ -25,7 +25,7 @@ import java.text.DateFormat
 import java.util.Date
 
 private enum class PhoneSection(val title: String, val icon: ImageVector) {
-    ACCOUNT("Account", Icons.Filled.AccountCircle), PLAYBACK("Playback", Icons.Filled.Slideshow),
+    ACCOUNT("Account", Icons.Filled.AccountCircle), VPN("VPN", Icons.Filled.VpnLock), PLAYBACK("Playback", Icons.Filled.Slideshow),
     GENERAL("General", Icons.Filled.Tune), HIDDEN("Hidden", Icons.Filled.VisibilityOff), CHANGELOG("Changelog", Icons.Filled.AutoAwesome)
 }
 
@@ -38,6 +38,7 @@ fun PhoneSettings(model: AppModel) {
             verticalArrangement = Arrangement.spacedBy(8.dp)) {
             when (section) {
                 PhoneSection.ACCOUNT -> AccountSection(model)
+                PhoneSection.VPN -> VpnSettings(model)
                 PhoneSection.PLAYBACK -> PlaybackSettings(model)
                 PhoneSection.GENERAL -> GeneralSection(model)
                 PhoneSection.HIDDEN -> HiddenSection(model)
@@ -145,6 +146,90 @@ private fun AccountSection(model: AppModel) {
         },
         dismissButton = {
             Box(Modifier.clip(RoundedCornerShape(8.dp)).clickable { confirm = false }.padding(12.dp)) {
+                Label("Cancel", size = 15.sp, color = Theme.soft)
+            }
+        })
+}
+
+/** Built-in VPN (2.33): a WireGuard config from a .conf file or pasted, used by Courtside only. */
+@Composable
+private fun VpnSettings(model: AppModel) {
+    val s = model.settings
+    val activity = LocalContext.current as android.app.Activity
+    var error by remember { mutableStateOf<String?>(null) }
+    var pasting by remember { mutableStateOf(false) }
+    var removing by remember { mutableStateOf(false) }
+    val pick = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val text = runCatching {
+            activity.contentResolver.openInputStream(uri)?.use { it.readBytes().take(32768).toByteArray().decodeToString() }
+        }.getOrNull()
+        error = if (text == null) "That file couldn't be read." else model.saveVpnConfig(text, activity)
+    }
+    val has = s.vpnConfig.isNotBlank()
+    Group("VPN", footer = error ?: (if (s.vpnOn && Vpn.state == Vpn.State.FAILED) Vpn.detail.ifEmpty { null } else null)
+        ?: "Courtside's own WireGuard VPN: only this app goes through it, the rest of the phone stays on its normal " +
+        "connection. While it's on, Courtside won't contact your provider without it. It connects when you open the " +
+        "app and disconnects when you leave. Casting isn't covered: the Chromecast fetches the stream itself.") {
+        if (has) {
+            Toggle("Use the VPN", s.vpnOn) { error = null; model.vpnSwitched(it, activity) }
+            Divider()
+            Line("Status", vpnStatus(s.vpnOn), valueColor = if (s.vpnOn && Vpn.state == Vpn.State.ON) Theme.accent else Theme.muted)
+            Divider()
+            Line("Server", Vpn.server(s.vpnConfig).ifEmpty { "–" })
+        } else {
+            Line("Status", "No VPN set up")
+        }
+    }
+    Group("WireGuard config", footer = "Use the .conf file from your VPN provider's WireGuard setup page (Proton VPN, " +
+        "Mullvad, Surfshark, AirVPN and others offer one), or from your own WireGuard server.") {
+        Line(if (has) "Choose a new .conf file" else "Choose a .conf file", color = Theme.accent, onClick = { pick.launch("*/*") })
+        Divider()
+        Line("Paste a config", color = Theme.accent, onClick = { pasting = true })
+        if (has) {
+            Divider()
+            Line("Remove the VPN", color = Theme.losing, onClick = { removing = true })
+        }
+    }
+    if (pasting) {
+        var text by remember { mutableStateOf("") }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pasting = false },
+            containerColor = Theme.card,
+            title = { Label("Paste a WireGuard config", size = 18.sp, weight = FontWeight.SemiBold) },
+            text = {
+                androidx.compose.material3.OutlinedTextField(text, { text = it }, minLines = 6, maxLines = 12,
+                    placeholder = { Label("[Interface]\nPrivateKey = …\n\n[Peer]\nEndpoint = …", size = 13.sp, color = Theme.muted, maxLines = 6) },
+                    textStyle = androidx.compose.ui.text.TextStyle(color = Theme.text, fontSize = 13.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                    modifier = Modifier.fillMaxWidth())
+            },
+            confirmButton = {
+                Box(Modifier.clip(RoundedCornerShape(8.dp)).clickable {
+                    pasting = false; error = model.saveVpnConfig(text, activity)
+                }.padding(12.dp)) {
+                    Label("Save and connect", size = 15.sp, weight = FontWeight.Bold, color = Theme.accent)
+                }
+            },
+            dismissButton = {
+                Box(Modifier.clip(RoundedCornerShape(8.dp)).clickable { pasting = false }.padding(12.dp)) {
+                    Label("Cancel", size = 15.sp, color = Theme.soft)
+                }
+            })
+    }
+    if (removing) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { removing = false },
+        containerColor = Theme.card,
+        title = { Label("Remove the VPN?", size = 18.sp, weight = FontWeight.SemiBold) },
+        text = { Label("Its config is deleted from this phone and Courtside goes back to your normal connection.", size = 14.sp, color = Theme.muted, maxLines = 3) },
+        confirmButton = {
+            Box(Modifier.clip(RoundedCornerShape(8.dp)).clickable { removing = false; error = null; model.removeVpnConfig() }.padding(12.dp)) {
+                Label("Remove", size = 15.sp, weight = FontWeight.Bold, color = Theme.losing)
+            }
+        },
+        dismissButton = {
+            Box(Modifier.clip(RoundedCornerShape(8.dp)).clickable { removing = false }.padding(12.dp)) {
                 Label("Cancel", size = 15.sp, color = Theme.soft)
             }
         })

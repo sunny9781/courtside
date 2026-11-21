@@ -18,6 +18,8 @@ struct SettingsView: View {
     enum SettingsSection: String, CaseIterable, Identifiable {
         // The same sections as on the TVs.
         case account = "Account"
+        /// A SOCKS5 / HTTPS / HTTP proxy for the provider's traffic (2.33).
+        case proxy = "Proxy"
         case playback = "Playback"
         case general = "General"
         /// Sports and leagues switched off, and hidden categories and channels.
@@ -29,6 +31,7 @@ struct SettingsView: View {
         var symbol: String {
             switch self {
             case .account: return "person.crop.circle"
+            case .proxy: return "network.badge.shield.half.filled"
             case .playback: return "play.rectangle"
             case .general: return "slider.horizontal.3"
             case .hidden: return "eye.slash"
@@ -93,6 +96,9 @@ struct SettingsView: View {
                         .buttonStyle(GhostButtonStyle(tint: Theme.danger))
                 }
             }
+
+        case .proxy:
+            MacProxyPanel()
 
         case .hidden:
             panel("Sports and leagues") {

@@ -47,10 +47,14 @@ struct XtreamClient {
         return url
     }
 
+    /// The sign-in address (Settings › Proxy › Test checks the provider through the proxy with it).
+    func apiURL() -> URL? { try? url("/player_api.php") }
+
     private func getJSON(action: String?) async throws -> Any {
         var request = URLRequest(url: try url("/player_api.php", action: action))
         request.timeoutInterval = 45
-        let (data, response) = try await URLSession.shared.data(for: request)
+        // Through Settings › Proxy when one is set.
+        let (data, response) = try await ProxyNet.session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw XtreamError.loginFailed("The server refused the request. Check the address, username and password.")
         }
@@ -120,7 +124,7 @@ struct XtreamClient {
         var request = URLRequest(url: try url("/xmltv.php"))
         request.timeoutInterval = 300
         let watcher = DownloadWatcher(onProgress: progress)
-        let (tmp, response) = try await URLSession.shared.download(for: request, delegate: watcher)
+        let (tmp, response) = try await ProxyNet.session.download(for: request, delegate: watcher)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw XtreamError.guideUnreadable
         }

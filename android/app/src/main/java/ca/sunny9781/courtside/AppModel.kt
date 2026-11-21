@@ -29,6 +29,8 @@ sealed class HomeSelection {
 class AppModel(app: Application) : AndroidViewModel(app) {
     private val context get() = getApplication<Application>()
     val settings = Settings(app)
+    // Before anything here can reach the provider: the built-in VPN's switch decides whether that has to wait.
+    private val vpnReady = Vpn.attach(app)
     val whatsNew = WhatsNew.load(app)
     /**
      * Multiview's second tile (2.30): its own ExoPlayer and video view, created only while it plays. Tile 1 is the
@@ -397,6 +399,38 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         Prefs.saveCredentials(context, creds)
         if (!same) refresh(force = true)
         return null
+    }
+
+    // MARK: VPN (2.33)
+
+    /** Settings › VPN switch. Whatever plays stops (it was on the other route), then channels load through the new one. */
+    fun vpnSwitched(on: Boolean, activity: android.app.Activity) {
+        stopMultiview()
+        Playback.stop()
+        pinned = null
+        if (nowPlaying != null) closePlayer()
+        pinned = null
+        settings.vpnOn = on
+        if (on) Vpn.start(activity) else Vpn.stop()
+        viewModelScope.launch {
+            if (!Vpn.ready() || credentials == null) return@launch
+            if (channels.isEmpty()) refresh() else refreshAccount()
+        }
+    }
+
+    /** A WireGuard config pasted or sent from the phone: checked, saved, and connected straight away. Null when fine. */
+    fun saveVpnConfig(text: String, activity: android.app.Activity): String? {
+        Vpn.check(text)?.let { return it }
+        settings.vpnConfig = text.trim()
+        Vpn.stop()
+        vpnSwitched(true, activity)
+        return null
+    }
+
+    fun removeVpnConfig() {
+        settings.vpnOn = false
+        settings.vpnConfig = ""
+        Vpn.stop()
     }
 
     // MARK: Login
@@ -846,6 +880,12 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** Opens a stream here, or on the Chromecast while one is connected (phone app; the phone's player then stops). */
     private fun startStream(item: NowPlaying) {
         val (ts, hls) = urls(item.channel) ?: return
+        // Built-in VPN switched on but not connected: the provider isn't contacted (it would see your own address).
+        if (Vpn.blocked) {
+            Playback.stop()
+            notice = "The VPN isn't connected, so the stream didn't start. Check Settings › VPN."
+            return
+        }
         pauseDownloads()
         if (Cast.connected) {
             Playback.stop()
@@ -1025,6 +1065,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     fun watchAlongside(gameId: String, pick: StreamMatch? = null) {
         if (multiview || multiviewChecking || nowPlaying == null && pinned == null) return
         val creds = credentials ?: return
+        if (Vpn.blocked) { notice = "The VPN isn't connected. Check Settings › VPN."; return }
         multiviewChecking = true
         viewModelScope.launch {
             try {

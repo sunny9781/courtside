@@ -74,6 +74,13 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.33", date: "2026-11-22", time: "00:30", title: "VPN and proxy", changes: [
+            Change(text: "Settings › VPN: Courtside's own WireGuard VPN. Only Courtside goes through it (the rest of the device stays on its normal connection). It connects when you open the app and disconnects when you leave.", apps: android),
+            Change(text: "TVs: send the WireGuard config (.conf file) from your phone with the QR code in Settings › VPN. Phones: choose the .conf file or paste it.", apps: android),
+            Change(text: "While the VPN is on, Courtside never contacts your provider without it: if it can't connect, channels and streams wait and Settings › VPN says why.", apps: android),
+            Change(text: "Settings › Proxy: send Courtside's provider traffic (sign-in, channels, guide and every stream) through a SOCKS5, HTTPS or HTTP proxy, with a username and password if it needs one. Test checks your provider through it before saving.", apps: all),
+            Change(text: "With a proxy set, nothing connects directly if the proxy can't be reached. ESPN scores and logos still load directly.", apps: all),
+        ], titleApps: everywhere),
         Release(version: "2.32", date: "2026-11-22", time: "00:25", title: "Install update in one press", changes: [
             Change(text: "Install update opens Android's installer on the first press: straight after Download update it no longer checks GitHub again first, and if the installer doesn't come up it's opened once more by itself.", apps: android),
             Change(text: "Checking for updates: \"You're up to date\" shows on the version button itself for a few seconds, instead of in the middle of the screen.", apps: android)
