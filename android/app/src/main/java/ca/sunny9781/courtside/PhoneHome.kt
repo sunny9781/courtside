@@ -3,6 +3,8 @@ package ca.sunny9781.courtside
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -64,16 +66,7 @@ fun PullToRefresh(model: AppModel, modifier: Modifier = Modifier, content: @Comp
  */
 @Composable
 fun PhoneHome(model: AppModel) {
-    val sports = model.orderedSports()
-    // Opens on the top sport (no Live Now page), and follows the top sport while everything loads, until you pick one.
-    LaunchedEffect(model.homeSelection, sports.firstOrNull()) {
-        val top = sports.firstOrNull() ?: return@LaunchedEffect
-        val following = !model.pickedSport && System.currentTimeMillis() - model.openedAt < 90_000
-        if (model.homeSelection == HomeSelection.LiveNow ||
-            (following && model.homeSelection is HomeSelection.OfSport && model.homeSelection != HomeSelection.OfSport(top))) {
-            model.homeSelection = HomeSelection.OfSport(top)
-        }
-    }
+    FollowTopSport(model)
     val selection = model.homeSelection
     val sport = phoneSport(selection)
     Column(Modifier.fillMaxSize()) {
@@ -86,7 +79,106 @@ fun PhoneHome(model: AppModel) {
 }
 
 @Composable
-private fun GameList(model: AppModel, selection: HomeSelection, sport: Sport?) {
+private fun FollowTopSport(model: AppModel) {
+    val sports = model.orderedSports()
+    // Opens on the top sport (no Live Now page), and follows the top sport while everything loads, until you pick one.
+    LaunchedEffect(model.homeSelection, sports.firstOrNull()) {
+        val top = sports.firstOrNull() ?: return@LaunchedEffect
+        val following = !model.pickedSport && System.currentTimeMillis() - model.openedAt < 90_000
+        if (model.homeSelection == HomeSelection.LiveNow ||
+            (following && model.homeSelection is HomeSelection.OfSport && model.homeSelection != HomeSelection.OfSport(top))) {
+            model.homeSelection = HomeSelection.OfSport(top)
+        }
+    }
+}
+
+/**
+ * Tablets (like the iPad app): the sports down the left, and on the right the player (while something plays), the
+ * league chips along the top, and as many score cards per row as fit. A game opens on the right; the sports stay.
+ */
+@Composable
+fun TabletHome(model: AppModel) {
+    FollowTopSport(model)
+    val selection = model.homeSelection
+    val sport = phoneSport(selection)
+    Row(Modifier.fillMaxSize()) {
+        TabletSportSidebar(model, sport)
+        Box(Modifier.width(1.dp).fillMaxHeight().background(Theme.border))
+        Column(Modifier.weight(1f).fillMaxHeight()) {
+            PinnedSlot(model)
+            val open = model.openGameId
+            if (open != null) PhoneGame(model, open)
+            else {
+                if (sport != null && model.leagues(sport).size > 1) LeagueChips(model, sport)
+                PullToRefresh(model, Modifier.weight(1f).fillMaxWidth()) {
+                    if (sport != null && sport in model.home.channelSports) SportChannelList(model, sport)
+                    else BoxWithConstraints(Modifier.fillMaxSize()) {
+                        GameList(model, selection, sport, columns = (maxWidth / 210.dp).toInt().coerceAtLeast(2))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TabletSportSidebar(model: AppModel, sport: Sport?) {
+    LazyColumn(Modifier.width(250.dp).fillMaxHeight().background(Theme.sidebar), contentPadding = PaddingValues(vertical = 12.dp)) {
+        item(key = "title") {
+            Label("Sports", size = 12.sp, weight = FontWeight.Bold, color = Theme.muted,
+                modifier = Modifier.padding(start = 18.dp, top = 4.dp, bottom = 8.dp))
+        }
+        items(model.orderedSports(), key = { it.name }) { s ->
+            val games = model.games(s)
+            val channelOnly = s in model.home.channelSports
+            val live = if (channelOnly) 0 else games.count { it.state == GameState.LIVE }
+            val on = s == sport
+            Row(Modifier.padding(horizontal = 8.dp, vertical = 2.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp))
+                .background(if (on) Theme.raised else Color.Transparent)
+                .clickable {
+                    model.pickedSport = true
+                    if (model.openGameId != null) model.closeGame()
+                    if (phoneSport(model.homeSelection) != s) model.homeSelection = HomeSelection.OfSport(s)
+                }
+                .alpha(if (games.isEmpty()) 0.5f else 1f).padding(horizontal = 10.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(s.icon, null, tint = if (on) Theme.accent else Theme.soft, modifier = Modifier.size(22.dp))
+                Column(Modifier.weight(1f)) {
+                    Label(s.title, size = 15.sp, weight = FontWeight.SemiBold)
+                    Label(if (games.isEmpty()) "No games" else if (channelOnly) "${games.size} channels" else "${games.size} today",
+                        size = 12.sp, color = Theme.muted)
+                }
+                if (live > 0) Badge("$live", fill = Theme.accent, color = Theme.onAccent)
+            }
+        }
+    }
+}
+
+/** Tablets: the sport's leagues along the top, All first (left to right, unlike the phone's thumb-side row). */
+@Composable
+private fun LeagueChips(model: AppModel, sport: Sport) {
+    val selection = model.homeSelection
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        TouchChip(selection == HomeSelection.OfSport(sport), onClick = {
+            model.pickedSport = true; model.homeSelection = HomeSelection.OfSport(sport)
+        }) { color -> Label("All", size = 14.sp, weight = FontWeight.SemiBold, color = color) }
+        for (league in model.leagues(sport)) {
+            val g = model.gamesIn(league.id)
+            val live = g.count { it.state == GameState.LIVE }
+            TouchChip((selection as? HomeSelection.OfLeague)?.leagueId == league.id, Modifier.alpha(if (g.isEmpty()) 0.5f else 1f),
+                onClick = { model.pickedSport = true; model.homeSelection = HomeSelection.OfLeague(league.id) }) { color ->
+                LeagueLogo(model, league, 18.dp)
+                Label(league.name, size = 14.sp, weight = FontWeight.SemiBold, color = color)
+                if (live > 0) Badge("$live", fill = Theme.accent, color = Theme.onAccent)
+                else if (g.isNotEmpty()) Label("${g.size}", size = 13.sp, color = color.copy(alpha = 0.6f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun GameList(model: AppModel, selection: HomeSelection, sport: Sport?, columns: Int = 2) {
     val sections = when (selection) {
         is HomeSelection.OfSport -> model.leagues(selection.sport).mapNotNull { l ->
             val g = model.gamesIn(l.id)
@@ -103,10 +195,10 @@ private fun GameList(model: AppModel, selection: HomeSelection, sport: Sport?) {
     val redZone = if (nflLive) model.redZoneChannels() else emptyList()
 
     fun LazyListScope.cards(games: List<Game>, prefix: String) {
-        items(games.chunked(2), key = { "$prefix:${it.first().id}" }, contentType = { "cards" }) { row ->
+        items(games.chunked(columns), key = { "$prefix:${it.first().id}" }, contentType = { "cards" }) { row ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 for (game in row) PhoneGameCard(model, game, Modifier.weight(1f)) { model.openGameId = game.id }
-                if (row.size < 2) Spacer(Modifier.weight(1f))
+                repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
@@ -167,13 +259,28 @@ private fun HomeStatus(model: AppModel) {
                 if (downloading == null) Label("Install", size = 14.sp, weight = FontWeight.Bold, color = Theme.accent)
             }
         }
-        when {
-            model.refreshWaiting -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Filled.Schedule, null, tint = Theme.muted, modifier = Modifier.size(14.dp))
-                Label("EPG refreshes after this stream", size = 12.sp, weight = FontWeight.SemiBold, color = Theme.muted)
+        // Left: the EPG refresh. Right: when channels were last downloaded (tap to refresh), like the iPhone app.
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.weight(1f)) {
+                when {
+                    model.refreshWaiting -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Icon(Icons.Filled.Schedule, null, tint = Theme.muted, modifier = Modifier.size(14.dp))
+                        Label("EPG refreshes after this stream", size = 12.sp, weight = FontWeight.SemiBold, color = Theme.muted)
+                    }
+                    model.guideLoading && !model.loading ->
+                        Label("Refreshing EPG…", size = 12.sp, weight = FontWeight.SemiBold, color = Theme.muted)
+                }
             }
-            model.loading -> Label("Refreshing channels…", size = 12.sp, weight = FontWeight.SemiBold, color = Theme.muted)
-            model.guideLoading -> Label("Refreshing EPG…", size = 12.sp, weight = FontWeight.SemiBold, color = Theme.muted)
+            val saved = model.updatedAt
+            if (model.loading) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Spinner(12.dp)
+                Label("Downloading channels…", size = 12.sp, color = Theme.muted)
+            } else if (saved != null) Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable { model.refresh(force = true) }
+                .padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                Icon(Icons.Filled.Refresh, "Refresh", tint = Theme.muted, modifier = Modifier.size(14.dp))
+                Label("Updated ${clockTime(saved)}", size = 12.sp, color = Theme.muted)
+            }
         }
         model.error?.let { e ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -353,9 +460,11 @@ fun PhoneGame(model: AppModel, gameId: String) {
     }
     // Turning the phone sideways while one of this game's streams plays goes full screen.
     val landscape = isLandscape()
+    val tablet = isTablet()
     LaunchedEffect(landscape) {
         val p = model.pinned
-        if (landscape && p != null && !Cast.connected && model.pinnedIsFrom(gameId) && model.nowPlaying == null) {
+        // (Not on tablets: sideways is how they're usually held.)
+        if (landscape && !tablet && p != null && !Cast.connected && model.pinnedIsFrom(gameId) && model.nowPlaying == null) {
             PhoneUi.fullByRotation = true
             model.play(p.channel, p.gameTitle, p.lineup, from = "game")
         }

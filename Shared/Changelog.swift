@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.25", date: "2026-11-21", time: "11:55", title: "Android tablets and small touches", changes: [
+            Change(text: "Tablets get their own layout, like the iPad: sports down the left, and on the right the player (under half the width, titles beside it), league chips along the top and as many score cards per row as fit. Games open on the right with the sports still showing. Turning a tablet sideways no longer jumps to full screen.", apps: android),
+            Change(text: "Phone and tablet EPG: what's playing has an orange outline around its row, instead of a speaker icon.", apps: android),
+            Change(text: "Phone and tablet Home: when channels were last downloaded shows at the top right (Updated 9:41 AM); tap it to refresh.", apps: android)
+        ]),
         Release(version: "2.24", date: "2026-11-21", time: "11:30", title: "Navigation from the left", changes: [
             Change(text: "No top bar: Home, EPG and Settings are in a rail down the left edge, like Android TV. Left from a left column (or Back) opens it with names, connections, the EPG time and the version; right or clicking a tab goes back into the page on what's selected.", apps: tv),
             Change(text: "Home: a sport's leagues are a list beside it instead of chips. Right from the sport moves into them and the sports fold to icons; left opens them out again, Back from a league goes to its sport.", apps: tv),

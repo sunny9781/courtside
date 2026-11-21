@@ -80,6 +80,22 @@ fun PhoneApp(model: AppModel) {
     }
 }
 
+/** A tablet (shortest side 600 dp or more): the iPad-style layout. */
+@Composable
+fun isTablet(): Boolean = LocalConfiguration.current.smallestScreenWidthDp >= 600
+
+/**
+ * The player (or the casting remote) while something plays and full screen isn't open. Phones: above the tabs.
+ * Tablets: at the top of the page, beside the sports.
+ */
+@Composable
+fun PinnedSlot(model: AppModel) {
+    val item = model.pinned
+    if (item != null && model.nowPlaying == null) {
+        if (Cast.connected) CastingBar(model, item) else PinnedPlayer(model, item)
+    } else SideEffect { model.cornerBounds = null }
+}
+
 @Composable
 fun isLandscape(): Boolean =
     LocalConfiguration.current.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
@@ -118,18 +134,20 @@ private fun PhoneShell(model: AppModel) {
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            val item = model.pinned
-            if (item != null && !full) {
-                if (Cast.connected) CastingBar(model, item) else PinnedPlayer(model, item)
-            } else SideEffect { model.cornerBounds = null }
+            val tablet = isTablet()
+            if (!tablet) PinnedSlot(model)
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (model.tab) {
                     Tab.HOME -> {
                         val open = model.openGameId
-                        if (open != null) PhoneGame(model, open) else PhoneHome(model)
+                        when {
+                            tablet -> TabletHome(model)
+                            open != null -> PhoneGame(model, open)
+                            else -> PhoneHome(model)
+                        }
                     }
-                    Tab.EPG -> PhoneEpg(model)
-                    Tab.SETTINGS -> PhoneSettings(model)
+                    Tab.EPG -> Column(Modifier.fillMaxSize()) { if (tablet) PinnedSlot(model); Box(Modifier.weight(1f)) { PhoneEpg(model) } }
+                    Tab.SETTINGS -> Column(Modifier.fillMaxSize()) { if (tablet) PinnedSlot(model); Box(Modifier.weight(1f)) { PhoneSettings(model) } }
                 }
                 model.notice?.let { message ->
                     Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 90.dp, start = 16.dp, end = 16.dp)
@@ -208,7 +226,12 @@ private fun PinnedPlayer(model: AppModel, item: NowPlaying) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
             val screenHeight = LocalConfiguration.current.screenHeightDp.dp
             // Full width when upright; sideways, no more than 40% of the screen's height.
-            val width = if (isLandscape()) minOf(maxWidth, screenHeight * 0.4f * 16 / 9) else maxWidth
+            // Tablets: under half the width, with the titles beside it (like the iPad).
+            val width = when {
+                isTablet() -> maxWidth * 0.45f
+                isLandscape() -> minOf(maxWidth, screenHeight * 0.4f * 16 / 9)
+                else -> maxWidth
+            }
             val beside = maxWidth - width >= 190.dp
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                 Column(Modifier.width(width), verticalArrangement = Arrangement.spacedBy(8.dp)) {
