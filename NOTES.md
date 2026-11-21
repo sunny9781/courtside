@@ -125,6 +125,15 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   No AirPlay on Android. material3 added for Switch,
   pull to refresh, spinner, dialog.
 
+## EPG speed (2.29)
+- Apple TV: the guide is its own `TVGuideChannels` view (Equatable on title, channel ids, playing id), shown with
+  `.equatable()`, so focus moves in the category list don't redraw it; `guideChannels` is cached in TVLiveView and
+  rebuilt only when `channelsKey` changes (category, `model.channelsVersion` which bumps on every `channelsByCategory`
+  change, favourites, grouping). Selected category is @State, saved to `Prefs.guideCategory` on leave/background.
+  Search still uses the old in-view `channelList`. Game screen categories wait 250 ms like the EPG.
+- Android (Epg.kt): per-category count map and favourites list cached per channel/favourites change, programmes per
+  row cached per window start + guide, selected category in memory until you leave the EPG.
+
 ## Working preferences (Sunny)
 - Auto-merge (2026-11-21): once the build check passes, merge to main and release without asking, in every Courtside chat.
 - Small changes (a number, text, a changelog line) merge straight away without check.yml; the Mac release build

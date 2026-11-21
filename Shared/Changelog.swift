@@ -74,6 +74,12 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.29", date: "2026-11-21", time: "13:45", title: "Snappier EPG", changes: [
+            Change(text: "EPG: moving through the categories and groups only redraws the list; the guide redraws once you stop on a new category, so big categories (Sports with 100+ channels) no longer slow it down.", apps: [.tv, .android]),
+            Change(text: "EPG: each category's channels and counts are worked out once when the channels or favourites change, not on every press, and the category you're on is saved when you leave the EPG instead of on every stop.", apps: [.tv, .android]),
+            Change(text: "Game screen: moving through the stream categories shows one's streams once you stop on it, like the EPG.", apps: tv),
+            Change(text: "EPG guide rows work out their shows once per half hour window instead of on every redraw.", apps: android),
+        ]),
         Release(version: "2.28", date: "2026-11-21", time: "13:25", title: "Reliability dots in the EPG", changes: [
             Change(text: "The green, amber or red reliability dot now shows next to channel names in the EPG (list and timeline) too, like on Android.", apps: tv),
         ]),
