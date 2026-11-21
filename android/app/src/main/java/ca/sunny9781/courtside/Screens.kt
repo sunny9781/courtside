@@ -338,6 +338,16 @@ fun NavRail(model: AppModel) {
     LaunchedEffect(Unit) {
         model.focusMoves.collect { if (it == "tabs") { settle.cancel(); delay(30); tabs.focus(model.tab) } }
     }
+    // Into the page's left menu, on its selected item (the sport, category or section), never straight into the
+    // games: the same as Back from a page in reverse. The rail closes as focus leaves it.
+    fun intoPage(waitForPage: Boolean) {
+        scope.launch {
+            if (waitForPage) { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
+            model.focusMoves.tryEmit("side")
+            delay(120)
+            if (model.tabsFocused && runCatching { model.leftPanel.requestFocus() }.isFailure) focusManager.moveFocus(FocusDirection.Right)
+        }
+    }
     val width by animateDpAsState(if (open) RAIL_OPEN else RAIL_WIDTH,
         androidx.compose.animation.core.tween(if (Perf.slowSettle) 0 else 140), label = "rail")
     if (open) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)))
@@ -351,11 +361,7 @@ fun NavRail(model: AppModel) {
             // Right: into the page's left panel (the selected sport, category or section), after showing the tab
             // you stopped on.
             if (e.type != KeyEventType.KeyDown || e.key.nativeKeyCode != KeyEvent.KEYCODE_DPAD_RIGHT) return@onPreviewKeyEvent false
-            val flushed = settle.flush()
-            scope.launch {
-                if (flushed) { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
-                if (runCatching { model.leftPanel.requestFocus() }.isFailure) focusManager.moveFocus(FocusDirection.Right)
-            }
+            intoPage(settle.flush())
             true
         }
         .enterAt { tabs[model.tab] }
@@ -368,7 +374,7 @@ fun NavRail(model: AppModel) {
             } else Label("C", size = 17.sp, weight = FontWeight.Bold, color = Theme.accent)
         }
         for (tab in Tab.entries) {
-            TvButton(onClick = { settle.now { model.tab = tab } }, selected = model.tab == tab,
+            TvButton(onClick = { settle.now { model.tab = tab }; intoPage(true) }, selected = model.tab == tab,
                 onFocus = { if (model.tab != tab) settle.later { model.tab = tab } else settle.cancel() },
                 modifier = Modifier.fillMaxWidth().tracked(tabs, tab)) { focused ->
                 val color = if (focused) Theme.bg else if (model.tab == tab) Theme.accent else Theme.muted
@@ -386,29 +392,33 @@ fun NavRail(model: AppModel) {
         if (open) {
             // The version is the update button: one click checks for a new version and installs it. When one has
             // already downloaded by itself it shows "Install update".
+            // 2.20: "Download update vX" (found, not fetched yet) → "Downloading vX · 40%" → "Install update vX" →
+            // Android's installer. With nothing new, the version number: pressing it checks.
             val ready = Updater.readyVersion
+            val available = Updater.availableVersion
             var busy by remember { mutableStateOf(false) }
             TvButton(onClick = {
-                if (busy) Unit
+                if (busy || Updater.downloading != null) Unit
                 else if (ready != null) scope.launch { Updater.installLatest(context) }
+                else if (available != null) scope.launch { Updater.check(context, userInitiated = true, download = true) }
                 else scope.launch {
                     busy = true
-                    Updater.check(context, userInitiated = true)
+                    Updater.check(context, userInitiated = true, download = false)
                     busy = false
-                    if (Updater.readyVersion != null) Updater.install(context)
-                    else model.notice = Updater.message ?: "You have the latest version."
+                    if (Updater.availableVersion == null) model.notice = Updater.message ?: "You have the latest version."
                 }
-            }, background = if (ready != null) Theme.accent else Color.Transparent, modifier = Modifier.fillMaxWidth()) { focused ->
+            }, background = if (ready != null || available != null) Theme.accent else Color.Transparent, modifier = Modifier.fillMaxWidth()) { focused ->
                 Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val color = if (focused) Theme.bg else if (ready != null) Theme.onAccent else Theme.muted
-                    Icon(if (ready != null) Icons.Filled.Download else if (Updater.checking) Icons.Filled.HourglassTop else Icons.Filled.Refresh,
+                    val color = if (focused) Theme.bg else if (ready != null || available != null) Theme.onAccent else Theme.muted
+                    Icon(if (ready != null || available != null) Icons.Filled.Download else if (Updater.checking) Icons.Filled.HourglassTop else Icons.Filled.Refresh,
                         null, tint = color, modifier = Modifier.size(14.dp))
                     val dl = Updater.downloading
                     Label(when {
                         dl != null -> "Downloading $dl" + (Updater.downloadProgress?.let { " · ${(it * 100).toInt()}%" } ?: "…")
                         Updater.installing || busy -> "Checking…"
-                        ready != null -> "Install update $ready"
+                        ready != null -> "Install update v$ready"
+                        available != null -> "Download update v$available"
                         else -> "v${BuildConfig.VERSION_NAME}"
                     }, size = 12.sp, weight = FontWeight.SemiBold, color = color)
                 }
@@ -466,7 +476,7 @@ private fun RailStatus(model: AppModel, open: Boolean) {
                     Label(it, size = 10.sp, color = if (model.guideLoading) Theme.accent else Theme.muted)
                 }
             }
-            if (Updater.readyVersion != null || Updater.downloading != null)
+            if (Updater.readyVersion != null || Updater.availableVersion != null || Updater.downloading != null)
                 Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Theme.accent))
         }
     }
@@ -505,7 +515,7 @@ fun PlayerVideo(modifier: Modifier = Modifier) {
 fun PlayerStrip(model: AppModel, item: NowPlaying, targets: FocusTargets, modifier: Modifier = Modifier) {
     TvButton(onClick = { model.play(item.channel, item.gameTitle, item.lineup, from = "strip") }, focusedScale = 1f,
         onLongClick = { model.swallowSelect = true; model.stopPinned(); model.notice = "Stopped" },
-        modifier = modifier.padding(start = Theme.margin).focusProperties { canFocus = !model.tabsFocused }
+        modifier = modifier.focusProperties { canFocus = !model.tabsFocused }
             .focusProperties { up = model.leftPanel }
             .tracked(targets, "video").size(Theme.playerWidth, Theme.playerWidth * 9 / 16)) { _ ->
         // The video itself is drawn by the shell in this spot (one view for the corner and full screen); this only
@@ -836,9 +846,9 @@ fun HomeScreen(model: AppModel) {
         }
     }
 
-    // The sports (and leagues) on top of the player (the same width), the games to the right, down to the bottom of
-    // the screen beside the player.
-    Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin)
+    // The sports (and leagues) on top of the player (the same width, both starting at the left end of the now-playing
+    // bar), the games to the right, down to the bottom of the screen beside the player.
+    Row(Modifier.fillMaxSize().padding(end = Theme.margin)
         .enterAt { firstGame?.let { "game:$it" }?.takeIf { it in pane.live }?.let { pane[it] } ?: side[sidebarKey(model.homeSelection)] }) {
         Row(Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).focusRequester(model.leftPanel)
             .onFocusChanged { model.sideFocused = it.hasFocus }
@@ -1055,8 +1065,22 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     // Score cards, as many to a row as fit (each at least CARD_MIN_WIDTH wide).
     val cols = maxOf(1, ((maxWidth - 8.dp) / (CARD_MIN_WIDTH + 8.dp)).toInt())
     // One list item per row of cards.
-    fun LazyListScope.cardRows(games: List<Game>, prefix: String) {
+    val listScope = rememberCoroutineScope()
+    // Focusing the first row of a section (or of the list) scrolls up far enough to show its heading, so the league
+    // names above the cards are never cut off at the top.
+    fun showHeading(rowKey: String, headed: Boolean, first: Boolean) {
+        listScope.launch {
+            androidx.compose.runtime.withFrameNanos { }
+            val state = model.homeList
+            val rowInfo = state.layoutInfo.visibleItemsInfo.firstOrNull { it.key == rowKey } ?: return@launch
+            val target = if (first) 0 else if (headed) rowInfo.index - 1 else return@launch
+            val shown = state.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }
+            if (shown == null || shown.offset < state.layoutInfo.viewportStartOffset) state.animateScrollToItem(maxOf(0, target))
+        }
+    }
+    fun LazyListScope.cardRows(games: List<Game>, prefix: String, headed: Boolean = false, first: Boolean = false) {
         items(games.chunked(cols), key = { "$prefix:${it.first().id}" }, contentType = { "cards" }) { row ->
+            val firstRow = row.first().id == games.firstOrNull()?.id
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEachIndexed { i, game ->
@@ -1064,13 +1088,17 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
                     GameCard(game, main.size, main.any { it.is4K },
                         modifier = Modifier.weight(1f).tracked(targets, "game:${game.id}")
                             .then(if (i == row.size - 1) toEpg else Modifier),
-                        onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
+                        onFocus = {
+                            onFocusGame(game.id)
+                            if (firstRow && (headed || first)) showHeading("$prefix:${row.first().id}", headed, first)
+                        }) { onOpen(game.id) }
                 }
                 repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
-    LazyColumn(Modifier.fillMaxHeight(), state = model.homeList, verticalArrangement = Arrangement.spacedBy(2.dp),
+    Column(Modifier.fillMaxHeight()) {
+    LazyColumn(Modifier.weight(1f), state = model.homeList, verticalArrangement = Arrangement.spacedBy(2.dp),
         contentPadding = PaddingValues(top = 6.dp, bottom = 6.dp + barInset(model))) {
         if (redZone.isNotEmpty()) {
             item(key = "redzone", contentType = "finished") {
@@ -1104,7 +1132,8 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             }
             // Same content type: switching sports reuses the rows already built (new text, same row) instead of
             // building new ones.
-            cardRows(section.games, section.id)
+            cardRows(section.games, section.id, headed = section.title.isNotEmpty() && open.size > 1,
+                first = section == open.first() && redZone.isEmpty())
         }
         if (later.isNotEmpty()) {
             item(key = "later", contentType = "finished") {
@@ -1127,6 +1156,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             }
             if (showFinished) cardRows(finished, "f")
         }
+    }
     }
     }
     }
@@ -1385,7 +1415,7 @@ fun GameScreen(model: AppModel, gameId: String) {
         else model.pin(m.channel, game.title, lineup)
     }
 
-    Row(Modifier.fillMaxSize().background(Theme.bg).padding(horizontal = Theme.margin).enterAt { rows["s:$previewId"] },
+    Row(Modifier.fillMaxSize().background(Theme.bg).padding(end = Theme.margin).enterAt { rows["s:$previewId"] },
         horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         // Categories, on top of the player.
         LazyColumn(Modifier.width(Theme.playerWidth).fillMaxHeight().padding(bottom = topInset(model)).focusRequester(model.leftPanel)

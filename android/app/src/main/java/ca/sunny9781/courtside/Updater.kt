@@ -32,13 +32,19 @@ object Updater {
         private set
     var downloadProgress by mutableStateOf<Float?>(null)
         private set
+    /**
+     * A newer version that's out but not downloaded yet (2.20, TVs: the check only looks; "Download update" fetches
+     * it, then the button says "Install update vX"). Phones still download it by itself.
+     */
+    var availableVersion by mutableStateOf<String?>(null)
+        private set
     private var readyFile: File? = null
     private var readyBuild = 0
 
     /** One check at a time; a press while the app is already checking (or downloading) waits for it, then carries on. */
     private val lock = kotlinx.coroutines.sync.Mutex()
 
-    suspend fun check(context: Context, userInitiated: Boolean = false) = withContext(Dispatchers.IO) {
+    suspend fun check(context: Context, userInitiated: Boolean = false, download: Boolean = true) = withContext(Dispatchers.IO) {
         lock.lock()
         checking = true
         try {
@@ -51,6 +57,11 @@ object Updater {
                 if (userInitiated && readyVersion == null) message = "You're up to date."
                 return@withContext
             }
+            if (!download) {
+                availableVersion = version
+                if (userInitiated) message = "Version $version is out: Download update gets it."
+                return@withContext
+            }
             val dir = File(context.cacheDir, "updates").apply { mkdirs() }
             val file = File(dir, "Courtside.apk")
             downloading = version
@@ -59,6 +70,7 @@ object Updater {
             readyFile = file
             readyBuild = build
             readyVersion = version
+            availableVersion = null
             message = null
         } catch (e: Exception) {
             if (userInitiated) message = "Couldn't check for updates."

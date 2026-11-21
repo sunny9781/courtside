@@ -44,10 +44,12 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   (short) + an update dot at the bottom; open = names, full status, version button. Left off a page's left edge opens
   it, Right goes to `model.leftPanel`, Back from a left panel focuses it ("tabs"). Pages start at the top (Column has
   start padding RAIL_WIDTH). EPG download status also at the right end of the now-playing bar.
-- Android Home 2.4: no league chips; a sport with several leagues lists them beside it (`LeagueList`): Right from the
-  sport folds the sports to a 48 dp icon strip (`compact` SportRow) and focuses the league; focusing the sports again
-  opens them out; Back from a league → its sport; Back from cards → the league when folded. Cards run full height to the
-  right of the column (beside the player). Mock-ups: Design canvas "Courtside Android TV – left navigation mockups".
+- Android Home 2.20: Sunny kept the 2.7 league side menu (folding sports + `LeagueList`; chips were tried and dropped
+  in the same request). Focusing a section's first card row scrolls its heading
+  into view (`showHeading`). Rail Right/click emits focusMoves "side" (page focuses its selected left-menu item), with
+  `model.leftPanel` as fallback. Left menus and the corner player have no start margin: they line up with the
+  now-playing bar's divider. TV updates (2.20): background check only finds (`Updater.availableVersion`, phones still
+  auto-download); rail button: Download update vX → Downloading → Install update vX.
 - Player in the bottom-left corner; left panels (sports, EPG categories, game stream categories, settings sections)
   sit on top of it; a one-line now-playing bar runs along the very bottom; pages on the right scroll under the bar.
 - Home: sports sidebar (groups: live scores / channel sports / nothing today) + score cards (1.95, both TVs; replaced

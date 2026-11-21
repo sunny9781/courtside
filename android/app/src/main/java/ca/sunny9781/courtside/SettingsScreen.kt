@@ -44,7 +44,7 @@ fun SettingsScreen(model: AppModel) {
     LaunchedEffect(Unit) {
         model.focusMoves.collect { m -> if (m == "side") side.focus(Section.entries.firstOrNull { it.name == model.settingsSection }) }
     }
-    Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin).enterAt { side[section] },
+    Row(Modifier.fillMaxSize().padding(end = Theme.margin).enterAt { side[section] },
         horizontalArrangement = Arrangement.spacedBy(24.dp)) {
         Column(Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).padding(vertical = 8.dp)
             .focusRequester(model.leftPanel).onFocusChanged { model.sideFocused = it.hasFocus }.enterAt { side[section] },
@@ -150,9 +150,16 @@ private fun Updates(model: AppModel) {
     val ready = Updater.readyVersion
     if (ready != null) {
         Action("Install version $ready", "Already downloaded. Android's own screen asks you to confirm the install.") { scope.launch { Updater.installLatest(context) } }
+    } else if (Updater.downloading != null) {
+        Action("Downloading version ${Updater.downloading}", null,
+            value = Updater.downloadProgress?.let { "${(it * 100).toInt()}%" } ?: "…") { }
+    } else if (Updater.availableVersion != null) {
+        Action("Download version ${Updater.availableVersion}", "Then Install update installs it.") {
+            scope.launch { Updater.check(context, userInitiated = true, download = true) }
+        }
     } else {
         Action("Check for updates", Updater.message ?: "Courtside checks by itself every time it opens.",
-            value = if (Updater.checking) "Checking…" else null) { scope.launch { Updater.check(context, userInitiated = true) } }
+            value = if (Updater.checking) "Checking…" else null) { scope.launch { Updater.check(context, userInitiated = true, download = false) } }
     }
     Info("Version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
 }

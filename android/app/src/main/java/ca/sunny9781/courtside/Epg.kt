@@ -200,7 +200,7 @@ fun EpgScreen(model: AppModel) {
         if (ch.id == playing?.id) model.play(ch, null, lineup, from = "epg") else model.pin(ch, null, lineup)
     }
 
-    Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin)
+    Row(Modifier.fillMaxSize().padding(end = Theme.margin)
         .enterAt { if (justBack()) rows[returnRow()] else cats["cat:$categoryTarget"] },
         horizontalArrangement = Arrangement.spacedBy(18.dp)) {
         Box(Modifier.width(CATEGORY_WIDTH).fillMaxHeight()) {
