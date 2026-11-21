@@ -6,7 +6,13 @@ import AppKit
 struct GuideView: View {
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.guideHours) private var guideHours = 6
-    @AppStorage(Prefs.guideCategory) private var categoryID = ""
+    /// The category you're on: kept in memory while you're on the EPG and saved when you leave it or the app goes
+    /// to the background (2.30), not on every click.
+    @State private var categoryID = UserDefaults.standard.string(forKey: Prefs.guideCategory) ?? ""
+    @Environment(\.scenePhase) private var scenePhase
+    /// Work that used to be redone on every redraw (each arrow-key move in the grid): the category's channels,
+    /// the channel column width and the category column width. Rebuilt only when what they depend on changes.
+    @State private var memo = GuideMemo()
     @AppStorage(Prefs.guideGrouped) private var grouped = true
     /// The filter box in the top bar.
     @Binding var categorySearch: String
@@ -72,6 +78,8 @@ struct GuideView: View {
             pickDefaultCategory()
             gridFocused = true
         }
+        .onDisappear { saveCategory() }
+        .onChange(of: scenePhase) { if scenePhase != .active { saveCategory() } }
         .onChange(of: model.categories) { pickDefaultCategory() }
         .onChange(of: model.lastPlayedChannelID) {
             if let id = model.lastPlayedChannelID, rows.contains(where: { $0.id == id }) { selectedID = id }
@@ -143,6 +151,8 @@ struct GuideView: View {
         }
     }
 
+    private func saveCategory() { UserDefaults.standard.set(categoryID, forKey: Prefs.guideCategory) }
+
     private func pickDefaultCategory() {
         guard !model.categories.isEmpty else { return }
         let known = categoryID == Self.favoritesID || model.categories.contains { $0.id == categoryID }
@@ -176,12 +186,17 @@ struct GuideView: View {
         gridFocused = true
     }
 
-    /// Just wide enough for the longest category name, within limits.
+    /// Just wide enough for the longest category name, within limits (measured once per channel list).
     private var categoryWidth: CGFloat {
+        let key = "\(model.channelsVersion)|\(model.categories.count)"
+        if memo.categoryWidthKey == key { return memo.categoryWidth }
         let font = NSFont.systemFont(ofSize: 13, weight: .medium)
         let names = model.categories.map(\.name)
         let longest = names.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 120
-        return min(max(longest, 150), 260) + 80
+        let width = min(max(longest, 150), 260) + 80
+        memo.categoryWidthKey = key
+        memo.categoryWidth = width
+        return width
     }
 
     private var categoryList: some View {
@@ -316,6 +331,21 @@ struct GuideView: View {
     /// The chosen category (or group) in the provider's order, narrowed by the channel search.
     private var rows: [Channel] {
         if searching { return EPGSearch.channels(hits) }
+        let key = rowsKey
+        if memo.rowsKey == key { return memo.rows }
+        let value = buildRows()
+        memo.rowsKey = key
+        memo.rows = value
+        return value
+    }
+
+    /// What `rows` depends on: the category, the downloaded channels, favourites, recently watched and the search.
+    private var rowsKey: String {
+        let recent = categoryID == Self.recentID ? model.recentChannels.map(\.id).description : ""
+        return "\(categoryID)|\(model.channelsVersion)|\(model.favoriteChannels.count)|\(model.favoriteChannels.last ?? 0)|\(grouped)|\(channelSearch)|\(recent)"
+    }
+
+    private func buildRows() -> [Channel] {
         let base: [Channel]
         switch categoryID {
         case Self.allID:
@@ -439,6 +469,16 @@ struct GuideView: View {
 
     /// Just wide enough for the longest channel name shown, within limits.
     private func channelColumnWidth(_ list: [Channel]) -> CGFloat {
+        // Measured once per list (it used to measure up to 400 names on every arrow-key move).
+        let key = "\(list.count)|\(list.first?.id ?? 0)|\(list.last?.id ?? 0)|\(searching ? hitsQuery : rowsKey)"
+        if memo.columnKey == key { return memo.column }
+        let width = measureChannelColumn(list)
+        memo.columnKey = key
+        memo.column = width
+        return width
+    }
+
+    private func measureChannelColumn(_ list: [Channel]) -> CGFloat {
         let font = ChannelCell.nameFont
         let longest = list.prefix(400).map { ($0.name as NSString).size(withAttributes: [.font: font]).width }.max() ?? 100
         // Names wrap onto two lines (longer ones scroll), so the column stays narrow: enough for the longest name
@@ -609,6 +649,16 @@ struct GuideView: View {
         let t = date.timeIntervalSince1970
         return Date(timeIntervalSince1970: (t / 1800).rounded(.down) * 1800)
     }
+}
+
+/// Results GuideView keeps between redraws (a class, so filling it in never redraws the view by itself).
+final class GuideMemo {
+    var rowsKey = ""
+    var rows: [Channel] = []
+    var columnKey = ""
+    var column: CGFloat = 290
+    var categoryWidthKey = ""
+    var categoryWidth: CGFloat = 230
 }
 
 // MARK: Pieces
