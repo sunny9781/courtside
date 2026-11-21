@@ -90,7 +90,7 @@ struct TVSettingsView: View {
             .ignoresSafeArea(.container, edges: .horizontal)
             .focusSection()
         }
-        .padding(.horizontal, TVLayout.margin)
+        .padding(.trailing, TVLayout.margin)
         // Pressing down from Home / EPG / Settings starts on the section list.
         .defaultFocus($focusedSection, section, priority: .userInitiated)
         .onChange(of: focusedSection) {

@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.24", date: "2026-11-21", time: "11:30", title: "Navigation from the left", changes: [
+            Change(text: "No top bar: Home, EPG and Settings are in a rail down the left edge, like Android TV. Left from a left column (or Back) opens it with names, connections, the EPG time and the version; right or clicking a tab goes back into the page on what's selected.", apps: tv),
+            Change(text: "Home: a sport's leagues are a list beside it instead of chips. Right from the sport moves into them and the sports fold to icons; left opens them out again, Back from a league goes to its sport.", apps: tv),
+            Change(text: "The left columns and the corner player start right beside the rail, in line with the now-playing bar; the EPG refresh also shows at the bar's right end.", apps: tv),
+        ]),
         Release(version: "2.23", date: "2026-11-21", time: "09:40", title: "Smarter refreshes", changes: [
             Change(text: "The channel list is checked every hour while the app is open, so event channels added on game day show up and get matched without waiting for the next guide download. When nothing changed, nothing on screen reloads.", apps: [.android]),
             Change(text: "The guide downloads again after the time in Settings › Updates, or sooner if your provider's guide is about to run out. It now keeps 3 hours more than that, so the EPG never goes blank before the next download.", apps: [.android]),

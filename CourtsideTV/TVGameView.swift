@@ -76,7 +76,7 @@ struct TVGameView: View {
                 Spacer()
             }
         }
-        .padding(.horizontal, TVLayout.margin)
+        .padding(.trailing, TVLayout.margin)
         .defaultFocus($focusedStream, previewChannel?.id ?? main.firstToPlay(model.measuredQuality)?.channel.id)
         .onAppear {
             // Opening a game plays its first stream that isn't 4K in the player (unless one of its streams already is).

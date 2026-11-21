@@ -11,6 +11,43 @@ struct TVHomeView: View {
     /// The games on the right (pressing down from the tabs lands on the first one).
     @FocusState private var gameFocus: String?
     @State private var firstGame: String?
+    /// 2.24 (like Android TV): a sport with several leagues lists them beside it. Right from the sport moves into its
+    /// leagues and the sports fold to icons; going back onto the sports opens them out again.
+    @State private var folded = false
+    @FocusState private var leagueFocus: TVNav.HomeSelection?
+    /// An invisible strip at the right edge of the sports: right from a sport with leagues lands here, which opens
+    /// the leagues and moves onto the selected one.
+    @FocusState private var bridge: Bool
+
+    /// The sport whose leagues can open beside it (more than one league, and not a channel sport).
+    private var leagueSport: Sport? {
+        let sport: Sport?
+        switch nav.homeSelection {
+        case .sport(let s): sport = s
+        case .league(let id): sport = League.all.first { $0.id == id }?.sport
+        case .liveNow: sport = nil
+        }
+        guard let sport, model.leagues(for: sport).count > 1, !isChannelSport(sport, model: model) else { return nil }
+        return sport
+    }
+
+    /// The league row to land on: the selected league, or All.
+    private var leagueTarget: TVNav.HomeSelection? {
+        guard let sport = leagueSport else { return nil }
+        if case .league = nav.homeSelection { return nav.homeSelection }
+        return .sport(sport)
+    }
+
+    private func focusLeagues() {
+        folded = true
+        Task { @MainActor in
+            for _ in 0..<6 {
+                try? await Task.sleep(for: .milliseconds(50))
+                if leagueFocus != nil { return }
+                leagueFocus = leagueTarget
+            }
+        }
+    }
 
     /// The row to land on when coming down from the tabs: the selected sport (or Live Now).
     private var sidebarTarget: TVNav.HomeSelection {
@@ -28,32 +65,60 @@ struct TVHomeView: View {
             // The games line up with the text beside the player's video (the games pane pads itself by 24).
             // The left column stays lined up with the player above it (it no longer shrinks), so moving across is smooth.
             HStack(alignment: .top, spacing: TVLayout.playerGap - 24) {
-                TVSportList(focused: $sidebarFocus, compact: false)
-                    .frame(width: TVLayout.sidebar)
-                    // On top of the player in the bottom-left corner.
-                    .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : TVLayout.margin)
-                    .focusSection()
-                    // Coming back from the games lands on the sport you left, not the row beside it.
-                    .defaultFocus($sidebarFocus, sidebarTarget, priority: .userInitiated)
-                    .zIndex(0)
+                HStack(alignment: .top, spacing: 0) {
+                    TVSportList(focused: $sidebarFocus, compact: folded)
+                        .frame(width: folded ? 100 : TVLayout.sidebar)
+                        .focusSection()
+                        // Coming back from the games lands on the sport you left, not the row beside it.
+                        .defaultFocus($sidebarFocus, sidebarTarget, priority: .userInitiated)
+                    if folded, let sport = leagueSport {
+                        Rectangle().fill(Theme.raised).frame(width: 2).padding(.vertical, 20)
+                        TVLeagueList(sport: sport, focused: $leagueFocus)
+                            .frame(maxWidth: .infinity)
+                            .focusSection()
+                            .defaultFocus($leagueFocus, leagueTarget, priority: .userInitiated)
+                    }
+                }
+                .frame(width: TVLayout.sidebar, alignment: .leading)
+                // Right from a sport with leagues: open them (the strip only takes focus from the sports).
+                .overlay(alignment: .trailing) {
+                    if leagueSport != nil && !folded && (sidebarFocus != nil || bridge) {
+                        Color.clear.frame(width: 4).frame(maxHeight: .infinity)
+                            .focusable()
+                            .focused($bridge)
+                    }
+                }
+                // On top of the player in the bottom-left corner.
+                .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : TVLayout.margin)
+                .zIndex(0)
                 TVGamesPane(inPane: $inPane, focusedGame: $gameFocus)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     .focusSection()
                     .zIndex(1)
             }
-            .padding(.horizontal, TVLayout.margin)
+            // Starts right beside the rail, in line with the now-playing bar and the player under it.
+            .padding(.trailing, TVLayout.margin)
             // The navigation container adds wide side margins of its own; use the full width instead.
             .ignoresSafeArea(.container, edges: .horizontal)
             .onChange(of: sidebarFocus) {
-                nav.sideFocused = sidebarFocus != nil
-                if sidebarFocus != nil { inPane = false }
+                nav.sideFocused = sidebarFocus != nil || leagueFocus != nil
+                if sidebarFocus != nil { inPane = false; folded = false }
             }
-            // Back from the games: to the sport you're on.
-            .onChange(of: nav.sideRequest) { if nav.homePath.isEmpty { sidebarFocus = sidebarTarget } }
-            .onDisappear { nav.sideFocused = false }
-            // Pressing down from the tabs lands on the first game (left goes to the sports); with no games, on the left
-            // column as before.
-            .defaultFocus($gameFocus, firstGame, priority: .userInitiated)
+            .onChange(of: leagueFocus) {
+                nav.sideFocused = sidebarFocus != nil || leagueFocus != nil
+                nav.leaguesFocused = leagueFocus != nil
+                if leagueFocus != nil { inPane = false }
+            }
+            .onChange(of: bridge) { if bridge { focusLeagues() } }
+            .onChange(of: leagueSport) { if leagueSport == nil { folded = false } }
+            // Back from the games (or the rail): to the league you're in when they're out, otherwise the sport.
+            .onChange(of: nav.sideRequest) {
+                guard nav.homePath.isEmpty else { return }
+                if folded, let leagueTarget { leagueFocus = leagueTarget } else { sidebarFocus = sidebarTarget }
+            }
+            // Back from a league: its sport (the sports open out again).
+            .onChange(of: nav.sportRequest) { if nav.homePath.isEmpty { sidebarFocus = sidebarTarget } }
+            .onDisappear { nav.sideFocused = false; nav.leaguesFocused = false }
             .onPreferenceChange(TVFirstGameKey.self) { firstGame = $0 }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: String.self) { gameID in
@@ -205,11 +270,9 @@ struct TVSportList: View {
                     .font(.system(size: 28))
                     .frame(width: 40)
                 if compact {
-                    Spacer(minLength: 0)
+                    // Folded (the leagues are out): just the icon, with a dot when it has live games.
                     if live > 0 {
-                        TVBadge(text: "\(live)", fill: Theme.accent, color: Theme.onAccent)
-                    } else if total > 0 {
-                        Text("\(total)").font(.system(size: 21)).opacity(0.6)
+                        Circle().fill(Theme.accent).frame(width: 10, height: 10).padding(.leading, -18).offset(y: -14)
                     }
                 } else {
                 Text(name)
@@ -239,6 +302,62 @@ struct TVSportList: View {
     private func isSelected(_ selection: TVNav.HomeSelection) -> Bool {
         if case .sport(let s) = selection { return openSport == s }
         return nav.homeSelection == selection
+    }
+}
+
+// MARK: Leagues beside the sports
+
+/// A sport's leagues beside its (folded) icon: All first, then the most popular league first, so the list never
+/// moves. Moving onto a league shows its games straight away; right goes into them.
+struct TVLeagueList: View {
+    @EnvironmentObject var model: AppModel
+    @EnvironmentObject var nav: TVNav
+    let sport: Sport
+    var focused: FocusState<TVNav.HomeSelection?>.Binding
+
+    var body: some View {
+        ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(sport.rawValue.uppercased())
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundStyle(Theme.muted)
+                    .padding(.leading, 22)
+                    .padding(.bottom, 4)
+                let all = model.games(for: sport)
+                row(.sport(sport), league: nil, name: "All", games: all)
+                ForEach(model.leagues(for: sport)) { league in
+                    row(.league(league.id), league: league, name: league.name,
+                        games: model.games.filter { $0.league.id == league.id })
+                }
+            }
+            .padding(.vertical, 20)
+            .padding(.leading, 8)
+        }
+        .ignoresSafeArea(.container, edges: .horizontal)
+        .onChange(of: focused.wrappedValue) {
+            if let f = focused.wrappedValue, f != nav.homeSelection { nav.homeSelection = f }
+        }
+    }
+
+    private func row(_ selection: TVNav.HomeSelection, league: League?, name: String, games: [Game]) -> some View {
+        let live = games.filter { $0.state == .live }.count
+        return Button {
+            nav.homeSelection = selection
+        } label: {
+            HStack(spacing: 14) {
+                if let league { TVLeagueLogo(league: league, size: 30) }
+                Text(name).font(.system(size: 26, weight: .semibold)).lineLimit(1)
+                Spacer(minLength: 6)
+                if live > 0 {
+                    TVBadge(text: "\(live)", fill: Theme.accent, color: Theme.onAccent)
+                } else if !games.isEmpty {
+                    Text("\(games.count)").font(.system(size: 21)).opacity(0.6)
+                }
+            }
+        }
+        .buttonStyle(TVRowButtonStyle(selected: nav.homeSelection == selection))
+        .focused(focused, equals: selection)
+        .opacity(games.isEmpty ? 0.5 : 1)
     }
 }
 
@@ -371,9 +490,6 @@ struct TVGamesPane: View {
     private var cards: some View {
         ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: 6) {
-                if let sport = filterSport, model.leagues(for: sport).count > 1 {
-                    leagueFilters(sport)
-                }
                 let redZone = redZone
                 if !redZone.isEmpty {
                     fold("NFL RedZone · \(redZone.count)", open: showRedZone) { showRedZone.toggle() }
