@@ -90,14 +90,33 @@ fun EpgScreen(model: AppModel) {
     val favChannels = model.favoriteChannelIds
     val favNodes = remember(tree, model.categories, s.favoriteCategories) { model.favoriteCategoryNodes() }
     val favEntries = favNodes.map { Entry(if (it.isGroup) "g:${it.id}" else it.id, it.name, it.categories) }
+    // The category you're on, kept in memory while you're on the EPG (2.28) and saved when you leave it or the app,
+    // instead of writing the setting each time it changes.
+    var chosen by remember { mutableStateOf(s.guideCategory) }
+    val chosenNow by rememberUpdatedState(chosen)
+    val lifecycle = androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_STOP && s.guideCategory != chosenNow) s.guideCategory = chosenNow
+        }
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
+            if (s.guideCategory != chosenNow) s.guideCategory = chosenNow
+        }
+    }
+    // Counts and the favourite channels, worked out once per channel list / favourites change, not on every move.
+    val counts = remember(model.channelsByCategory) { model.channelsByCategory.mapValues { it.value.size } }
+    val favList = remember(model.channelById, s.favoriteChannels) { model.favoriteChannelList() }
+    fun count(cats: List<ChannelCategory>) = cats.sumOf { counts[it.id] ?: 0 }
     val selected: Entry? = run {
-        val id = s.guideCategory
+        val id = chosen
         if (id == FAVORITES && favChannels.isNotEmpty()) return@run Entry(FAVORITES, "Favourites", emptyList())
         if (id.startsWith("g:")) CategoryGrouping.find(id.drop(2), tree)?.let { return@run Entry(id, it.name, it.categories) }
         entries.firstOrNull { it.id == id } ?: entries.firstOrNull()
     }
-    val channels = remember(selected?.id, model.channelsByCategory, s.favoriteChannels) {
-        if (selected?.id == FAVORITES) model.favoriteChannelList()
+    val channels = remember(selected?.id, model.channelsByCategory, favList) {
+        if (selected?.id == FAVORITES) favList
         else model.favoritesFirst((selected?.categories ?: emptyList()).flatMap { model.channelsByCategory[it.id] ?: emptyList() }.distinctBy { it.id })
     }
     // Hold the select button on a category or channel: add it to favourites, or take it off.
@@ -143,7 +162,7 @@ fun EpgScreen(model: AppModel) {
     // draw (and save) each one. Clicking, or pressing right into the channels, is instant.
     val settle = rememberSettle()
     fun pick(id: String) {
-        if (s.guideCategory != id) settle.later { s.guideCategory = id } else settle.cancel()
+        if (chosen != id) settle.later { chosen = id } else settle.cancel()
     }
     fun go(path: List<String>, then: String? = null) {
         settle.cancel()
@@ -229,15 +248,15 @@ fun EpgScreen(model: AppModel) {
             // Favourites first: your favourite channels, then favourite categories and groups, then a line.
             if (model.guidePath.isEmpty()) {
                 if (favChannels.isNotEmpty()) item(key = "fav") {
-                    CategoryRow(cats, "cat:$FAVORITES", Icons.Filled.Favorite, "Favourites", "${model.favoriteChannelList().size}",
+                    CategoryRow(cats, "cat:$FAVORITES", Icons.Filled.Favorite, "Favourites", "${favList.size}",
                         selected?.id == FAVORITES, onFocus = { pick(FAVORITES) }) {
-                        settle.now { s.guideCategory = FAVORITES }
+                        settle.now { chosen = FAVORITES }
                     }
                 }
                 items(favEntries, key = { "fav:${it.id}" }) { e ->
-                    CategoryRow(cats, "cat:${e.id}", null, e.name, "${count(model, e.categories)}", selected?.id == e.id,
+                    CategoryRow(cats, "cat:${e.id}", null, e.name, "${count(e.categories)}", selected?.id == e.id,
                         favorite = true, onLongClick = { holdCategory(e.id, e.name) },
-                        onFocus = { pick(e.id) }) { settle.now { s.guideCategory = e.id } }
+                        onFocus = { pick(e.id) }) { settle.now { chosen = e.id } }
                 }
                 if (favChannels.isNotEmpty() || favEntries.isNotEmpty()) item(key = "favline") {
                     Box(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 5.dp).height(1.dp)
@@ -263,16 +282,16 @@ fun EpgScreen(model: AppModel) {
                             go(model.guidePath + node.id)
                         }
                     } else {
-                        CategoryRow(cats, "cat:$k", null, node.name, "${count(model, node.categories)}", selected?.id == k,
+                        CategoryRow(cats, "cat:$k", null, node.name, "${count(node.categories)}", selected?.id == k,
                             favorite = fav, onLongClick = { holdCategory(k, node.name) },
-                            onFocus = { pick(k) }) { settle.now { s.guideCategory = k } }
+                            onFocus = { pick(k) }) { settle.now { chosen = k } }
                     }
                 }
             } else {
                 items(entries.filter { !model.isFavoriteCategory(it.id) }, key = { it.id }) { e ->
-                    CategoryRow(cats, "cat:${e.id}", null, e.name, "${count(model, e.categories)}", selected?.id == e.id,
+                    CategoryRow(cats, "cat:${e.id}", null, e.name, "${count(e.categories)}", selected?.id == e.id,
                         onLongClick = { holdCategory(e.id, e.name) },
-                        onFocus = { pick(e.id) }) { settle.now { s.guideCategory = e.id } }
+                        onFocus = { pick(e.id) }) { settle.now { chosen = e.id } }
                 }
             }
         }
@@ -386,7 +405,6 @@ internal val CHANNEL_WIDTH = 210.dp
 private val NOW_WIDTH = 290.dp
 private val COLUMN_GAP = 12.dp
 
-private fun count(model: AppModel, cats: List<ChannelCategory>) = cats.sumOf { model.channelsByCategory[it.id]?.size ?: 0 }
 
 @Composable
 internal fun CategoryRow(
@@ -646,7 +664,8 @@ private fun GuideHeader(title: String, start: Long, now: Long) {
 internal fun GuideRow(model: AppModel, channel: Channel, playing: Boolean, start: Long, now: Long, modifier: Modifier,
                       onLongClick: (() -> Unit)? = null, onFocus: () -> Unit, onClick: () -> Unit) {
     val end = start + Guide.SPAN
-    val programmes = model.guide[channel.epgId].orEmpty().overlapping(start, end)
+    // Cut once per channel and guide window (it moves every half hour), not on every redraw of the row.
+    val programmes = remember(channel.epgId, start, model.guide) { model.guide[channel.epgId].orEmpty().overlapping(start, end) }
     val shape = androidx.compose.foundation.shape.RoundedCornerShape(6.dp)
     TvButton(onClick = onClick, onFocus = onFocus, onLongClick = onLongClick, focusedFill = androidx.compose.ui.graphics.Color.Transparent,
         modifier = modifier.fillMaxWidth().height(Guide.rowHeight)) { focused ->
