@@ -12,6 +12,20 @@ struct TVLoginView: View {
     @State private var working = false
 
     var body: some View {
+        HStack(alignment: .center, spacing: 90) {
+            form
+            // Or from your phone (2.21, like Android TV): QR code, address and PIN.
+            PhoneSetupPanel(scale: 1.6) { creds in await phoneLogin(creds) }
+                .padding(40)
+                .background(RoundedRectangle(cornerRadius: 30).fill(Theme.card))
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            if let editing { server = editing.server; username = editing.username; password = editing.password }
+        }
+    }
+
+    private var form: some View {
         VStack(spacing: 36) {
             Image(systemName: "basketball.fill")
                 .font(.system(size: 90))
@@ -31,7 +45,7 @@ struct TVLoginView: View {
             }
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
-            .frame(width: 900)
+            .frame(width: 820)
 
             if let error {
                 Text(error)
@@ -56,10 +70,15 @@ struct TVLoginView: View {
                 Button("Cancel", action: onDone)
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear {
-            if let editing { server = editing.server; username = editing.username; password = editing.password }
-        }
+    }
+
+    /// Details sent from the phone: signs in (or saves, when editing) the same way the form does.
+    private func phoneLogin(_ creds: XtreamCredentials) async -> String? {
+        let error = editing == nil
+            ? await model.signIn(server: creds.server, username: creds.username, password: creds.password)
+            : await model.updateAccount(server: creds.server, username: creds.username, password: creds.password)
+        if error == nil { onDone?() }
+        return error
     }
 
     private func signIn() async {

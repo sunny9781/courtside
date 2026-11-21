@@ -3,6 +3,9 @@ import SwiftUI
 /// Home: sports down the left (All sports, favourites, sports with games, then the rest),
 /// and on the right either the live overview or the chosen sport's page.
 struct DashboardView: View {
+    /// The sport Home picked by itself (not you), and when Home opened.
+    @State private var autoSport: Sport?
+    @State private var openedAt = Date()
     @EnvironmentObject var model: AppModel
     @AppStorage(Prefs.sportOrder) private var sportOrder = ""
     @AppStorage(Prefs.favoriteSports) private var favoriteSports = ""
@@ -39,9 +42,14 @@ struct DashboardView: View {
 
     /// Home opens on a sport (no Live Now page): a favourite with something live, else any sport with something
     /// live, else the first with games. Picked once today's games are in.
+    /// While today's games are still coming in (the first 30 seconds), Home keeps moving to the top sport until you
+    /// pick one yourself (2.21, like Android), instead of staying on whichever sport loaded first.
     private func pickStartingSport() {
-        guard selectedSport == nil, !model.games.isEmpty else { return }
-        selectedSport = startingSport(model: model)
+        guard !model.games.isEmpty else { return }
+        let following = selectedSport == nil || (selectedSport == autoSport && Date().timeIntervalSince(openedAt) < 30)
+        guard following, let sport = startingSport(model: model), sport != selectedSport else { return }
+        selectedSport = sport
+        autoSport = sport
     }
 
     // MARK: Left column

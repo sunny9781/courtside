@@ -322,9 +322,6 @@ struct IOSChannelRow: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(playing ? Theme.accent : Theme.text)
                         .lineLimit(1)
-                    if playing {
-                        Image(systemName: "speaker.wave.2.fill").font(.caption).foregroundStyle(Theme.accent)
-                    }
                     Spacer()
 
                 }
@@ -340,6 +337,9 @@ struct IOSChannelRow: View {
         }
         .padding(.horizontal)
         .padding(.vertical, 10)
+        // What's playing: an orange outline (2.21, like the TVs; no speaker icon).
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(playing ? Theme.accent : .clear, lineWidth: 2)
+            .padding(.horizontal, 6))
         .contentShape(Rectangle())
     }
 

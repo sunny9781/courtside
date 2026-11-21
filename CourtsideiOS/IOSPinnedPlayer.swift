@@ -58,6 +58,7 @@ struct IOSPinnedPlayer: View {
         }
         .onChange(of: playback.frameRate) { model.recordFrameRate(item.channel.id, playback.frameRate) }
         .onChange(of: playback.audio) { model.recordAudio(item.channel.id, playback.audio) }
+        .onChange(of: playback.dynamicRange) { model.recordHDR(item.channel.id, playback.dynamicRange) }
     }
 
     /// One line: the score (or title), then the channel.
@@ -107,6 +108,7 @@ struct IOSPinnedPlayer: View {
     private var overlayControls: some View {
         HStack(spacing: 8) {
             if !playback.resolution.isEmpty { IOSBadge(text: playback.resolution).fixedSize() }
+            if !playback.dynamicRange.isEmpty { IOSBadge(text: playback.dynamicRange).fixedSize() }
             if playback.frameRate > 0 { IOSBadge(text: PlaybackController.fpsLabel(playback.frameRate)).fixedSize() }
             if !playback.audio.isEmpty { IOSBadge(text: playback.audio).fixedSize() }
             Spacer(minLength: 4)

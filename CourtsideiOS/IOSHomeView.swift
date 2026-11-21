@@ -3,6 +3,9 @@ import SwiftUI
 /// Home. iPhone: sport chips across the top, games below. iPad: sports down the left like the Mac, games on the
 /// right. Tap a game for its streams.
 struct IOSHomeView: View {
+    /// The sport Home picked by itself (not you), and when Home opened.
+    @State private var autoSport: Sport?
+    @State private var openedAt = Date()
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var nav: IOSNav
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -264,9 +267,15 @@ struct IOSGamesList: View {
 
     /// Home opens on a sport (no Live Now page): a favourite with something live, else any sport with something
     /// live. Picked once today's games are in.
+    /// While today's games are still coming in (the first 30 seconds), it keeps moving to the top sport until you
+    /// pick one yourself (2.21, like Android), instead of staying on whichever sport loaded first.
     private func pickStartingSport() {
-        guard nav.homeSelection == .liveNow, !model.games.isEmpty, let sport = startingSport(model: model) else { return }
+        guard !model.games.isEmpty else { return }
+        let following = nav.homeSelection == .liveNow
+            || (autoSport.map { nav.homeSelection == .sport($0) } == true && Date().timeIntervalSince(openedAt) < 30)
+        guard following, let sport = startingSport(model: model), nav.homeSelection != .sport(sport) else { return }
         nav.homeSelection = .sport(sport)
+        autoSport = sport
     }
 
     /// The EPG download, as on the TVs: "Refreshing EPG…" while it downloads, or waiting for the stream to stop.

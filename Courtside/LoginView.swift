@@ -14,6 +14,7 @@ struct LoginView: View {
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
+            HStack(alignment: .center, spacing: 20) {
             VStack(alignment: .leading, spacing: 18) {
                 HStack(spacing: 10) {
                     Image(systemName: "basketball.fill")
@@ -64,10 +65,24 @@ struct LoginView: View {
             .padding(36)
             .frame(width: 460)
             .background(RoundedRectangle(cornerRadius: 20).fill(Theme.card))
+            // Or from your phone (2.21): QR code, address and PIN beside the form.
+            PhoneSetupPanel { creds in await phoneLogin(creds) }
+                .padding(24)
+                .background(RoundedRectangle(cornerRadius: 20).fill(Theme.card))
+            }
         }
         .onAppear {
             if let editing { server = editing.server; username = editing.username; password = editing.password }
         }
+    }
+
+    /// Details sent from the phone: signs in (or saves, when editing) the same way the form does.
+    private func phoneLogin(_ creds: XtreamCredentials) async -> String? {
+        let error = editing != nil
+            ? await model.updateAccount(server: creds.server, username: creds.username, password: creds.password)
+            : await model.signIn(server: creds.server, username: creds.username, password: creds.password)
+        if error == nil, editing != nil { onDone?() }
+        return error
     }
 
     private func signIn() async {

@@ -19,6 +19,9 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
     @Published private(set) var status: PlaybackController.Status = .idle
     @Published private(set) var resolution = ""
     @Published private(set) var frameRate: Double = 0
+    /// "HDR10", "HLG" or "Dolby Vision" from the video track's format (2.21); empty for SDR or not known yet.
+    @Published private(set) var dynamicRange = ""
+    private var rangeLookup: Task<Void, Never>?
     /// The sound ("Stereo", "5.1 Dolby"...), from the audio track's format.
     @Published private(set) var audio = ""
     /// When the picture started playing (for "No sound").
@@ -62,6 +65,7 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
                 return
             }
         }
+        StreamStats.shared.begin(url)
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
         try? AVAudioSession.sharedInstance().setActive(true)
         currentURL = url
@@ -69,6 +73,9 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
         resolution = ""
         frameRate = 0
         audio = ""
+        dynamicRange = ""
+        rangeLookup?.cancel()
+        rangeLookup = nil
         playingSince = nil
         audioLookup?.cancel()
         lastBufferMs = bufferMs
@@ -82,7 +89,13 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
         player.play()
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.poll() }
+            Task { @MainActor in
+                guard let self else { return }
+                self.poll()
+                let picture = !self.resolution.isEmpty
+                StreamStats.shared.tick(picture: picture, playing: picture && self.status == .playing,
+                                        buffering: picture && self.status == .buffering)
+            }
         }
     }
 
@@ -108,6 +121,7 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
     }
 
     func stop() {
+        StreamStats.shared.end()
         timer?.invalidate()
         timer = nil
         if pip?.isPictureInPictureActive == true { pip?.stopPictureInPicture() }
@@ -135,6 +149,7 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
             // of stopping.
             if !resolution.isEmpty, currentURL != nil {
                 let now = Date()
+                if droppedSince == nil { StreamStats.shared.dropped() }
                 let since = droppedSince ?? now
                 droppedSince = since
                 if now.timeIntervalSince(since) < 120 {
@@ -166,6 +181,14 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
            fps > 0 {
             frameRate = Double(fps > 61 ? fps / 2 : fps)
         }
+        if dynamicRange.isEmpty, rangeLookup == nil, status == .playing,
+           let track = item.tracks.first(where: { $0.assetTrack?.mediaType == .video })?.assetTrack {
+            rangeLookup = Task { @MainActor [weak self] in
+                guard let formats = try? await track.load(.formatDescriptions), !Task.isCancelled,
+                      let label = Self.rangeLabel(formats) else { return }
+                self?.dynamicRange = label
+            }
+        }
         // No sound 8 seconds into the picture: "No sound" (2.17, a dead audio feed), replaced if it turns up later.
         if status == .playing, !resolution.isEmpty {
             let since = playingSince ?? Date()
@@ -183,10 +206,23 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
         // Hiccups are waited out with the connection open; only 10 seconds without progress reopens the stream.
         let watching = !resolution.isEmpty && (status == .playing || status == .buffering || status == .opening)
         switch freezeWatch.check(progress: player.currentTime().seconds, watching: watching) {
-        case .restart: restartQuietly()
+        case .restart: StreamStats.shared.froze(); restartQuietly()
         case .skip: onRepeatedFreezing?()
         case .none: break
         }
+    }
+
+    /// HDR10 (PQ), HLG or Dolby Vision from the video format; nil for SDR.
+    private static func rangeLabel(_ formats: [CMFormatDescription]) -> String? {
+        guard let f = formats.first else { return nil }
+        switch CMFormatDescriptionGetMediaSubType(f) {
+        case kCMVideoCodecType_DolbyVisionHEVC, 0x64766131 /* dva1 */, 0x64766176 /* dvav */: return "Dolby Vision"
+        default: break
+        }
+        let transfer = CMFormatDescriptionGetExtension(f, extensionKey: kCMFormatDescriptionExtension_TransferFunction) as? String
+        if transfer == (kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ as String) { return "HDR10" }
+        if transfer == (kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG as String) { return "HLG" }
+        return nil
     }
 
     /// "Stereo", "5.1 Dolby", "Dolby+" and so on, from the audio track's format (like the VLC label on the Mac).
@@ -272,6 +308,7 @@ final class IOSPlayback: ObservableObject {
     var status: PlaybackController.Status { usingVLC ? vlc.status : av.status }
     var resolution: String { usingVLC ? vlc.resolution : av.resolution }
     var frameRate: Double { usingVLC ? vlc.frameRate : av.frameRate }
+    var dynamicRange: String { usingVLC ? "" : av.dynamicRange }
     var audio: String { usingVLC ? vlc.audio : av.audio }
     var isActive: Bool { channelID != nil }
     var canPictureInPicture: Bool { !usingVLC && AVEngine.pipSupported }

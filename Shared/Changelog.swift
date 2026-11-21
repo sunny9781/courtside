@@ -74,6 +74,17 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.21", date: "2026-11-21", time: "02:30", title: "Catching up with Android", changes: [
+            Change(text: "Game screen: a green, amber or red dot on streams shows how reliable they've been on this device (buffering, freezes, drops, slow or failed starts). It shows once a stream has been watched for 5 minutes in all (or right away for one that keeps failing).", apps: [.mac, .tv, .ios]),
+            Change(text: "Sign-in screen: scan the QR code with your phone, type your Xtream details there and tap Send. Works over your home Wi-Fi only, with a PIN shown on screen. Also in Settings › Account › Edit account.", apps: [.mac, .tv]),
+            Change(text: "Streams in HDR get a tag next to their resolution: HDR10, HLG or Dolby Vision, on the game screen and in the player.", apps: ios),
+            Change(text: "EPG: what's playing has an orange outline around its channel and the show on now, instead of a speaker icon.", apps: [.mac, .tv, .ios]),
+            Change(text: "Game screen: long channel names and shows wrap onto a second line instead of being cut off.", apps: [.mac, .tv]),
+            Change(text: "Long names in the EPG scroll once when you stop on them, instead of over and over.", apps: [.mac, .tv]),
+            Change(text: "EPG: the guide ends level with the bottom of the player in the corner, instead of running on under the now-playing bar.", apps: tv),
+            Change(text: "EPG: the channel column is half as wide again, with a bigger logo and name.", apps: tv),
+            Change(text: "Home: while today's games are still loading, it moves to the top sport instead of staying on whichever sport loaded first, until you pick one yourself.", apps: [.mac, .tv, .ios]),
+        ], titleApps: [.mac, .tv, .ios]),
         Release(version: "2.20", date: "2026-11-21", time: "01:05", title: "Smoother moving around", changes: [
             Change(text: "Right (or clicking) on Home, EPG or Settings in the rail closes it and lands on the page's left menu on what's selected (the sport, category or section), never straight in the games.", apps: android),
             Change(text: "Home: moving onto the first row of a league scrolls up enough to show its name, so headings aren't cut off at the top.", apps: android),
