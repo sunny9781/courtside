@@ -278,3 +278,13 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - matchAll: only programmes inside the games' combined window; broadcasters via a word -> channels index;
   timing line "Matched streams to N games in X ms" in the Connection log at most every 10 min.
 - Android: `NonWord` regex compiled once (Models.kt); don't write `Regex(...)` inside functions. `Channel.lowerName` for the EPG filter.
+
+## 2.23 (2026-11-21, smarter refreshes, Android only so far)
+- Channel list checked hourly (`channelsEvery`) while the app is on screen and nothing plays (`refreshIfDue`, run from
+  the minute loop and `cameBack`); unchanged list = nothing rebuilt; changed list = `rematch(timed = true)` straight away.
+- Guide due (`guideDue`): empty, older than Settings › Updates (`refreshHours`, file time via `Cache.guideSavedAt`), or
+  within 1 h of `guideEnd` (median of channels' last programme end). Guide kept to refreshHours (min 3) + 3 h ahead.
+- Failed auto downloads retry after 15 min (`lastAutoRefresh`). The scores loop starts once (refresh no longer restarts it).
+- Timing line: "Matched streams to N games in X ms" after each channel/guide download (Android; Apple apps still log
+  from Matcher at most every 10 min until the port).
+- To port to Apple apps.
