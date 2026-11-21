@@ -393,15 +393,12 @@ object Matcher {
 
     private fun rankOf(label: String) = when (label) { "4K" -> 4; "1080p" -> 3; "720p" -> 2; else -> 1 }
 
-    @Volatile private var lastTimingLog = 0L
-
     /** Every game's streams at once, best match first. */
     fun matchAll(
         games: List<Game>, channels: List<Indexed>, guide: Map<String, List<Programme>>,
         measured: Map<Int, String>, recent: Set<Int>, now: Long,
         extras: Map<String, List<Broadcast>> = emptyMap()
     ): Map<String, List<StreamMatch>> {
-        val started = System.nanoTime()
         val keys = games.map { key(it, now) }
         val triggers = keys.flatMap { it.triggers }.toSet()
         val live = channels.filter { !neverLive(it.channel) }
@@ -512,12 +509,6 @@ object Matcher {
                     else -> a.channel.name.compareTo(b.channel.name)
                 }
             })
-        }
-        // In the connection log at most every 10 minutes (it's rerun on every score update).
-        val ms = (System.nanoTime() - started) / 1_000_000
-        if (now - lastTimingLog > 10 * 60_000L) {
-            lastTimingLog = now
-            ConnLog.add("Matched streams to ${keys.size} games in $ms ms")
         }
         return result
     }
