@@ -7,9 +7,16 @@ struct ReliabilityDot: View {
     let channelID: Int
     var size: CGFloat = 8
     var padding: CGFloat = 5
+    /// Just the dot, no chip around it: for tight spots like the EPG's channel names (2.27).
+    var bare = false
 
     var body: some View {
-        if let rating = stats.ratings[channelID] {
+        if let rating = stats.ratings[channelID], bare {
+            Circle()
+                .fill(Self.colour(rating))
+                .frame(width: size, height: size)
+                .accessibilityLabel(Self.words(rating))
+        } else if let rating = stats.ratings[channelID] {
             Circle()
                 .fill(Self.colour(rating))
                 .frame(width: size, height: size)

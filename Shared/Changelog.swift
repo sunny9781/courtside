@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.27", date: "2026-11-21", time: "13:15", title: "Reliability dots in the EPG", changes: [
+            Change(text: "The green, amber or red reliability dot now shows next to channel names in the EPG (list and timeline) too, like on Android.", apps: tv),
+        ]),
         Release(version: "2.26", date: "2026-11-21", time: "12:05", title: "Reliability dots in the EPG", changes: [
             Change(text: "The green, amber or red reliability dot now shows next to channel names in the EPG (list and timeline) too.", apps: android),
             Change(text: "Fixed: on the TVs the dot didn't show on the game screen's streams (only on phones).", apps: android),
