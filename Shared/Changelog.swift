@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.11", date: "2026-11-20", time: "21:52", title: "No information panel in full screen", changes: [
+            Change(text: "Full screen: the centre button no longer shows the stream information panel at the top right; the bar along the bottom already shows what's on and the stream's tags. It still shows the recently watched streams.", apps: tv)
+        ]),
         Release(version: "2.10", date: "2026-11-20", time: "16:58", title: "Frozen streams restart after 10 seconds", changes: [
             Change(text: "A picture that hasn't moved for 10 seconds (instead of a whole minute) reopens the same stream. Shorter hiccups still carry on with the connection open.", apps: everywhere),
         ]),
