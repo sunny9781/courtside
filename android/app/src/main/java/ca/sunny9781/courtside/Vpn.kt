@@ -60,7 +60,7 @@ object Vpn {
     fun attach(context: android.content.Context) {
         if (prefs == null) prefs = context.applicationContext.getSharedPreferences("courtside", android.content.Context.MODE_PRIVATE)
     }
-    private val config: String get() = prefs?.getString("vpnConfig", "") ?: ""
+    private val savedConfig: String get() = prefs?.getString("vpnConfig", "") ?: ""
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     /** Coming on screen (or switched on): connect. Runs in order with [stop]. */
@@ -69,7 +69,7 @@ object Vpn {
     fun stop() { scope.launch { disconnect() } }
 
     /** Switched on in Settings (with a config). */
-    val wanted: Boolean get() = prefs?.let { it.getBoolean("vpnOn", false) && config.isNotBlank() } ?: false
+    val wanted: Boolean get() = prefs?.let { it.getBoolean("vpnOn", false) && savedConfig.isNotBlank() } ?: false
 
     /** Switched on but not connected: the provider mustn't be reached. */
     val blocked: Boolean get() = wanted && state != State.ON
@@ -114,7 +114,7 @@ object Vpn {
             if (state == State.ON) return
             state = State.CONNECTING
             detail = ""
-            val config = runCatching { parse(config) }.getOrElse {
+            val config = runCatching { parse(savedConfig) }.getOrElse {
                 fail("The saved WireGuard config couldn't be read. Send it again in Settings › VPN."); return
             }
             val intent = runCatching { VpnService.prepare(activity) }.getOrElse {
@@ -142,7 +142,7 @@ object Vpn {
             // the app starts loading through it.
             kotlinx.coroutines.delay(1500)
             state = State.ON
-            detail = server(config)
+            detail = server(savedConfig)
             ConnLog.add("VPN connected")
         }
     }
