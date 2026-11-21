@@ -122,7 +122,7 @@ struct TVLiveView: View {
                 channelList
                     .focusSection()
             }
-            .padding(.horizontal, TVLayout.margin)
+            .padding(.trailing, TVLayout.margin)
             // Pressing down from Home / EPG / Settings starts on the category list.
             .defaultFocus($focusedCategory, categoryTarget, priority: .userInitiated)
             // Back from the channels: to the category you're in on the left.

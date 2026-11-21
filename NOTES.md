@@ -38,7 +38,9 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
    "Update Apple TV and iPhone" shortcut.
 
 ## Layout (Android TV and Apple TV match)
-- Top bar: connections pill, EPG refresh, version/update button (one press checks and installs). Apple TV only since
+- Top bar: connections pill, EPG refresh, version/update button (one press checks and installs). Apple TV has it too since
+  2.24 (`TVRail` in CourtsideTVApp.swift, 108/400 pt; Home league side menu `TVLeagueList` + folded `TVSportList`,
+  opened by a focusable strip at the sports' right edge; `nav.sportRequest` for Back from a league). Android since
   2.4: Android TV has no top bar but a rail down the left edge (`NavRail` in Screens.kt, 56 dp closed / 214 dp open,
   drawn after the video so it covers the corner player when open): Home / EPG / Settings icons, connections + EPG time
   (short) + an update dot at the bottom; open = names, full status, version button. Left off a page's left edge opens

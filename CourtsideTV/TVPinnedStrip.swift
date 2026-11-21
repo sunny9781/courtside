@@ -84,6 +84,10 @@ struct TVNowPlayingBar: View {
                         .tint(Theme.accent).frame(width: 200)
                 }
                 Spacer(minLength: 0)
+                // The EPG refresh at the right end (the closed rail only has room for "EPG…").
+                if let epg = tvEPGStatus(model), epg.busy {
+                    Text(epg.text).font(.system(size: 21)).foregroundStyle(Theme.muted).lineLimit(1).fixedSize()
+                }
             }
             .padding(.horizontal, TVLayout.margin + 8)
             .frame(maxHeight: .infinity)
