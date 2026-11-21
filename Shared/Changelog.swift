@@ -76,7 +76,6 @@ enum Changelog {
     static let releases: [Release] = [
         Release(version: "2.20", date: "2026-11-21", time: "01:05", title: "Smoother moving around", changes: [
             Change(text: "Right (or clicking) on Home, EPG or Settings in the rail closes it and lands on the page's left menu on what's selected (the sport, category or section), never straight in the games.", apps: android),
-            Change(text: "Home: the leagues are chips again (All · NBA · WNBA…), now fixed at the top of the games while the cards scroll under them. No more folding the sports to icons.", apps: android),
             Change(text: "Home: moving onto the first row of a league scrolls up enough to show its name, so headings aren't cut off at the top.", apps: android),
             Change(text: "The left menus and the corner player start at the left end of the now-playing bar, right beside the rail (less empty space).", apps: android),
             Change(text: "Updates: the button says Download update vX first, then Install update vX once it has downloaded (it no longer downloads by itself on TVs).", apps: android),
