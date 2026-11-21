@@ -5,7 +5,8 @@ import Foundation
 ///   broadcasters from the league's home country (USA for the NFL and NBA, Canada then USA for the NHL, UK for
 ///   the Premier League…) · other English-language countries · unknown country. Foreign-language countries and
 ///   local stations come back separately, for groups at the bottom that fold open.
-/// Within each section the matcher's order (best match first) is kept.
+/// Within each section the highest quality comes first (2.14: resolution, measured when it's been played, else from
+/// the name; then frame rate), and the matcher's order (best match first) among equals.
 enum StreamSections {
     struct Section: Identifiable, Hashable {
         let name: String
@@ -92,7 +93,30 @@ enum StreamSections {
         return league.keywords.contains { $0.count <= 4 && $0.count >= 3 && words.contains($0) }
     }
 
-    static func build(_ all: [StreamMatch], league: League, search: String = "") -> Result {
+    /// 4 = 4K, 3 = 1080p, 2 = 720p / HD (and unknown), 1 = SD.
+    static func qualityRank(_ m: StreamMatch, measured: [Int: String]) -> Int {
+        switch measured[m.channel.id] {
+        case "4K"?: return 4
+        case "1080p"?: return 3
+        case "720p"?, "HD"?: return 2
+        case "SD"?, "576p"?, "480p"?: return 1
+        default: return m.qualityRank
+        }
+    }
+
+    /// Highest quality first, keeping the given order among streams of the same quality.
+    static func byQuality(_ list: [StreamMatch], measured: [Int: String], fps: [Int: Double]) -> [StreamMatch] {
+        list.enumerated().sorted { a, b in
+            let ra = qualityRank(a.element, measured: measured), rb = qualityRank(b.element, measured: measured)
+            if ra != rb { return ra > rb }
+            let fa = fps[a.element.channel.id] ?? 0, fb = fps[b.element.channel.id] ?? 0
+            if Int(fa.rounded()) != Int(fb.rounded()) { return fa > fb }
+            return a.offset < b.offset
+        }.map(\.element)
+    }
+
+    static func build(_ all: [StreamMatch], league: League, search: String = "",
+                      measured: [Int: String] = [:], fps: [Int: Double] = [:]) -> Result {
         // Event sports (motorsport, golf, tennis, fights): a 4K channel the guide doesn't confirm is still listed up top
         // under 4K (4K channels carry these events, and the guide often names the race only as "F2 Feature Race").
         func shown(_ m: StreamMatch) -> Bool { !m.hidden || (league.isEvent && m.is4K) }
@@ -116,7 +140,7 @@ enum StreamSections {
             let picked = list.filter { !used.contains($0.id) && pick($0) }
             guard !picked.isEmpty else { return }
             picked.forEach { used.insert($0.id) }
-            sections.append(Section(name: name, streams: picked))
+            sections.append(Section(name: name, streams: byQuality(picked, measured: measured, fps: fps)))
         }
 
         take("4K") { $0.is4K }
@@ -130,9 +154,10 @@ enum StreamSections {
         let byCountry = Dictionary(grouping: foreignList, by: { foreignGroup($0) })
         let foreign = byCountry.keys
             .sorted { ((byCountry[$0]?.count ?? 0), $1) > ((byCountry[$1]?.count ?? 0), $0) }
-            .map { Section(name: $0, streams: byCountry[$0] ?? []) }
+            .map { Section(name: $0, streams: byQuality(byCountry[$0] ?? [], measured: measured, fps: fps)) }
 
-        return Result(sections: sections, foreign: foreign, extras: extras.filter(matchesSearch))
+        return Result(sections: sections, foreign: foreign,
+                      extras: byQuality(extras.filter(matchesSearch), measured: measured, fps: fps))
     }
 }
 

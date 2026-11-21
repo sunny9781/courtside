@@ -18,7 +18,8 @@ struct GameDetailView: View {
     /// 4K, PPV for fights, the league's own channels, home-country broadcasters, other countries (see
     /// StreamSections), filtered by the search field.
     private var listing: StreamSections.Result {
-        StreamSections.build(allStreams, league: game.league, search: search)
+        StreamSections.build(allStreams, league: game.league, search: search,
+                             measured: model.measuredQuality, fps: model.measuredFrameRate)
     }
 
     /// The main sections (what autoplay picks from).

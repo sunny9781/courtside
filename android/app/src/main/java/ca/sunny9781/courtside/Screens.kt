@@ -1321,7 +1321,8 @@ fun GameScreen(model: AppModel, gameId: String) {
     val rows = remember { FocusTargets() }
     val s = model.settings
     val all = model.streams(gameId).let { list -> if (s.hideSD) list.filter { it.quality != "SD" } else list }
-    val listing = remember(all, game.league) { StreamSections.build(all, game.league) }
+    // Measured quality as it was when the screen opened, so rows don't jump around while you flip through them.
+    val listing = remember(all, game.league) { StreamSections.build(all, game.league, measured = model.measuredQuality, fps = model.measuredFrameRate) }
     // A mini EPG for this game: its stream categories on the left ("All" first), the channels on the right.
     val main = listing.sections.flatMap { it.streams }
     // Every group of streams, in order; "All" lists them all under these names.

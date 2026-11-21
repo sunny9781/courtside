@@ -200,3 +200,9 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Android full screen: no stream information panel (StreamDetails removed); the centre button only shows the recent
   strip. Recent strip (all apps): a bin at the left clears it (`clearWatched()`); on the TVs it's index -1 (left from
   the first card). Cards and bin at black 0.18 (picked 0.35), border white 0.08 (picked: orange).
+
+## 2.14 (2026-11-20)
+- Game screen: `StreamSections.byQuality` sorts every section (and foreign groups, local and likely) by
+  `qualityRank(m, measured)` (measured label 4K/1080p/720p/SD, else the name's `qualityRank`; unknown = 2 like HD),
+  then measured fps, then the matcher's order. Callers pass `measuredQuality` / `measuredFrameRate`. Android builds it
+  inside `remember(all, league)`, so rows don't move while you're on the screen; the Apple views recompute live.

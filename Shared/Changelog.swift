@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.14", date: "2026-11-20", time: "23:05", title: "Best quality first", changes: [
+            Change(text: "Game screen: within each category the highest quality streams come first (4K, then 1080p, then 720p, then SD; the real resolution once a stream has been played, else what its name says), then the higher frame rate.", apps: everywhere),
+        ]),
         Release(version: "2.13", date: "2026-11-20", time: "22:28", title: "HDR player for every channel", changes: [
             Change(text: "Every channel now plays with the HDR player, not just 4K ones, so a 1080p or 720p stream in HDR shows as HDR (the TV's HDR sign in full screen, and the HDR tag) instead of a darker picture from VLC. If a channel shows nothing within a few seconds, VLC takes over as before.", apps: tv),
             Change(text: "Settings › Playback › HDR player for all channels: on for now while it's being tried; turn it off to play only 4K channels with the HDR player.", apps: tv)
