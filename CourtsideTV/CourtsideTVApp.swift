@@ -137,6 +137,9 @@ struct TVShell: View {
         .animation(.easeOut(duration: 0.2), value: multiview.active)
     }
 
+    /// Just left full screen: the rail can't take focus for a moment (see shell).
+    @State private var leavingFullScreen = false
+
     private var shell: some View {
         ZStack(alignment: .bottomLeading) {
             // No top bar (2.24, like Android TV 2.7): the tabs and the status are in the rail down the left edge, and
@@ -176,6 +179,17 @@ struct TVShell: View {
             }
             TVRail()
                 .frame(maxHeight: .infinity, alignment: .top)
+                // Leaving full screen: focus goes back into the page (the screen you were on, then the stream you
+                // watched), not to the rail, which tvOS sometimes picked first as the screen came back.
+                .disabled(model.nowPlaying != nil || leavingFullScreen)
+        }
+        .onChange(of: model.nowPlaying == nil) {
+            guard model.nowPlaying == nil else { return }
+            leavingFullScreen = true
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(700))
+                leavingFullScreen = false
+            }
         }
         .animation(.easeOut(duration: 0.15), value: nav.tabsFocused)
         // Use almost the whole screen: no Apple TV insets at the sides, top or bottom, just our own small margin
