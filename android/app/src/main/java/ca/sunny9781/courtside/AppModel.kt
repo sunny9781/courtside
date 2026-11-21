@@ -30,6 +30,11 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     private val context get() = getApplication<Application>()
     val settings = Settings(app)
     val whatsNew = WhatsNew.load(app)
+    /**
+     * Multiview's second tile (2.30): its own ExoPlayer and video view, created only while it plays. Tile 1 is the
+     * stream that was already playing, in Playback (same player, same connection).
+     */
+    val tile2 = TilePlayer(app, "tile 2")
 
     var credentials by mutableStateOf(Prefs.loadCredentials(app))
         private set
@@ -100,7 +105,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     private var guideJob: kotlinx.coroutines.Job? = null
 
     /** A stream is open (or about to be). Downloads wait until it's closed, so only one connection is ever in use. */
-    private val streamOpen get() = Playback.currentUrl != null || Cast.hasMedia
+    private val streamOpen get() = Playback.currentUrl != null || Cast.hasMedia || tile2.isOpen
 
     private suspend fun waitForNoStream() {
         if (!streamOpen) return
@@ -408,6 +413,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun signOut() {
+        stopMultiview()
         Playback.stop()
         Cast.stopMedia()
         Cache.clear(context)
@@ -933,5 +939,219 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         }
         if (nowPlaying != null) step(1) else stepPinned(1)
         notice = "${current.channel.name} kept freezing, so this is the next stream"
+    }
+
+    // MARK: Multiview (2.30, Android TV)
+
+    /** A multiview tile: what it plays, and the game it's for (null for a channel with no game). */
+    class Tile(val item: NowPlaying, val gameId: String?)
+
+    var multiview by mutableStateOf(false)
+        private set
+    var tiles by mutableStateOf<List<Tile>>(emptyList())
+        private set
+    /** The tile you hear; the other is muted. */
+    var soundTile by mutableStateOf(0)
+        private set
+    /** The big tile (layout `big`), or null for two the same size side by side (`equal`). */
+    var bigTile by mutableStateOf<Int?>(null)
+        private set
+    /** Where tile 1's video sits on screen (the shell draws the one main video view there). */
+    var tileBounds by mutableStateOf<androidx.compose.ui.geometry.Rect?>(null)
+    private var multiviewChecking = false
+    /** Streams you picked by hand for a game: they come first for that game for the rest of the session. */
+    private val pickedForGame = HashMap<String, Int>()
+    private val tileFallback = arrayOfNulls<Job>(2)
+
+    /** "Watch alongside" is offered: a stream plays, multiview is on in Settings, and this is a TV. */
+    val canWatchAlongside: Boolean
+        get() = Device.tv && settings.multiview && !multiview && !Cast.connected && (pinned != null || nowPlaying != null)
+
+    /**
+     * A game's streams for multiview, best first: no 4K, no local stations or guesses, nothing the other tile plays;
+     * then reliability (green, amber, no rating, red), quality (1080p, 720p, SD), favourites, English before Foreign,
+     * and the game screen's order. A stream you picked by hand for this game comes first.
+     */
+    fun multiviewCandidates(gameId: String, avoid: Int?): List<StreamMatch> {
+        val game = games.firstOrNull { it.id == gameId } ?: return emptyList()
+        val all = streams(gameId).let { l -> if (settings.hideSD) l.filter { it.quality != "SD" } else l }
+        val listing = StreamSections.build(all, game.league, measured = measuredQuality, fps = measuredFrameRate,
+            hdr = measuredHdr, audio = measuredAudio)
+        val english = listing.sections.flatMap { it.streams }
+        val foreignIds = listing.foreign.flatMap { it.streams }.map { it.channel.id }.toSet()
+        val ordered = (english + listing.foreign.flatMap { it.streams }).distinctBy { it.channel.id }
+        val favs = favoriteChannelIds.toSet()
+        val picked = pickedForGame[gameId]
+        fun rel(m: StreamMatch) = when (StreamStats.ratings[m.channel.id]) {
+            StreamStats.Rating.GOOD -> 0; StreamStats.Rating.OK -> 1; null -> 2; StreamStats.Rating.POOR -> 3
+        }
+        return ordered.withIndex()
+            .filter { (_, m) -> !isUhd(m) && !m.hidden && m.channel.id != avoid }
+            .sortedWith(compareBy<IndexedValue<StreamMatch>> { if (it.value.channel.id == picked) 0 else 1 }
+                .thenBy { rel(it.value) }
+                .thenByDescending { StreamSections.qualityRank(it.value, measuredQuality) }
+                .thenBy { if (it.value.channel.id in favs) 0 else 1 }
+                .thenBy { if (it.value.channel.id in foreignIds) 1 else 0 }
+                .thenBy { it.index })
+            .map { it.value }
+    }
+
+    /** The streams a tile's panel lists for its game (the game screen's order, 4K left out). */
+    fun tileStreams(gameId: String): List<StreamMatch> {
+        val game = games.firstOrNull { it.id == gameId } ?: return emptyList()
+        val all = streams(gameId).let { l -> if (settings.hideSD) l.filter { it.quality != "SD" } else l }
+        val listing = StreamSections.build(all, game.league, measured = measuredQuality, fps = measuredFrameRate,
+            hdr = measuredHdr, audio = measuredAudio)
+        return (listing.sections.flatMap { it.streams } + listing.foreign.flatMap { it.streams } + listing.extras)
+            .distinctBy { it.channel.id }.filter { !isUhd(it) }
+    }
+
+    private fun isUhd(m: StreamMatch) = m.is4K || m.quality == "4K" || measuredQuality[m.channel.id] == "4K" ||
+        Categories.isUHD(m.channel.name) || Categories.isUHD(m.channel.categoryName)
+
+    /** The game a playing stream belongs to: the open game screen's, else a game listing that channel. */
+    private fun gameIdFor(item: NowPlaying): String? {
+        val id = item.channel.id
+        openGameId?.takeIf { g -> matches[g].orEmpty().any { it.channel.id == id } }?.let { return it }
+        return games.filter { g -> matches[g.id].orEmpty().any { it.channel.id == id } }
+            .sortedBy { if (it.title == item.gameTitle) 0 else if (it.state == GameState.LIVE) 1 else 2 }
+            .firstOrNull()?.id
+    }
+
+    /**
+     * Hold select › Watch alongside: multiview with the stream playing now as tile 1 and this game's stream as tile 2
+     * (`pick`, or the best one for it). The provider's count is checked first: there must be a free connection.
+     */
+    fun watchAlongside(gameId: String, pick: StreamMatch? = null) {
+        if (multiview || multiviewChecking || nowPlaying == null && pinned == null) return
+        val creds = credentials ?: return
+        multiviewChecking = true
+        viewModelScope.launch {
+            try {
+                val info = runCatching { XtreamClient(creds).login() }.getOrNull()
+                if (info != null) account = info
+                val max = info?.maxConnections ?: 0
+                val active = info?.activeConnections ?: max
+                ConnLog.add("Multiview: provider says $active/$max in use")
+                // Our own stream is already counted in active.
+                if (max < 2 || max - active < 1) { notice = "No free connection for multiview"; return@launch }
+                val first = nowPlaying ?: pinned ?: return@launch
+                val candidates = if (pick != null) listOf(pick) else multiviewCandidates(gameId, avoid = first.channel.id)
+                val second = candidates.firstOrNull() ?: run { notice = "No other stream for this game"; return@launch }
+                if (nowPlaying != null) { lastPlayedChannelId = first.channel.id; nowPlaying = null }
+                pinned = first
+                tiles = listOf(Tile(first, gameIdFor(first)), Tile(NowPlaying(second.channel, null, emptyList()), gameId))
+                soundTile = 0
+                bigTile = null
+                multiview = true
+                Playback.player.volume = 1f
+                tile2.setVolume(0f)
+                setTile(1, second, gameId, auto = pick == null, rest = candidates.drop(1))
+            } finally {
+                multiviewChecking = false
+            }
+        }
+    }
+
+    private fun lineupFor(gameId: String?, channel: Channel): List<Channel> =
+        gameId?.let { g -> tileStreams(g).map { it.channel } }?.takeIf { l -> l.any { it.id == channel.id } } ?: listOf(channel)
+
+    /**
+     * Puts a stream in a tile: the old one is closed first, then the new one opened (never more than two at once).
+     * `auto`: picked by the app, so if it shows no picture within 7 s (or fails first) the next of `rest` is tried, once.
+     */
+    private fun setTile(i: Int, m: StreamMatch, gameId: String?, auto: Boolean, rest: List<StreamMatch>) {
+        val creds = credentials ?: return
+        val game = gameId?.let { g -> games.firstOrNull { it.id == g } }
+        val item = NowPlaying(m.channel, game?.title, lineupFor(gameId, m.channel))
+        tiles = tiles.mapIndexed { j, t -> if (j == i) Tile(item, gameId) else t }
+        recent.add(m.channel.id)
+        tileFallback[i]?.cancel()
+        pauseDownloads()
+        if (i == 0) {
+            pinned = item
+            noteWatching(item)
+            // TS only in multiview: the HLS fallback could overlap with the other tile's connection.
+            Playback.play(XtreamClient(creds).streamUrl(m.channel, hls = false), null)
+        } else {
+            tile2.open(XtreamClient(creds).streamUrl(m.channel, hls = false), m.channel.name)
+        }
+        checkAccountSoon()
+        val next = rest.firstOrNull() ?: return
+        if (!auto) return
+        tileFallback[i] = viewModelScope.launch {
+            val started = System.currentTimeMillis()
+            while (true) {
+                delay(500)
+                val picture = if (i == 0) Playback.hasPicture else tile2.hasPicture
+                if (picture) return@launch
+                val failed = (if (i == 0) Playback.status else tile2.status) == Playback.Status.FAILED
+                if (failed || System.currentTimeMillis() - started >= 7000) break
+            }
+            if (!multiview) return@launch
+            ConnLog.add("Multiview: no picture on tile ${i + 1}, trying the next stream")
+            if (i == 0) Playback.stop() else tile2.close()
+            delay(1000)
+            if (multiview) setTile(i, next, gameId, auto = false, rest = emptyList())
+        }
+    }
+
+    /** Streams list in a tile's panel: the stream you picked, which then comes first for this game this session. */
+    fun swapTile(i: Int, m: StreamMatch, gameId: String) {
+        if (!multiview || tiles.getOrNull(i)?.item?.channel?.id == m.channel.id) return
+        if (tiles.getOrNull(1 - i)?.item?.channel?.id == m.channel.id) { notice = "The other tile is playing that stream"; return }
+        pickedForGame[gameId] = m.channel.id
+        setTile(i, m, gameId, auto = false, rest = emptyList())
+    }
+
+    /** Pick another game… in a tile's panel: its best stream (with the same one-time fallback). */
+    fun swapTileToGame(i: Int, gameId: String) {
+        if (!multiview) return
+        val candidates = multiviewCandidates(gameId, avoid = tiles.getOrNull(1 - i)?.item?.channel?.id)
+        val first = candidates.firstOrNull() ?: run { notice = "No stream found for that game"; return }
+        setTile(i, first, gameId, auto = true, rest = candidates.drop(1))
+    }
+
+    /** Select on a tile: the sound moves there; with "Make big", it also becomes the big tile (again: back to equal). */
+    fun tileSelected(i: Int) {
+        if (settings.multiviewMakeBig) bigTile = if (soundTile == i && bigTile == i) null else i
+        soundTile = i
+        Playback.player.volume = if (i == 0) 1f else 0f
+        tile2.setVolume(if (i == 1) 1f else 0f)
+    }
+
+    /**
+     * Back (or Remove tile on the other one): the tile `keep` carries on as the normal single stream in full screen,
+     * and the other tile's stream is stopped. Tile 2 kept: its stream is closed and reopened in the main player
+     * (closing first, so it never counts as more than two).
+     */
+    fun leaveMultiview(keep: Int = soundTile) {
+        if (!multiview) return
+        val kept = tiles.getOrNull(keep)?.item
+        tileFallback.forEach { it?.cancel() }
+        multiview = false
+        tiles = emptyList()
+        bigTile = null
+        soundTile = 0
+        tileBounds = null
+        Playback.player.volume = 1f
+        tile2.close()
+        val item = kept ?: pinned ?: return
+        if (keep != 0) Playback.stop()
+        pinned = item
+        play(item.channel, item.gameTitle, item.lineup, from = "strip")
+        checkAccountSoon()
+    }
+
+    /** Leaving the app or signing out: tile 2 stops (the main player is stopped by the caller). */
+    fun stopMultiview() {
+        tileFallback.forEach { it?.cancel() }
+        tile2.close()
+        multiview = false
+        tiles = emptyList()
+        bigTile = null
+        soundTile = 0
+        tileBounds = null
+        Playback.player.volume = 1f
     }
 }

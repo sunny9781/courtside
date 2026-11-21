@@ -66,6 +66,13 @@ class Settings(context: Context) {
         get() = liteSettle && liteFoldFinished && liteFoldLater && liteNoLogos && liteNoScores && liteNoAutoplay && liteNoCorner
         set(v) { liteSettle = v; liteFoldFinished = v; liteFoldLater = v; liteNoLogos = v; liteNoScores = v; liteNoAutoplay = v; liteNoCorner = v }
     val anyLite get() = liteSettle || liteFoldFinished || liteFoldLater || liteNoLogos || liteNoScores || liteNoAutoplay || liteNoCorner
+    /**
+     * Multiview (2.30): "Watch alongside" puts a second stream next to the one playing (needs a free connection).
+     * Off by default on the less powerful TVs (Chromecast and the like), which struggle to decode two streams.
+     */
+    var multiview by Flag("multiview", !slowDevice)
+    /** Select on a multiview tile moves the sound there and makes that tile big (off: it only moves the sound). */
+    var multiviewMakeBig by Flag("multiviewMakeBig", true)
     var bufferMs by Number("bufferMs", 2000)
     /** Opening the app reuses the saved channels and guide until they're this old. */
     var refreshHours by Number("refreshHours", 6)
