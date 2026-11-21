@@ -24,9 +24,45 @@ data class Channel(
     /** Lowercased XMLTV channel id, empty when the provider doesn't link one. */
     val epgId: String,
     val icon: String?
-)
+) {
+    /** For the EPG filter, which checks every channel on each key press. */
+    val lowerName: String by lazy(LazyThreadSafetyMode.PUBLICATION) { name.lowercase() }
+}
 
-data class Programme(val title: String, val start: Long, val end: Long)   // milliseconds
+data class Programme(val title: String, val start: Long, val end: Long) {   // milliseconds
+    /** The title split into words for the Matcher, worked out once (the guide is matched again on every refresh). */
+    val words: List<String> by lazy(LazyThreadSafetyMode.PUBLICATION) { Matcher.tokens(title) }
+}
+
+/** Letters and numbers only: the word splitter the name helpers share, compiled once. */
+internal val NonWord = Regex("[^\\p{L}\\p{N}]+")
+private val PpvWord = Regex("\\bppv\\b")
+
+/** Index of the first programme starting at or after `t` (the list is sorted by start). */
+fun List<Programme>.firstStartingAtOrAfter(t: Long): Int {
+    var lo = 0
+    var hi = size
+    while (lo < hi) {
+        val mid = (lo + hi) ushr 1
+        if (this[mid].start < t) lo = mid + 1 else hi = mid
+    }
+    return lo
+}
+
+/**
+ * The programmes overlapping [from, to), found by binary search instead of a scan of the whole schedule. A channel's
+ * programmes follow one another, so walking back from the first one starting at `to` until one ends by `from` finds
+ * them all.
+ */
+fun List<Programme>.overlapping(from: Long, to: Long): List<Programme> {
+    val hi = firstStartingAtOrAfter(to)
+    var lo = hi
+    while (lo > 0 && this[lo - 1].end > from) lo--
+    return subList(lo, hi)
+}
+
+/** What's on at `at`. */
+fun List<Programme>.on(at: Long): Programme? = overlapping(at, at + 1).firstOrNull()
 
 enum class Sport(val title: String, val icon: ImageVector) {
     BASKETBALL("Basketball", Icons.Filled.SportsBasketball),
@@ -164,14 +200,14 @@ data class StreamMatch(
     val isPPV: Boolean
         get() {
             val text = (channel.name + " " + channel.categoryName).lowercase()
-            return Regex("\\bppv\\b").containsMatchIn(text) || text.contains("pay per view") || text.contains("pay-per-view")
+            return PpvWord.containsMatchIn(text) || text.contains("pay per view") || text.contains("pay-per-view")
         }
 
     /** 4K only when the channel's own name says so ("4K", "UHD"). */
     val is4K: Boolean
         get() {
             val upper = channel.name.uppercase()
-            val words = upper.split(Regex("[^\\p{L}\\p{N}]+")).toSet()
+            val words = upper.split(NonWord).toSet()
             return "4K" in words || "UHD" in words || upper.contains("4K")
         }
 }

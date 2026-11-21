@@ -555,7 +555,7 @@ struct GuideView: View {
 
     private func row(_ channel: Channel, list: [Channel], selected: Bool, column: CGFloat, area: CGFloat,
                      windowStart: Date, windowEnd: Date, now: Date) -> some View {
-        let progs = (model.guide[channel.epgID] ?? []).filter { $0.end > windowStart && $0.start < windowEnd }
+        let progs = Array((model.guide[channel.epgID] ?? []).overlapping(windowStart, windowEnd))
 
         return HStack(spacing: 8) {
             ChannelCell(channel: channel, selected: selected, width: column, height: rowHeight,

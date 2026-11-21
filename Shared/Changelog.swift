@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.22", date: "2026-11-21", time: "09:05", title: "Faster matching and guide", changes: [
+            Change(text: "Matching streams to games does less work: guide titles are split into words once, only programmes in today's game times are checked, and networks are looked up by name instead of checking every channel.", apps: [.mac, .tv, .ios, .android]),
+            Change(text: "What's on now, the EPG rows and the EPG filter find programmes with a quick search instead of reading each channel's whole schedule.", apps: [.mac, .tv, .ios, .android]),
+            Change(text: "Settings › Connection log shows how long matching took (at most every 10 minutes).", apps: [.mac, .tv, .ios, .android]),
+        ]),
         Release(version: "2.21", date: "2026-11-21", time: "02:30", title: "Catching up with Android", changes: [
             Change(text: "Game screen: a green, amber or red dot on streams shows how reliable they've been on this device (buffering, freezes, drops, slow or failed starts). It shows once a stream has been watched for 5 minutes in all (or right away for one that keeps failing).", apps: [.mac, .tv, .ios]),
             Change(text: "Sign-in screen: scan the QR code with your phone, type your Xtream details there and tap Send. Works over your home Wi-Fi only, with a PIN shown on screen. Also in Settings › Account › Edit account.", apps: [.mac, .tv]),

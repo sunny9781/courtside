@@ -3,6 +3,7 @@ import Foundation
 /// Ties games to the provider's channels using three signals:
 /// the channel name has both teams, the guide shows the game on that channel, or the channel is an official broadcaster.
 enum Matcher {
+    private static var lastTimingLog = Date.distantPast
     struct IndexedChannel {
         let channel: Channel
         let tokens: [String]
@@ -366,12 +367,12 @@ enum Matcher {
 
     /// For "usually on" guesses: skip a channel whose guide shows something unrelated during the game.
     private static func guideAllows(_ channel: Channel, _ key: GameKey, guide: [String: [Programme]]) -> Bool {
-        let progs = (guide[channel.epgID] ?? []).filter { $0.start < key.to && $0.end > key.from }
+        let progs = (guide[channel.epgID] ?? []).overlapping(key.from, key.to)
         guard !progs.isEmpty else { return true }
         let sporty: Set<String> = ["live", "football", "soccer", "hockey", "basketball", "baseball", "match", "game",
                                    "nfl", "nhl", "nba", "mlb", "mls", "premier", "liga", "serie", "bundesliga", "ligue"]
         let words = sporty.union(key.leagueWords).union(key.triggers)
-        return progs.contains { !Set(tokens($0.title)).isDisjoint(with: words) }
+        return progs.contains { p in p.words.contains { words.contains($0) } }
     }
 
     // MARK: Local affiliates
@@ -436,9 +437,9 @@ enum Matcher {
         let until = min(now.addingTimeInterval(6 * 3600), midnight)
         // The sport's own channels get one card each (below); their schedules aren't split into cards.
         for c in channels where !c.channel.epgID.isEmpty && !ownIDs.contains(c.channel.id) {
-            for p in guide[c.channel.epgID] ?? [] where p.end > now && p.start < until {
+            for p in (guide[c.channel.epgID] ?? []).overlapping(now, until) {
                 let lower = p.title.lowercased()
-                guard !wordSet.isDisjoint(with: tokens(p.title)) || lower.contains(sportName) else { continue }
+                guard p.words.contains(where: { wordSet.contains($0) }) || lower.contains(sportName) else { continue }
                 let slot = Int(p.start.timeIntervalSince1970 / 900)
                 let key = lower.filter { $0.isLetter || $0.isNumber } + "-\(slot)"
                 found[key, default: Found(title: p.title, start: p.start, end: p.end, channels: [])].channels.append(c)
@@ -491,18 +492,20 @@ enum Matcher {
     static func matchAll(games: [Game], channels: [IndexedChannel], guide: [String: [Programme]],
                          extras: [String: [Broadcast]] = [:], measured: [Int: String] = [:],
                          recent: Set<Int>, now: Date) -> Result {
+        let started = Date()
         let keys = games.map { key(for: $0, now: now) }
         let triggers = keys.reduce(into: Set<String>()) { $0.formUnion($1.triggers) }
         var result = Result()
         let channels = channels.filter { !neverLive($0.channel) }
+        guard let from = keys.map(\.from).min(), let to = keys.map(\.to).max() else { return result }
 
-        // 1. Guide titles
+        // 1. Guide titles (only the programmes inside some game's time window; titles are split once and kept)
         var guideHits: [String: Set<String>] = [:]   // game id -> epg ids
         for (epg, progs) in guide {
-            for p in progs {
-                let hay = tokens(p.title)
+            for p in progs.overlapping(from, to) {
+                let hay = p.words
+                guard hay.contains(where: { triggers.contains($0) }) else { continue }
                 let set = Set(hay)
-                guard !set.isDisjoint(with: triggers) else { continue }
                 if let k = keys.first(where: { p.start < $0.to && p.end > $0.from && matches(hay, set, $0) }) {
                     result.links[linkKey(epg, p.start)] = k.game.id
                     guideHits[k.game.id, default: []].insert(epg)
@@ -521,15 +524,26 @@ enum Matcher {
         // 3. Broadcasters (ESPN's list plus the second source), worked out once per network name
         var broadcasterHits: [String: Set<Int>] = [:]
         let allNames = Set(games.flatMap(\.broadcasters) + extras.values.flatMap { $0.map(\.name) })
+        // Word -> channels, built once, so each network only looks at channels that have its first word.
+        var byWord: [String: [IndexedChannel]] = [:]
+        var byCallSign: [String: Set<Int>] = [:]
+        for c in channels {
+            for w in c.tokenSet { byWord[w, default: []].append(c) }
+            for w in c.channel.name.split(whereSeparator: { !$0.isLetter && !$0.isNumber }) where isCallSign(String(w)) {
+                byCallSign[String(w), default: []].insert(c.channel.id)
+            }
+        }
         for name in allNames {
             if isCallSign(name) {
-                broadcasterHits[name] = Set(channels.filter { c in
-                    c.channel.name.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).contains { $0 == Substring(name) }
-                }.map(\.channel.id))
+                broadcasterHits[name] = byCallSign[name] ?? []
                 continue
             }
-            let aliases = broadcasterAliases(name)
-            broadcasterHits[name] = Set(channels.filter { c in aliases.contains { has(c.tokens, $0) } }.map(\.channel.id))
+            var hits = Set<Int>()
+            for a in broadcasterAliases(name) {
+                guard let first = a.tokens.first else { continue }
+                for c in byWord[first] ?? [] where !hits.contains(c.channel.id) && has(c.tokens, a) { hits.insert(c.channel.id) }
+            }
+            broadcasterHits[name] = hits
         }
         var countryCache: [Int: String?] = [:]
         func countryOf(_ c: Channel) -> String? {
@@ -612,6 +626,11 @@ enum Matcher {
                 if $0.qualityRank != $1.qualityRank { return $0.qualityRank > $1.qualityRank }
                 return $0.channel.name < $1.channel.name
             }
+        }
+        // In the connection log at most every 10 minutes (it's rerun on every score update).
+        if now.timeIntervalSince(lastTimingLog) > 600 {
+            lastTimingLog = now
+            ConnLog.add("Matched streams to \(keys.count) games in \(Int(Date().timeIntervalSince(started) * 1000)) ms")
         }
         return result
     }

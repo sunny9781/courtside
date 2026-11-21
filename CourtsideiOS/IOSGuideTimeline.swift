@@ -66,7 +66,7 @@ struct IOSGuideTimeline: View {
 
     private func row(_ channel: Channel, start: Date, now: Date, area: CGFloat) -> some View {
         let end = start.addingTimeInterval(span)
-        let programmes = (model.guide[channel.epgID] ?? []).filter { $0.end > start && $0.start < end }
+        let programmes = Array((model.guide[channel.epgID] ?? []).overlapping(start, end))
         let playing = channel.id == playingID
         return HStack(spacing: 8) {
             HStack(spacing: 8) {

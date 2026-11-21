@@ -33,6 +33,55 @@ struct Programme: Hashable, Codable {
     let title: String
     let start: Date
     let end: Date
+    /// The title split into words for the Matcher, worked out once (the guide is matched again on every refresh).
+    let words: [String]
+
+    init(title: String, start: Date, end: Date) {
+        self.title = title
+        self.start = start
+        self.end = end
+        words = Matcher.tokens(title)
+    }
+
+    private enum CodingKeys: String, CodingKey { case title, start, end }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(title: try c.decode(String.self, forKey: .title), start: try c.decode(Date.self, forKey: .start),
+                  end: try c.decode(Date.self, forKey: .end))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(title, forKey: .title)
+        try c.encode(start, forKey: .start)
+        try c.encode(end, forKey: .end)
+    }
+}
+
+extension Array where Element == Programme {
+    /// Index of the first programme starting at or after `t` (the list is sorted by start).
+    func firstStarting(atOrAfter t: Date) -> Int {
+        var lo = 0, hi = count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if self[mid].start < t { lo = mid + 1 } else { hi = mid }
+        }
+        return lo
+    }
+
+    /// The programmes overlapping from..<to, found by binary search instead of a scan of the whole schedule. A
+    /// channel's programmes follow one another, so walking back from the first one starting at `to` until one ends
+    /// by `from` finds them all.
+    func overlapping(_ from: Date, _ to: Date) -> ArraySlice<Programme> {
+        let hi = firstStarting(atOrAfter: to)
+        var lo = hi
+        while lo > 0 && self[lo - 1].end > from { lo -= 1 }
+        return self[lo..<hi]
+    }
+
+    /// What's on at `date`.
+    func on(_ date: Date) -> Programme? { overlapping(date, date.addingTimeInterval(0.001)).first }
 }
 
 // MARK: Sports and leagues

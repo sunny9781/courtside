@@ -41,7 +41,7 @@ object StreamSections {
 
     private fun language(m: StreamMatch): String? {
         for (text in listOf(m.channel.categoryName, m.channel.name)) {
-            val words = text.lowercase().split(Regex("[^\\p{L}\\p{N}]+"))
+            val words = text.lowercase().split(NonWord)
             words.firstNotNullOfOrNull { languageWords[it] }?.let { return it }
         }
         return null
@@ -61,7 +61,7 @@ object StreamSections {
 
     private fun isLeagueChannel(m: StreamMatch, league: League): Boolean {
         val cat = m.channel.categoryName.lowercase()
-        val words = cat.split(Regex("[^\\p{L}\\p{N}]+")).toSet()
+        val words = cat.split(NonWord).toSet()
         if (league.name.lowercase() in words || cat.contains(league.name.lowercase())) return true
         return league.keywords.any { it.length in 3..4 && it in words }
     }

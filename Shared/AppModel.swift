@@ -678,7 +678,7 @@ final class AppModel: ObservableObject {
     }
 
     func currentProgramme(_ channel: Channel, at date: Date = Date()) -> Programme? {
-        guide[channel.epgID]?.first { $0.start <= date && $0.end > date }
+        guide[channel.epgID]?.on(date)
     }
 
     /// The small saved guide: only the programmes the app shows, already read, so opening the app doesn't have to

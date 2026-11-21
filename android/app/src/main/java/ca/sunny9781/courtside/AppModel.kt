@@ -736,14 +736,14 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         val list = guide[channel.epgId]
         val t = System.currentTimeMillis()
         nowNextCache[channel.epgId]?.let { if (it.list === list && t >= it.from && t < it.until) return it }
-        val now = list?.firstOrNull { it.start <= t && it.end > t }
-        val next = now?.let { n -> list.firstOrNull { it.start >= n.end } }
-        val until = now?.end ?: list?.firstOrNull { it.start > t }?.start ?: Long.MAX_VALUE
+        val now = list?.on(t)
+        val next = now?.let { n -> list.getOrNull(list.firstStartingAtOrAfter(n.end)) }
+        val until = now?.end ?: list?.let { it.getOrNull(it.firstStartingAtOrAfter(t + 1))?.start } ?: Long.MAX_VALUE
         return NowNext(now, next, list, now?.start ?: t, until).also { nowNextCache[channel.epgId] = it }
     }
 
     fun currentProgramme(channel: Channel, at: Long = System.currentTimeMillis()): Programme? =
-        guide[channel.epgId]?.firstOrNull { it.start <= at && it.end > at }
+        guide[channel.epgId]?.on(at)
 
     fun playerTitle(item: NowPlaying): String =
         item.gameTitle ?: currentProgramme(item.channel)?.title?.ifEmpty { null } ?: item.channel.name

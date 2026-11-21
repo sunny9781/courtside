@@ -17,7 +17,7 @@ object Categories {
         return null to name
     }
 
-    private fun words(text: String) = text.lowercase().split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }
+    private fun words(text: String) = text.lowercase().split(NonWord).filter { it.isNotEmpty() }
 
     fun isAllDay(name: String): Boolean {
         val lower = name.lowercase()
@@ -101,8 +101,17 @@ object Matcher {
         val from: Long, val to: Long
     )
 
-    fun tokens(text: String): List<String> =
-        text.lowercase().map { if (it.isLetterOrDigit()) it else ' ' }.joinToString("").split(' ').filter { it.isNotEmpty() }
+    /** Lowercase words (letters and digits), in one pass. */
+    fun tokens(text: String): List<String> {
+        val out = ArrayList<String>(6)
+        val word = StringBuilder()
+        for (ch in text.lowercase()) {
+            if (ch.isLetterOrDigit()) word.append(ch)
+            else if (word.isNotEmpty()) { out.add(word.toString()); word.setLength(0) }
+        }
+        if (word.isNotEmpty()) out.add(word.toString())
+        return out
+    }
 
     fun has(hay: List<String>, needle: List<String>, notFollowedBy: List<String> = emptyList()): Boolean {
         if (needle.isEmpty() || hay.size < needle.size) return false
@@ -324,7 +333,7 @@ object Matcher {
             }
         }
         for (text in texts) {
-            for (w in text.split(Regex("[^\\p{L}\\p{N}]+"))) {
+            for (w in text.split(NonWord)) {
                 if (w.length in 2..3 && w == w.uppercase() && w.all { it.isLetter() }) standaloneCodes[w.lowercase()]?.let { return it }
             }
         }
@@ -350,12 +359,12 @@ object Matcher {
         name.length == 4 && (name.startsWith("K") || name.startsWith("W")) && name.all { it.isUpperCase() && it.isLetter() }
 
     private fun guideAllows(channel: Channel, key: GameKey, guide: Map<String, List<Programme>>): Boolean {
-        val progs = (guide[channel.epgId] ?: emptyList()).filter { it.start < key.to && it.end > key.from }
+        val progs = (guide[channel.epgId] ?: emptyList()).overlapping(key.from, key.to)
         if (progs.isEmpty()) return true
         val sporty = setOf("live", "football", "soccer", "hockey", "basketball", "baseball", "match", "game",
             "nfl", "nhl", "nba", "mlb", "mls", "premier", "liga", "serie", "bundesliga", "ligue")
         val words = sporty + key.leagueWords + key.triggers
-        return progs.any { p -> tokens(p.title).any { it in words } }
+        return progs.any { p -> p.words.any { it in words } }
     }
 
     private val states = setOf(
@@ -367,7 +376,7 @@ object Matcher {
 
     private fun isLocal(channel: Channel): Boolean {
         if (channel.categoryName.lowercase().contains("local")) return true
-        val words = channel.name.split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }
+        val words = channel.name.split(NonWord).filter { it.isNotEmpty() }
         if (words.any { isCallSign(it) }) return true
         val first = words.firstOrNull()
         if (first != null && first.length == 2 && first in states) return words.drop(1).any { it.lowercase() in networks }
@@ -384,23 +393,28 @@ object Matcher {
 
     private fun rankOf(label: String) = when (label) { "4K" -> 4; "1080p" -> 3; "720p" -> 2; else -> 1 }
 
+    @Volatile private var lastTimingLog = 0L
+
     /** Every game's streams at once, best match first. */
     fun matchAll(
         games: List<Game>, channels: List<Indexed>, guide: Map<String, List<Programme>>,
         measured: Map<Int, String>, recent: Set<Int>, now: Long,
         extras: Map<String, List<Broadcast>> = emptyMap()
     ): Map<String, List<StreamMatch>> {
+        val started = System.nanoTime()
         val keys = games.map { key(it, now) }
         val triggers = keys.flatMap { it.triggers }.toSet()
         val live = channels.filter { !neverLive(it.channel) }
+        val windowFrom = keys.minOfOrNull { it.from } ?: return emptyMap()
+        val windowTo = keys.maxOf { it.to }
 
-        // 1. Guide titles
+        // 1. Guide titles (only the programmes inside some game's time window; titles are split once and kept)
         val guideHits = HashMap<String, MutableSet<String>>()
         for ((epg, progs) in guide) {
-            for (p in progs) {
-                val hay = tokens(p.title)
+            for (p in progs.overlapping(windowFrom, windowTo)) {
+                val hay = p.words
+                if (hay.none { it in triggers }) continue
                 val set = hay.toSet()
-                if (set.none { it in triggers }) continue
                 keys.firstOrNull { p.start < it.to && p.end > it.from && matches(hay, set, it) }?.let {
                     guideHits.getOrPut(it.game.id) { HashSet() }.add(epg)
                 }
@@ -413,13 +427,24 @@ object Matcher {
             for (k in keys) if (matches(c.tokens, c.tokenSet, k)) nameHits.getOrPut(k.game.id) { HashSet() }.add(c.channel.id)
         }
         // 3. Broadcasters (ESPN's list plus the official schedules and rights table), worked out once per network name
+        // Word -> channels, built once, so each network only looks at channels that have its first word.
+        val byWord = HashMap<String, MutableList<Indexed>>()
+        val byCallSign = HashMap<String, MutableSet<Int>>()
+        for (c in live) {
+            for (w in c.tokenSet) byWord.getOrPut(w) { ArrayList(2) }.add(c)
+            for (w in c.channel.name.split(NonWord)) if (isCallSign(w)) byCallSign.getOrPut(w) { HashSet() }.add(c.channel.id)
+        }
         val broadcasterHits = HashMap<String, Set<Int>>()
         for (name in (games.flatMap { it.broadcasters } + extras.values.flatMap { l -> l.map { it.name } }).toSet()) {
             broadcasterHits[name] = if (isCallSign(name)) {
-                live.filter { c -> c.channel.name.split(Regex("[^\\p{L}\\p{N}]+")).contains(name) }.map { it.channel.id }.toSet()
+                byCallSign[name] ?: emptySet()
             } else {
-                val aliases = broadcasterAliases(name)
-                live.filter { c -> aliases.any { has(c.tokens, it) } }.map { it.channel.id }.toSet()
+                val hits = HashSet<Int>()
+                for (a in broadcasterAliases(name)) {
+                    val first = a.tokens.firstOrNull() ?: continue
+                    for (c in byWord[first] ?: continue) if (c.channel.id !in hits && has(c.tokens, a)) hits.add(c.channel.id)
+                }
+                hits
             }
         }
         val countryCache = HashMap<Int, String?>()
@@ -488,6 +513,12 @@ object Matcher {
                 }
             })
         }
+        // In the connection log at most every 10 minutes (it's rerun on every score update).
+        val ms = (System.nanoTime() - started) / 1_000_000
+        if (now - lastTimingLog > 10 * 60_000L) {
+            lastTimingLog = now
+            ConnLog.add("Matched streams to ${keys.size} games in $ms ms")
+        }
         return result
     }
 
@@ -515,10 +546,9 @@ object Matcher {
         // The sport's own channels get one card each (below); their schedules aren't split into cards.
         for (c in channels) {
             if (c.channel.epgId.isEmpty() || c.channel.id in ownIds) continue
-            for (p in guide[c.channel.epgId] ?: continue) {
-                if (p.end <= now || p.start >= until) continue
+            for (p in (guide[c.channel.epgId] ?: continue).overlapping(now, until)) {
                 val lower = p.title.lowercase()
-                if (tokens(p.title).none { it in words } && !lower.contains(sportName)) continue
+                if (p.words.none { it in words } && !lower.contains(sportName)) continue
                 val key = lower.filter { it.isLetterOrDigit() } + "-" + (p.start / 900_000L)
                 found.getOrPut(key) { Found(p.title, p.start, p.end, mutableListOf()) }.channels.add(c)
             }
@@ -541,7 +571,7 @@ object Matcher {
         games.sortBy { it.start ?: Long.MAX_VALUE }
         for (c in own.sortedBy { it.channel.name }) {
             val id = "guide-${league.id}-ch-${c.channel.id}"
-            val current = guide[c.channel.epgId]?.firstOrNull { it.start <= now && it.end > now }
+            val current = guide[c.channel.epgId]?.on(now)
             games.add(Game(id, league, null, GameState.UPCOMING, "Channel", Team.none, Team.none, emptyList(),
                 isEvent = true, eventTitle = c.channel.name, eventDetail = current?.let { "Now: ${it.title}" } ?: "",
                 isChannel = true))
