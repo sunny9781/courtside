@@ -338,6 +338,16 @@ fun NavRail(model: AppModel) {
     LaunchedEffect(Unit) {
         model.focusMoves.collect { if (it == "tabs") { settle.cancel(); delay(30); tabs.focus(model.tab) } }
     }
+    // Into the page's left menu, on its selected item (the sport, category or section), never straight into the
+    // games: the same as Back from a page in reverse. The rail closes as focus leaves it.
+    fun intoPage(waitForPage: Boolean) {
+        scope.launch {
+            if (waitForPage) { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
+            model.focusMoves.tryEmit("side")
+            delay(120)
+            if (model.tabsFocused && runCatching { model.leftPanel.requestFocus() }.isFailure) focusManager.moveFocus(FocusDirection.Right)
+        }
+    }
     val width by animateDpAsState(if (open) RAIL_OPEN else RAIL_WIDTH,
         androidx.compose.animation.core.tween(if (Perf.slowSettle) 0 else 140), label = "rail")
     if (open) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)))
@@ -351,11 +361,7 @@ fun NavRail(model: AppModel) {
             // Right: into the page's left panel (the selected sport, category or section), after showing the tab
             // you stopped on.
             if (e.type != KeyEventType.KeyDown || e.key.nativeKeyCode != KeyEvent.KEYCODE_DPAD_RIGHT) return@onPreviewKeyEvent false
-            val flushed = settle.flush()
-            scope.launch {
-                if (flushed) { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
-                if (runCatching { model.leftPanel.requestFocus() }.isFailure) focusManager.moveFocus(FocusDirection.Right)
-            }
+            intoPage(settle.flush())
             true
         }
         .enterAt { tabs[model.tab] }
@@ -368,7 +374,7 @@ fun NavRail(model: AppModel) {
             } else Label("C", size = 17.sp, weight = FontWeight.Bold, color = Theme.accent)
         }
         for (tab in Tab.entries) {
-            TvButton(onClick = { settle.now { model.tab = tab } }, selected = model.tab == tab,
+            TvButton(onClick = { settle.now { model.tab = tab }; intoPage(true) }, selected = model.tab == tab,
                 onFocus = { if (model.tab != tab) settle.later { model.tab = tab } else settle.cancel() },
                 modifier = Modifier.fillMaxWidth().tracked(tabs, tab)) { focused ->
                 val color = if (focused) Theme.bg else if (model.tab == tab) Theme.accent else Theme.muted
@@ -386,29 +392,33 @@ fun NavRail(model: AppModel) {
         if (open) {
             // The version is the update button: one click checks for a new version and installs it. When one has
             // already downloaded by itself it shows "Install update".
+            // 2.20: "Download update vX" (found, not fetched yet) → "Downloading vX · 40%" → "Install update vX" →
+            // Android's installer. With nothing new, the version number: pressing it checks.
             val ready = Updater.readyVersion
+            val available = Updater.availableVersion
             var busy by remember { mutableStateOf(false) }
             TvButton(onClick = {
-                if (busy) Unit
+                if (busy || Updater.downloading != null) Unit
                 else if (ready != null) scope.launch { Updater.installLatest(context) }
+                else if (available != null) scope.launch { Updater.check(context, userInitiated = true, download = true) }
                 else scope.launch {
                     busy = true
-                    Updater.check(context, userInitiated = true)
+                    Updater.check(context, userInitiated = true, download = false)
                     busy = false
-                    if (Updater.readyVersion != null) Updater.install(context)
-                    else model.notice = Updater.message ?: "You have the latest version."
+                    if (Updater.availableVersion == null) model.notice = Updater.message ?: "You have the latest version."
                 }
-            }, background = if (ready != null) Theme.accent else Color.Transparent, modifier = Modifier.fillMaxWidth()) { focused ->
+            }, background = if (ready != null || available != null) Theme.accent else Color.Transparent, modifier = Modifier.fillMaxWidth()) { focused ->
                 Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val color = if (focused) Theme.bg else if (ready != null) Theme.onAccent else Theme.muted
-                    Icon(if (ready != null) Icons.Filled.Download else if (Updater.checking) Icons.Filled.HourglassTop else Icons.Filled.Refresh,
+                    val color = if (focused) Theme.bg else if (ready != null || available != null) Theme.onAccent else Theme.muted
+                    Icon(if (ready != null || available != null) Icons.Filled.Download else if (Updater.checking) Icons.Filled.HourglassTop else Icons.Filled.Refresh,
                         null, tint = color, modifier = Modifier.size(14.dp))
                     val dl = Updater.downloading
                     Label(when {
                         dl != null -> "Downloading $dl" + (Updater.downloadProgress?.let { " · ${(it * 100).toInt()}%" } ?: "…")
                         Updater.installing || busy -> "Checking…"
-                        ready != null -> "Install update $ready"
+                        ready != null -> "Install update v$ready"
+                        available != null -> "Download update v$available"
                         else -> "v${BuildConfig.VERSION_NAME}"
                     }, size = 12.sp, weight = FontWeight.SemiBold, color = color)
                 }
@@ -466,7 +476,7 @@ private fun RailStatus(model: AppModel, open: Boolean) {
                     Label(it, size = 10.sp, color = if (model.guideLoading) Theme.accent else Theme.muted)
                 }
             }
-            if (Updater.readyVersion != null || Updater.downloading != null)
+            if (Updater.readyVersion != null || Updater.availableVersion != null || Updater.downloading != null)
                 Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Theme.accent))
         }
     }
@@ -505,7 +515,7 @@ fun PlayerVideo(modifier: Modifier = Modifier) {
 fun PlayerStrip(model: AppModel, item: NowPlaying, targets: FocusTargets, modifier: Modifier = Modifier) {
     TvButton(onClick = { model.play(item.channel, item.gameTitle, item.lineup, from = "strip") }, focusedScale = 1f,
         onLongClick = { model.swallowSelect = true; model.stopPinned(); model.notice = "Stopped" },
-        modifier = modifier.padding(start = Theme.margin).focusProperties { canFocus = !model.tabsFocused }
+        modifier = modifier.focusProperties { canFocus = !model.tabsFocused }
             .focusProperties { up = model.leftPanel }
             .tracked(targets, "video").size(Theme.playerWidth, Theme.playerWidth * 9 / 16)) { _ ->
         // The video itself is drawn by the shell in this spot (one view for the corner and full screen); this only
@@ -799,33 +809,10 @@ fun HomeScreen(model: AppModel) {
         }
     }
 
-    // 2.4: a sport with several leagues lists them beside it. Right from the sport moves into its leagues, and the
-    // sports fold to a strip of icons to make room; going back onto the sports opens them out again.
-    val leagueTargets = remember { FocusTargets() }
-    var folded by remember { mutableStateOf(false) }
-    var leaguesFocused by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
-    fun leagueKey() = (model.homeSelection as? HomeSelection.OfLeague)?.let { "lg:${it.leagueId}" } ?: "lg:all"
-    fun hasLeagues(sel: HomeSelection): Boolean {
-        val sp = selectedSport(sel) ?: return false
-        return sp !in model.home.channelSports && model.leagues(sp).size > 1
-    }
-    val canFold = hasLeagues(model.homeSelection)
-    LaunchedEffect(canFold) { if (!canFold) folded = false }
-    fun openLeagues(): Boolean {
-        if (!hasLeagues(model.homeSelection)) return false
-        folded = true
-        scope.launch { repeat(10) { delay(30); if (leagueTargets.focus(leagueKey())) return@launch } }
-        return true
-    }
-    // Back from the games: the selected league (when the leagues are out), otherwise the selected sport.
+    // Back from the games: the selected sport.
     LaunchedEffect(Unit) {
-        model.focusMoves.collect {
-            if (it == "side") { if (folded && leagueTargets.focus(leagueKey())) Unit else side.focus(sidebarKey(model.homeSelection)) }
-        }
+        model.focusMoves.collect { if (it == "side") side.focus(sidebarKey(model.homeSelection)) }
     }
-    // Back from a league: its sport (the sports open out again).
-    BackHandler(enabled = folded && leaguesFocused && model.nowPlaying == null) { side.focus(sidebarKey(model.homeSelection)) }
     // Back from a game: focus goes to its card.
     LaunchedEffect(Unit) {
         val id = model.returnToGame ?: return@LaunchedEffect
@@ -836,25 +823,14 @@ fun HomeScreen(model: AppModel) {
         }
     }
 
-    // The sports (and leagues) on top of the player (the same width), the games to the right, down to the bottom of
-    // the screen beside the player.
-    Row(Modifier.fillMaxSize().padding(horizontal = Theme.margin)
+    // The sports on top of the player (the same width, both starting at the left end of the now-playing bar), the
+    // games to the right, down to the bottom of the screen beside the player.
+    Row(Modifier.fillMaxSize().padding(end = Theme.margin)
         .enterAt { firstGame?.let { "game:$it" }?.takeIf { it in pane.live }?.let { pane[it] } ?: side[sidebarKey(model.homeSelection)] }) {
-        Row(Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).focusRequester(model.leftPanel)
-            .onFocusChanged { model.sideFocused = it.hasFocus }
-            .enterAt { if (folded) leagueTargets[leagueKey()] else side[sidebarKey(model.homeSelection)] }) {
-            SportList(model, side, compact = folded, onRight = { openLeagues() },
-                modifier = (if (folded) Modifier.width(48.dp) else Modifier.weight(1f))
-                    .onFocusChanged { if (it.hasFocus) folded = false }
-                    .enterAt { side[sidebarKey(model.homeSelection)] })
-            val sport = selectedSport(model.homeSelection)
-            if (folded && sport != null) {
-                Box(Modifier.padding(vertical = 8.dp).width(1.dp).fillMaxHeight().background(Theme.border))
-                Spacer(Modifier.width(6.dp))
-                LeagueList(model, sport, leagueTargets, Modifier.weight(1f).onFocusChanged { leaguesFocused = it.hasFocus }
-                    .enterAt { leagueTargets[leagueKey()] })
-            }
-        }
+        SportList(model, side, compact = false,
+            modifier = Modifier.width(Theme.playerWidth).padding(bottom = topInset(model)).focusRequester(model.leftPanel)
+                .onFocusChanged { model.sideFocused = it.hasFocus }
+                .enterAt { side[sidebarKey(model.homeSelection)] })
         Spacer(Modifier.width(16.dp))
         GamesPane(model, pane, onOpen = { lastGame = it; model.openGameId = it }, onFocusGame = { lastGame = it },
             onFirst = { firstGame = it },
@@ -1055,8 +1031,22 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     // Score cards, as many to a row as fit (each at least CARD_MIN_WIDTH wide).
     val cols = maxOf(1, ((maxWidth - 8.dp) / (CARD_MIN_WIDTH + 8.dp)).toInt())
     // One list item per row of cards.
-    fun LazyListScope.cardRows(games: List<Game>, prefix: String) {
+    val listScope = rememberCoroutineScope()
+    // Focusing the first row of a section (or of the list) scrolls up far enough to show its heading, so the league
+    // names above the cards are never cut off at the top.
+    fun showHeading(rowKey: String, headed: Boolean, first: Boolean) {
+        listScope.launch {
+            androidx.compose.runtime.withFrameNanos { }
+            val state = model.homeList
+            val rowInfo = state.layoutInfo.visibleItemsInfo.firstOrNull { it.key == rowKey } ?: return@launch
+            val target = if (first) 0 else if (headed) rowInfo.index - 1 else return@launch
+            val shown = state.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }
+            if (shown == null || shown.offset < state.layoutInfo.viewportStartOffset) state.animateScrollToItem(maxOf(0, target))
+        }
+    }
+    fun LazyListScope.cardRows(games: List<Game>, prefix: String, headed: Boolean = false, first: Boolean = false) {
         items(games.chunked(cols), key = { "$prefix:${it.first().id}" }, contentType = { "cards" }) { row ->
+            val firstRow = row.first().id == games.firstOrNull()?.id
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 row.forEachIndexed { i, game ->
@@ -1064,13 +1054,20 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
                     GameCard(game, main.size, main.any { it.is4K },
                         modifier = Modifier.weight(1f).tracked(targets, "game:${game.id}")
                             .then(if (i == row.size - 1) toEpg else Modifier),
-                        onFocus = { onFocusGame(game.id) }) { onOpen(game.id) }
+                        onFocus = {
+                            onFocusGame(game.id)
+                            if (firstRow && (headed || first)) showHeading("$prefix:${row.first().id}", headed, first)
+                        }) { onOpen(game.id) }
                 }
                 repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
-    LazyColumn(Modifier.fillMaxHeight(), state = model.homeList, verticalArrangement = Arrangement.spacedBy(2.dp),
+    Column(Modifier.fillMaxHeight()) {
+    // The leagues (All · NBA · WNBA…) stay at the top while the cards scroll under them: up from the first row of
+    // cards, left from the first chip goes to the sports.
+    if (sport != null && model.leagues(sport).size > 1) SidewaysScroll { LeagueChips(model, sport, targets) }
+    LazyColumn(Modifier.weight(1f), state = model.homeList, verticalArrangement = Arrangement.spacedBy(2.dp),
         contentPadding = PaddingValues(top = 6.dp, bottom = 6.dp + barInset(model))) {
         if (redZone.isNotEmpty()) {
             item(key = "redzone", contentType = "finished") {
@@ -1104,7 +1101,8 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             }
             // Same content type: switching sports reuses the rows already built (new text, same row) instead of
             // building new ones.
-            cardRows(section.games, section.id)
+            cardRows(section.games, section.id, headed = section.title.isNotEmpty() && open.size > 1,
+                first = section == open.first() && redZone.isEmpty())
         }
         if (later.isNotEmpty()) {
             item(key = "later", contentType = "finished") {
@@ -1127,6 +1125,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             }
             if (showFinished) cardRows(finished, "f")
         }
+    }
     }
     }
     }
@@ -1232,47 +1231,44 @@ private fun SportChannels(model: AppModel, sport: Sport, targets: FocusTargets, 
 }
 
 /**
- * A sport's leagues beside its icon: "All" first, then the most popular league first (`Sport.leagues` order), so
- * the list never moves. Moving through it shows a league's games once you stop; clicking, or right, is instant.
+ * "All · NBA · WNBA · NCAA Men…": always in that order (the most popular league first), so the chips never move.
+ * Moving across them switches straight away.
  */
 @Composable
-private fun LeagueList(model: AppModel, sport: Sport, targets: FocusTargets, modifier: Modifier) {
+private fun LeagueChips(model: AppModel, sport: Sport, targets: FocusTargets) {
+    val ordered = model.leagues(sport)
     val selection = model.homeSelection
-    val settle = rememberSettle()
-    fun choose(s: HomeSelection, now: Boolean) {
-        val apply = { if (model.homeSelection != s) model.homeSelection = s }
-        if (now) settle.now(apply) else settle.later(apply)
-    }
-    Column(modifier.fillMaxHeight().flushOn(settle, androidx.compose.ui.focus.FocusDirection.Right)
-        .verticalScroll(rememberScrollState()).padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Label(sport.title.uppercase(), size = 10.sp, weight = FontWeight.Bold, color = Theme.muted,
-            modifier = Modifier.padding(start = 10.dp, top = 2.dp, bottom = 4.dp))
+    // Coming up from the games lands on the chip that's selected (All, or the league), not the one above.
+    val selectedChip = (selection as? HomeSelection.OfLeague)?.let { "chip:${it.leagueId}" } ?: "chip:all"
+    Row(Modifier.horizontalScroll(rememberScrollState()).padding(vertical = 4.dp).enterAt { targets[selectedChip] },
+        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         val all = model.games(sport)
-        LeagueRow(targets, "lg:all", null, "All", all.count { it.state == GameState.LIVE }, all.size,
-            selection == HomeSelection.OfSport(sport), model, onFocus = { choose(HomeSelection.OfSport(sport), false) }) {
-            choose(HomeSelection.OfSport(sport), true)
+        Chip(targets, "chip:all", null, "All", all.count { it.state == GameState.LIVE }, all.size,
+            selection == HomeSelection.OfSport(sport), model) {
+            if (model.homeSelection != HomeSelection.OfSport(sport)) model.homeSelection = HomeSelection.OfSport(sport)
         }
-        for (league in model.leagues(sport)) {
+        for (league in ordered) {
             val g = model.gamesIn(league.id)
-            val s = HomeSelection.OfLeague(league.id)
-            LeagueRow(targets, "lg:${league.id}", league, league.name, g.count { it.state == GameState.LIVE }, g.size,
-                selection == s, model, dimmed = g.isEmpty(), onFocus = { choose(s, false) }) { choose(s, true) }
+            Chip(targets, "chip:${league.id}", league, league.name, g.count { it.state == GameState.LIVE }, g.size,
+                (selection as? HomeSelection.OfLeague)?.leagueId == league.id, model, dimmed = g.isEmpty()) {
+                if ((model.homeSelection as? HomeSelection.OfLeague)?.leagueId != league.id) model.homeSelection = HomeSelection.OfLeague(league.id)
+            }
         }
     }
 }
 
 @Composable
-private fun LeagueRow(targets: FocusTargets, key: String, league: League?, name: String, live: Int, total: Int, selected: Boolean,
-                      model: AppModel, dimmed: Boolean = false, onFocus: () -> Unit, select: () -> Unit) {
-    TvButton(onClick = select, selected = selected, onFocus = onFocus,
-        modifier = Modifier.fillMaxWidth().tracked(targets, key).alpha(if (dimmed) 0.5f else 1f)) { focused ->
-        val color = if (focused) Theme.bg else Theme.text
-        Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (league != null && !Perf.noLogos) LeagueLogo(model, league, 15.dp)
-            Label(name, size = 14.sp, weight = FontWeight.SemiBold, color = color, modifier = Modifier.weight(1f))
+private fun Chip(targets: FocusTargets, key: String, league: League?, name: String, live: Int, total: Int, selected: Boolean,
+                 model: AppModel, dimmed: Boolean = false, select: () -> Unit) {
+    TvButton(onClick = select, selected = selected, onFocus = select, shape = RoundedCornerShape(18.dp),
+        modifier = Modifier.tracked(targets, key).alpha(if (dimmed) 0.5f else 1f)
+            .border(1.dp, if (selected) Color.Transparent else Theme.border, RoundedCornerShape(18.dp))) { focused ->
+        Row(Modifier.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (league != null) LeagueLogo(model, league, 15.dp)
+            Label(name, size = 12.sp, weight = FontWeight.SemiBold, color = if (focused) Theme.bg else Theme.text)
             if (live > 0) Badge("$live", fill = Theme.accent, color = Theme.onAccent)
-            else if (total > 0) Label("$total", size = 11.sp, color = color.copy(alpha = 0.6f))
+            else if (total > 0) Label("$total", size = 10.sp, color = if (focused) Theme.bg else Theme.muted)
         }
     }
 }
@@ -1385,7 +1381,7 @@ fun GameScreen(model: AppModel, gameId: String) {
         else model.pin(m.channel, game.title, lineup)
     }
 
-    Row(Modifier.fillMaxSize().background(Theme.bg).padding(horizontal = Theme.margin).enterAt { rows["s:$previewId"] },
+    Row(Modifier.fillMaxSize().background(Theme.bg).padding(end = Theme.margin).enterAt { rows["s:$previewId"] },
         horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         // Categories, on top of the player.
         LazyColumn(Modifier.width(Theme.playerWidth).fillMaxHeight().padding(bottom = topInset(model)).focusRequester(model.leftPanel)

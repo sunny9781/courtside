@@ -312,7 +312,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         // Checks for a new version now and every 30 minutes, so "Install update" appears on its own.
         viewModelScope.launch {
             while (true) {
-                Updater.check(app)
+                Updater.check(app, download = !Device.tv)
                 kotlinx.coroutines.delay(30 * 60_000L)
             }
         }
