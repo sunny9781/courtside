@@ -74,7 +74,7 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
-        Release(version: "2.30", date: "2026-11-21", time: "15:00", title: "Multiview: two games at once", changes: [
+        Release(version: "2.30", date: "2026-11-21", time: "14:27", title: "Multiview: two games at once", changes: [
             Change(text: "Multiview: while a stream plays, hold select on a Home score card or a game's stream and pick Watch alongside to watch two games side by side (needs a second free connection).", apps: [.tv, .android]),
             Change(text: "In multiview, Select gives a tile the sound and makes it big; hold select swaps its stream, picks another game or removes it; Back keeps the game with sound playing on its own.", apps: [.tv, .android]),
             Change(text: "The app picks the most reliable non-4K stream for each tile and tries the next one once if its first pick never shows a picture.", apps: [.tv, .android]),
