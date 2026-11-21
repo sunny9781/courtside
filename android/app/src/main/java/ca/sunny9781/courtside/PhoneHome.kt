@@ -332,7 +332,8 @@ fun PhoneGame(model: AppModel, gameId: String) {
     var folded by remember(gameId) { mutableStateOf(setOf<String>()) }
     val all = model.streams(gameId).let { list -> if (s.hideSD) list.filter { it.quality != "SD" } else list }
     val listing = remember(all, game.league, search) {
-        StreamSections.build(all, game.league, search, model.measuredQuality, model.measuredFrameRate)
+        StreamSections.build(all, game.league, search, model.measuredQuality, model.measuredFrameRate,
+            model.measuredHdr, model.measuredAudio)
     }
     val sections = listing.sections
     val lineup = (sections.flatMap { it.streams } + (if (s.showForeign) listing.foreign.flatMap { it.streams } else emptyList()) +
@@ -343,7 +344,8 @@ fun PhoneGame(model: AppModel, gameId: String) {
     // Opening a game plays its first stream that isn't 4K, unless one of its streams already plays.
     LaunchedEffect(gameId, all.isNotEmpty()) {
         if (pinnedHere || all.isEmpty()) return@LaunchedEffect
-        val main = StreamSections.build(all, game.league, measured = model.measuredQuality, fps = model.measuredFrameRate).sections.flatMap { it.streams }
+        val main = StreamSections.build(all, game.league, measured = model.measuredQuality, fps = model.measuredFrameRate,
+            hdr = model.measuredHdr, audio = model.measuredAudio).sections.flatMap { it.streams }
         (main.firstOrNull { m ->
             !(m.is4K || m.quality == "4K" || model.measuredQuality[m.channel.id] == "4K" ||
                 Categories.isUHD(m.channel.name) || Categories.isUHD(m.channel.categoryName))

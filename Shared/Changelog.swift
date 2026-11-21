@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.15", date: "2026-11-20", time: "23:25", title: "HDR and sound count too", changes: [
+            Change(text: "Game screen: streams with the same resolution and frame rate (59.94 counts as 60) are now ordered by HDR first, then sound (Atmos, Dolby+, 5.1, Stereo), once they've been played.", apps: everywhere),
+        ]),
         Release(version: "2.14", date: "2026-11-20", time: "23:05", title: "Best quality first", changes: [
             Change(text: "Game screen: within each category the highest quality streams come first (4K, then 1080p, then 720p, then SD; the real resolution once a stream has been played, else what its name says), then the higher frame rate.", apps: everywhere),
         ]),

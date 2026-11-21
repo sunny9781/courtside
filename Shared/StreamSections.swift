@@ -6,7 +6,7 @@ import Foundation
 ///   the Premier League…) · other English-language countries · unknown country. Foreign-language countries and
 ///   local stations come back separately, for groups at the bottom that fold open.
 /// Within each section the highest quality comes first (2.14: resolution, measured when it's been played, else from
-/// the name; then frame rate), and the matcher's order (best match first) among equals.
+/// the name; then frame rate; 2.15: then HDR, then sound), and the matcher's order (best match first) among equals.
 enum StreamSections {
     struct Section: Identifiable, Hashable {
         let name: String
@@ -104,19 +104,39 @@ enum StreamSections {
         }
     }
 
-    /// Highest quality first, keeping the given order among streams of the same quality.
-    static func byQuality(_ list: [StreamMatch], measured: [Int: String], fps: [Int: Double]) -> [StreamMatch] {
+    /// 4 = Atmos, 3 = Dolby+ (E-AC-3), 2 = 5.1 / Dolby, 1 = Stereo, 0 = not known yet.
+    static func soundRank(_ label: String?) -> Int {
+        guard let s = label?.lowercased(), !s.isEmpty else { return 0 }
+        if s.contains("atmos") { return 4 }
+        if s.contains("dolby+") || s.contains("eac3") || s.contains("dd+") { return 3 }
+        if s.contains("dolby") || s.contains("5.1") || s.contains("7.1") { return 2 }
+        return 1
+    }
+
+    /// Highest quality first: resolution, then frame rate (59.94 counts as 60), then HDR, then sound; the given
+    /// order among streams that tie on all of those.
+    static func byQuality(_ list: [StreamMatch], measured: [Int: String], fps: [Int: Double],
+                          hdr: [Int: String] = [:], audio: [Int: String] = [:]) -> [StreamMatch] {
         list.enumerated().sorted { a, b in
+            let ida = a.element.channel.id, idb = b.element.channel.id
             let ra = qualityRank(a.element, measured: measured), rb = qualityRank(b.element, measured: measured)
             if ra != rb { return ra > rb }
-            let fa = fps[a.element.channel.id] ?? 0, fb = fps[b.element.channel.id] ?? 0
-            if Int(fa.rounded()) != Int(fb.rounded()) { return fa > fb }
+            let fa = Int((fps[ida] ?? 0).rounded()), fb = Int((fps[idb] ?? 0).rounded())
+            if fa != fb { return fa > fb }
+            let ha = !(hdr[ida] ?? "").isEmpty, hb = !(hdr[idb] ?? "").isEmpty
+            if ha != hb { return ha }
+            let sa = soundRank(audio[ida]), sb = soundRank(audio[idb])
+            if sa != sb { return sa > sb }
             return a.offset < b.offset
         }.map(\.element)
     }
 
     static func build(_ all: [StreamMatch], league: League, search: String = "",
-                      measured: [Int: String] = [:], fps: [Int: Double] = [:]) -> Result {
+                      measured: [Int: String] = [:], fps: [Int: Double] = [:],
+                      hdr: [Int: String] = [:], audio: [Int: String] = [:]) -> Result {
+        func byQuality(_ list: [StreamMatch], measured: [Int: String], fps: [Int: Double]) -> [StreamMatch] {
+            StreamSections.byQuality(list, measured: measured, fps: fps, hdr: hdr, audio: audio)
+        }
         // Event sports (motorsport, golf, tennis, fights): a 4K channel the guide doesn't confirm is still listed up top
         // under 4K (4K channels carry these events, and the guide often names the race only as "F2 Feature Race").
         func shown(_ m: StreamMatch) -> Bool { !m.hidden || (league.isEvent && m.is4K) }

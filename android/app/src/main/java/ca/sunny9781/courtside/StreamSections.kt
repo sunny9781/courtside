@@ -75,13 +75,34 @@ object StreamSections {
         else -> m.qualityRank
     }
 
-    /** Highest quality first, keeping the given order among streams of the same quality (sortedWith is stable). */
-    fun byQuality(list: List<StreamMatch>, measured: Map<Int, String>, fps: Map<Int, Float>): List<StreamMatch> =
+    /** 4 = Atmos, 3 = Dolby+ (E-AC-3), 2 = 5.1 / Dolby, 1 = Stereo, 0 = not known yet. */
+    fun soundRank(label: String?): Int {
+        val s = label?.lowercase().orEmpty()
+        return when {
+            s.isEmpty() -> 0
+            "atmos" in s -> 4
+            "dolby+" in s || "eac3" in s || "dd+" in s -> 3
+            "dolby" in s || "5.1" in s || "7.1" in s -> 2
+            else -> 1
+        }
+    }
+
+    /**
+     * Highest quality first: resolution, then frame rate (59.94 counts as 60), then HDR (2.15), then sound (2.15);
+     * the given order among streams that tie on all of those (sortedWith is stable).
+     */
+    fun byQuality(list: List<StreamMatch>, measured: Map<Int, String>, fps: Map<Int, Float>,
+                  hdr: Map<Int, String> = emptyMap(), audio: Map<Int, String> = emptyMap()): List<StreamMatch> =
         list.sortedWith(compareByDescending<StreamMatch> { qualityRank(it, measured) }
-            .thenByDescending { Math.round(fps[it.channel.id] ?: 0f) })
+            .thenByDescending { Math.round(fps[it.channel.id] ?: 0f) }
+            .thenByDescending { if (hdr[it.channel.id].isNullOrEmpty()) 0 else 1 }
+            .thenByDescending { soundRank(audio[it.channel.id]) })
 
     fun build(all: List<StreamMatch>, league: League, search: String = "",
-              measured: Map<Int, String> = emptyMap(), fps: Map<Int, Float> = emptyMap()): Result {
+              measured: Map<Int, String> = emptyMap(), fps: Map<Int, Float> = emptyMap(),
+              hdr: Map<Int, String> = emptyMap(), audio: Map<Int, String> = emptyMap()): Result {
+        fun byQuality(list: List<StreamMatch>, measured: Map<Int, String>, fps: Map<Int, Float>) =
+            StreamSections.byQuality(list, measured, fps, hdr, audio)
         // Event sports (motorsport, golf, tennis, fights): a 4K channel the guide doesn't confirm is still listed up top
         // under 4K (4K channels carry these events, and the guide often names the race only as "F2 Feature Race").
         fun shown(m: StreamMatch) = !m.hidden || (league.isEvent && m.is4K)

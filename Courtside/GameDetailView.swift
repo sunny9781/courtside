@@ -19,7 +19,8 @@ struct GameDetailView: View {
     /// StreamSections), filtered by the search field.
     private var listing: StreamSections.Result {
         StreamSections.build(allStreams, league: game.league, search: search,
-                             measured: model.measuredQuality, fps: model.measuredFrameRate)
+                             measured: model.measuredQuality, fps: model.measuredFrameRate,
+                             hdr: model.measuredHDR, audio: model.measuredAudio)
     }
 
     /// The main sections (what autoplay picks from).
