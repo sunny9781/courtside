@@ -22,7 +22,8 @@ struct TVGameView: View {
     private var listing: StreamSections.Result {
         guard let game else { return .empty }
         return StreamSections.build(allStreams, league: game.league,
-                                   measured: model.measuredQuality, fps: model.measuredFrameRate)
+                                   measured: model.measuredQuality, fps: model.measuredFrameRate,
+                                   hdr: model.measuredHDR, audio: model.measuredAudio)
     }
 
     private var main: [StreamMatch] { listing.sections.flatMap(\.streams) }

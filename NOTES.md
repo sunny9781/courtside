@@ -206,3 +206,5 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   `qualityRank(m, measured)` (measured label 4K/1080p/720p/SD, else the name's `qualityRank`; unknown = 2 like HD),
   then measured fps, then the matcher's order. Callers pass `measuredQuality` / `measuredFrameRate`. Android builds it
   inside `remember(all, league)`, so rows don't move while you're on the screen; the Apple views recompute live.
+- 2.15: ties on resolution and rounded fps go to HDR (`measuredHDR`/`measuredHdr`, any label), then `soundRank`
+  (Atmos 4, Dolby+ 3, 5.1/Dolby 2, Stereo 1, unknown 0), then the matcher's order.
