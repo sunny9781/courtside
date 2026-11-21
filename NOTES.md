@@ -269,3 +269,12 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   contentMargins); `TVGuide.channelWidth` 330 (was 220), logo 56, name 22 pt.
 - Home while loading (all Apple): `autoSport` + `openedAt`; for 30 s, while the selection is still the one Home
   picked, it follows the top sport (TV `followTopSport` on games.count, Mac/iPhone `pickStartingSport`).
+
+## 2.22 (2026-11-21, performance)
+- Guide lookups: `overlapping(from, to)` / `on(at)` / `firstStartingAtOrAfter` (Models.kt, Models.swift) binary-search a
+  channel's sorted programmes; use them instead of `filter`/`firstOrNull` scans. Assumes a channel's programmes don't
+  overlap each other (true for XMLTV guides in practice).
+- `Programme.words`: title tokens worked out once (Kotlin lazy; Swift stored, not encoded in guide.json).
+- matchAll: only programmes inside the games' combined window; broadcasters via a word -> channels index;
+  timing line "Matched streams to N games in X ms" in the Connection log at most every 10 min.
+- Android: `NonWord` regex compiled once (Models.kt); don't write `Regex(...)` inside functions. `Channel.lowerName` for the EPG filter.
