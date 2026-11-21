@@ -16,6 +16,9 @@ struct IOSEPGView: View {
     @State private var flipped: Set<String> = []
     /// Compact height = the phone is sideways: a category's channels show as a timeline.
     @Environment(\.verticalSizeClass) private var verticalSize
+    /// Each category's channels (favourites first), worked out once and kept until the channels, favourites or
+    /// grouping change (2.30, like the TVs), not again on every redraw (typing in the filter, a new score…).
+    @State private var cache = IOSChannelCache()
 
     /// What's in the pinned player.
     private var playing: Channel? { model.pinned?.channel }
@@ -66,7 +69,9 @@ struct IOSEPGView: View {
     private func page(_ id: String?) -> some View {
         if verticalSize == .compact, let id, id.hasPrefix("cat:") {
             let list = channels(String(id.dropFirst(4)))
-            IOSGuideTimeline(channels: list, playingID: playing?.id) { tap($0, lineup: list) }
+            // Redrawn only when its channels or what's playing change.
+            IOSTimelinePage(channels: list, playingID: playing?.id) { tap($0, lineup: list) }
+                .equatable()
         } else {
             listPage(id)
         }
@@ -82,7 +87,9 @@ struct IOSEPGView: View {
                     if list.isEmpty {
                         Text("No channels.").foregroundStyle(Theme.muted).padding(.top, 30)
                     }
-                    ForEach(list) { channel in channelRow(channel, lineup: list) }
+                    // Its own view, redrawn only when its channels or what's playing change (2.30).
+                    IOSCategoryChannels(channels: list, playingID: playing?.id)
+                        .equatable()
                 } else if let id, let group = CategoryGrouping.find(id, in: model.categoryTree) {
                     categoryRow(id: group.id, "All \(group.name) channels", count: count(group.categories), group: false,
                                 heart: false, target: "cat:" + group.id)
@@ -182,8 +189,14 @@ struct IOSEPGView: View {
         return model.categories.first { $0.id == raw }?.name ?? ""
     }
 
-    /// The channels of a category, or of every category in a group, favourites first.
+    /// The channels of a category, or of every category in a group, favourites first (cached until the channels,
+    /// favourites or grouping change).
     private func channels(_ id: String) -> [Channel] {
+        let key = "\(model.channelsVersion)|\(model.favoriteChannels.map(String.init).joined(separator: ","))|\(grouped)"
+        return cache.channels(id, key: key) { buildChannels(id) }
+    }
+
+    private func buildChannels(_ id: String) -> [Channel] {
         let cats: [ChannelCategory]
         if let node = CategoryGrouping.find(id, in: model.categoryTree) {
             cats = node.categories
@@ -347,5 +360,78 @@ struct IOSChannelRow: View {
         let total = p.end.timeIntervalSince(p.start)
         guard total > 0 else { return 0 }
         return min(max(Date().timeIntervalSince(p.start) / total, 0), 1)
+    }
+}
+
+/// The cache behind `IOSEPGView.channels`: a plain object, so filling it doesn't redraw anything.
+@MainActor
+final class IOSChannelCache {
+    private var key = ""
+    private var lists: [String: [Channel]] = [:]
+
+    func channels(_ id: String, key: String, build: () -> [Channel]) -> [Channel] {
+        if key != self.key { self.key = key; lists = [:] }
+        if let list = lists[id] { return list }
+        let list = build()
+        lists[id] = list
+        return list
+    }
+}
+
+/// A category's channels as a list (2.30): compared by the channels it shows and what's playing, so the rest of the
+/// EPG redrawing (the filter, the favourites along the bottom) doesn't redraw every row. Tap once to play it in the
+/// pinned player, again for full screen; the heart adds it to favourites.
+struct IOSCategoryChannels: View, Equatable {
+    @EnvironmentObject var model: AppModel
+    let channels: [Channel]
+    let playingID: Int?
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.playingID == b.playingID && a.channels.map(\.id) == b.channels.map(\.id)
+    }
+
+    var body: some View {
+        ForEach(channels) { channel in
+            HStack(spacing: 0) {
+                Button { tap(channel) } label: {
+                    IOSChannelRow(channel: channel, playing: channel.id == playingID)
+                }
+                .buttonStyle(.plain)
+                let on = model.isFavorite(channel: channel.id)
+                Button { model.toggleFavorite(channel: channel.id) } label: {
+                    Image(systemName: on ? "heart.fill" : "heart")
+                        .foregroundStyle(on ? Theme.accent : Theme.muted.opacity(0.6))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 6)
+                .accessibilityLabel(on ? "Remove from favourites" : "Add to favourites")
+            }
+            .overlay(alignment: .bottom) { Divider().overlay(Theme.raised).padding(.leading, 62) }
+        }
+    }
+
+    private func tap(_ channel: Channel) {
+        if channel.id == model.pinned?.channel.id {
+            model.play(channel, gameTitle: model.pinned?.gameTitle, lineup: model.pinned?.lineup ?? channels)
+        } else {
+            model.pin(channel, lineup: channels.isEmpty ? [channel] : channels)
+        }
+    }
+}
+
+/// The sideways timeline, compared the same way (its tap action isn't part of the comparison).
+struct IOSTimelinePage: View, Equatable {
+    let channels: [Channel]
+    let playingID: Int?
+    let onTap: (Channel) -> Void
+
+    static func == (a: Self, b: Self) -> Bool {
+        a.playingID == b.playingID && a.channels.map(\.id) == b.channels.map(\.id)
+    }
+
+    var body: some View {
+        IOSGuideTimeline(channels: channels, playingID: playingID, onTap: onTap)
     }
 }
