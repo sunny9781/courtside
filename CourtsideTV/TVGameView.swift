@@ -9,6 +9,8 @@ struct TVGameView: View {
     @AppStorage(Prefs.hideSD) private var hideSD = true
     @State private var selected = "All"
     @FocusState private var focusedCategory: String?
+    @State private var pendingCategory: Task<Void, Never>?
+    @State private var waitingCategory: String?
     @FocusState private var focusedStream: Int?
     let gameID: String
 
@@ -84,8 +86,23 @@ struct TVGameView: View {
                 model.pin(first.channel, gameTitle: game.title, lineup: main.map(\.channel))
             }
         }
+        // Moving through the categories shows one's streams once you stop on it (a quarter second, 2.28), like the
+        // EPG; moving right into the streams shows it at once.
         .onChange(of: focusedCategory) {
-            if let focusedCategory, focusedCategory != selected { selected = focusedCategory }
+            pendingCategory?.cancel()
+            guard let focusedCategory else {
+                if let waitingCategory { selected = waitingCategory }
+                waitingCategory = nil
+                return
+            }
+            guard focusedCategory != selected else { waitingCategory = nil; return }
+            waitingCategory = focusedCategory
+            pendingCategory = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
+                waitingCategory = nil
+                selected = focusedCategory
+            }
         }
         .onExitCommand { if !nav.homePath.isEmpty { nav.homePath.removeLast() } }
         // Back from full screen: focus goes back to the stream you were watching.
