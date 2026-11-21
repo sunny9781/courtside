@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.26", date: "2026-11-21", time: "12:05", title: "Reliability dots in the EPG", changes: [
+            Change(text: "The green, amber or red reliability dot now shows next to channel names in the EPG (list and timeline) too.", apps: android),
+            Change(text: "Fixed: on the TVs the dot didn't show on the game screen's streams (only on phones).", apps: android),
+        ]),
         Release(version: "2.25", date: "2026-11-21", time: "11:55", title: "Android tablets and small touches", changes: [
             Change(text: "Tablets get their own layout, like the iPad: sports down the left, and on the right the player (under half the width, titles beside it), league chips along the top and as many score cards per row as fit. Games open on the right with the sports still showing. Turning a tablet sideways no longer jumps to full screen.", apps: android),
             Change(text: "Phone and tablet EPG: what's playing has an orange outline around its row, instead of a speaker icon.", apps: android),

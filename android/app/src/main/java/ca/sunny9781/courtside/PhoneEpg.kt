@@ -201,6 +201,7 @@ fun PhoneChannelRow(model: AppModel, channel: Channel, playing: Boolean, heart: 
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Label(channel.name, size = 14.sp, weight = FontWeight.SemiBold, color = if (playing) Theme.accent else Theme.text,
                             modifier = Modifier.weight(1f, fill = false))
+                        ReliabilityDot(channel.id, bare = true)
                     }
                     if (now != null) {
                         Label(now.title, size = 13.sp, color = Theme.soft)
