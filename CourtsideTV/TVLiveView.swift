@@ -555,6 +555,7 @@ struct TVChannelRow: View {
                 if showNext {
                     TVScrollingText(text: channel.name, font: .system(size: 23, weight: .semibold), active: focused)
                         .foregroundStyle(playing && !focused ? Theme.accent : (focused ? Theme.bg : Theme.text))
+                    ReliabilityDot(channelID: channel.id, size: 12, bare: true)
                 } else {
                     // Game screen and channel sports (2.21): long names wrap onto a second line.
                     Text(channel.name)
@@ -753,6 +754,7 @@ struct TVGuideRow: View {
                         .lineLimit(3)
                         .minimumScaleFactor(0.75)
                         .foregroundStyle(playing && !focused ? Theme.accent : (focused ? Theme.bg : Theme.text))
+                    ReliabilityDot(channelID: channel.id, size: 12, bare: true)
                     if model.isFavorite(channel: channel.id) {
                         Image(systemName: "heart.fill").font(.system(size: 15)).foregroundStyle(Theme.accent)
                     }

@@ -252,7 +252,7 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   (buffers + freezes + drops), startup ms, fail rate; last 15 sessions; files/stream-stats.json; dropped after 60 days.
   Hooks in Playback.kt: begin (play), firstPicture, tick (poll, 500 ms), froze (FreezeWatch restart), dropped
   (reconnectAfterDrop), end (stop / next play). Sessions under 10 s watched (or failed under 8 s) are ignored.
-- `ReliabilityDot` (Components.kt; `bare` = dot only) in `ChannelRow` (TV game screen + list EPG), `GuideRow`, `PhoneChannelRow`, phone `StreamRow` (2.26; TV `StreamCell` is unused): shows after 5 min
+- `ReliabilityDot` (Components.kt; `bare` = dot only) in `ChannelRow` (TV game screen + list EPG), `GuideRow`, `PhoneChannelRow`, phone `StreamRow` (2.26; TV `StreamCell` is unused). Apple TV (2.21 stats + game screen; 2.28 EPG): `ReliabilityDot(bare: true)` in `TVChannelRow` (EPG list) and `TVGuideRow` tile: shows after 5 min
   watched; red at rebuffer >5% / >20 events/h / fail >40% (or 2+ opens failing >50%), amber at >1% / >6 /h / >15% /
   startup >8 s. `StreamStats.reset()` exists but no Settings button yet. Not on Apple apps yet.
 
