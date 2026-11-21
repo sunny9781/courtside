@@ -304,3 +304,15 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Timing line: "Matched streams to N games in X ms" after each channel/guide download (Android; Apple apps still log
   from Matcher at most every 10 min until the port).
 - To port to Apple apps.
+
+## 2.30 (2026-11-21, multiview, both TVs)
+- Two tiles max (Sunny's plan has 2 connections). "Watch alongside" on hold menus of game-screen streams (that stream)
+  and Home score cards (auto-pick), only while a stream plays; refreshes the account and needs max >= 2, one free.
+- Tile 1 = the main player (no reopen). Tile 2: Android `TilePlayer` (Multiview.kt, own ExoPlayer, TS only);
+  Apple TV a second `PlaybackController(measuresStats: false)`, VLC only (`TVMultiview.swift`). Own FreezeWatch and
+  reconnect per tile. Mute = volume 0 (risk: Dolby passthrough on Android may ignore it).
+- Select = sound to that tile (+ make big unless Settings › Playback "Select in multiview" = move sound only). Hold =
+  left panel (streams, another game, remove). Back = sound tile continues alone (tile 2 is reopened on the main player).
+- Auto-pick: no 4K, reliability, FHD > HD > SD, favourites, English; session memory of manual swaps; one fallback if
+  an auto-pick shows no picture in 7 s. Tile 2 records no reliability stats yet.
+- Unconfirmed on real devices (Shield, Apple TV).
