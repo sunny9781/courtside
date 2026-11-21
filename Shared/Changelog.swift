@@ -74,6 +74,14 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.30", date: "2026-11-21", time: "14:20", title: "Home fixes, smoother EPG everywhere", changes: [
+            Change(text: "Home: clicking a sport with several leagues opens its leagues beside it, like pressing right.", apps: [.tv, .android]),
+            Change(text: "Home: pressing up at the top of the sports no longer flashes the leagues for a moment.", apps: tv),
+            Change(text: "Home: finished games sit under their own Finished heading instead of a fold you have to open.", apps: [.tv, .android]),
+            Change(text: "Home: the first time you come in from the rail after opening the app, it lands on the top sport; after that, on whatever you picked.", apps: [.tv, .android]),
+            Change(text: "EPG: each category's channels are worked out once (not on every redraw) and the list only redraws when it changes, like the TV EPG in 2.29.", apps: [.mac, .ios, .android]),
+            Change(text: "EPG: channel and category column widths are measured once per list, and the category is saved when you leave the EPG.", apps: mac),
+        ]),
         Release(version: "2.29", date: "2026-11-21", time: "13:45", title: "Snappier EPG", changes: [
             Change(text: "EPG: moving through the categories and groups only redraws the list; the guide redraws once you stop on a new category, so big categories (Sports with 100+ channels) no longer slow it down.", apps: [.tv, .android]),
             Change(text: "EPG: each category's channels and counts are worked out once when the channels or favourites change, not on every press, and the category you're on is saved when you leave the EPG instead of on every stop.", apps: [.tv, .android]),

@@ -134,6 +134,14 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Android (Epg.kt): per-category count map and favourites list cached per channel/favourites change, programmes per
   row cached per window start + guide, selected category in memory until you leave the EPG.
 
+## 2.30
+- Apple TV Home: the league "bridge" is per row now (a 4 pt focusable beside only the focused sport row, level with it),
+  so Up at the top of the list can't land on it (it used to flash the leagues). Clicking a sport with leagues opens
+  them too (both TVs). First entry into Home from the rail after launch selects the top sport (`nav.homeEnteredFromRail`,
+  `nav.leftRailAt`; Android `homeEnteredFromRail`, which also counts Back from a card). Finished = plain heading
+  (Android Lite "Finished games" still folds). Mac `GuideMemo` in GuideView caches channels + column widths; iPhone
+  `IOSChannelCache`, `IOSCategoryChannels`/`IOSTimelinePage` (Equatable); Android phone EPG caches channels + counts.
+
 ## Working preferences (Sunny)
 - Auto-merge (2026-11-21): once the build check passes, merge to main and release without asking, in every Courtside chat.
 - Small changes (a number, text, a changelog line) merge straight away without check.yml; the Mac release build
