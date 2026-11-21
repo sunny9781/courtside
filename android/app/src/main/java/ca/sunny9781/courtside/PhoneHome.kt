@@ -355,7 +355,7 @@ fun PhoneGame(model: AppModel, gameId: String) {
     val landscape = isLandscape()
     LaunchedEffect(landscape) {
         val p = model.pinned
-        if (landscape && p != null && model.pinnedIsFrom(gameId) && model.nowPlaying == null) {
+        if (landscape && p != null && !Cast.connected && model.pinnedIsFrom(gameId) && model.nowPlaying == null) {
             PhoneUi.fullByRotation = true
             model.play(p.channel, p.gameTitle, p.lineup, from = "game")
         }

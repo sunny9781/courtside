@@ -66,6 +66,9 @@ dependencies {
     implementation("androidx.tv:tv-material:1.0.0")
     // Phones: switches, pull to refresh, the spinner and dialogs.
     implementation("androidx.compose.material3:material3")
+    // Phones: Chromecast (Google's Cast framework with its standard media receiver).
+    implementation("com.google.android.gms:play-services-cast-framework:21.5.0")
+    implementation("androidx.mediarouter:mediarouter:1.7.0")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.core:core-ktx:1.15.0")

@@ -153,6 +153,23 @@ private fun AccountSection(model: AppModel) {
 @Composable
 private fun PlaybackSettings(model: AppModel) {
     val s = model.settings
+    val context = LocalContext.current
+    var castNote by remember { mutableStateOf<String?>(null) }
+    Group("Chromecast", footer = castNote ?: when {
+        Cast.disabled -> "Chromecast was turned off because it made Courtside close while starting."
+        !Cast.ready -> "Chromecast needs Google Play services on this phone."
+        else -> "Tap the Cast button on the player to play on a TV. The TV plays the provider's HLS version of the channel, and the phone's own player stops, so only one connection is used."
+    }) {
+        when {
+            Cast.disabled -> Line("Turn Chromecast back on", color = Theme.accent, onClick = {
+                Cast.enableAgain(context); castNote = "Chromecast comes back the next time Courtside opens."
+            })
+            Cast.connected -> Line("Casting to ${Cast.deviceName}", "Stop", valueColor = Theme.accent, onClick = { Cast.disconnect() })
+            else -> Line(if (Cast.routes.isEmpty()) "No Chromecasts found on this Wi-Fi" else "${Cast.routes.size} found on this Wi-Fi",
+                if (Cast.ready && Cast.routes.isNotEmpty()) "Connect" else null, valueColor = Theme.accent,
+                onClick = if (Cast.ready && Cast.routes.isNotEmpty()) ({ PhoneUi.castPicker = true }) else null)
+        }
+    }
     Group("Playback", footer = "USA and Canada streams are tried first when switching. More buffer means fewer stalls but a longer delay behind live (takes effect the next time the app opens).") {
         Toggle("Switch to the next stream when one stalls", s.autoSwitch) { s.autoSwitch = it }
         Divider()
