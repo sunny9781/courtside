@@ -55,14 +55,6 @@ struct TVPlayerView: View {
             }
             .frame(maxHeight: .infinity, alignment: .bottom)
 
-            if showDetails {
-                detailsPanel
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                    .padding(.top, 60)
-                    .padding(.trailing, 80)
-                    .transition(.opacity)
-            }
-
             if let flipLabel {
                 Text(flipLabel)
                     .font(.system(size: 28, weight: .semibold))
@@ -196,7 +188,7 @@ struct TVPlayerView: View {
 
     private var recents: [NowPlaying] { model.recentStreams(besides: item, limit: 5) }
 
-    /// Centre button: show the stream information and the recent streams (and the info bar) for 8 seconds. While
+    /// Centre button: show the recent streams (and the info bar) for 8 seconds (no stream information panel since 2.11). While
     /// they show, it plays the picked recent stream (with none, it hides the information again).
     private func toggleDetails() {
         detailsTask?.cancel()
@@ -271,42 +263,6 @@ struct TVPlayerView: View {
         }
         .padding(.horizontal, 80)
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var detailsPanel: some View {
-        let now = model.currentProgramme(item.channel)
-        let next = now.flatMap { n in model.guide[item.channel.epgID]?.first { $0.start >= n.end } }
-        func time(_ d: Date) -> String { d.formatted(date: .omitted, time: .shortened) }
-        func row(_ label: String, _ value: String) -> some View {
-            HStack(alignment: .firstTextBaseline, spacing: 18) {
-                Text(label)
-                    .font(.system(size: 21, weight: .semibold))
-                    .foregroundStyle(Theme.muted)
-                    .frame(width: 130, alignment: .leading)
-                Text(value)
-                    .font(.system(size: 23))
-                    .foregroundStyle(Theme.text)
-                    .lineLimit(2)
-            }
-        }
-        var video: [String] = []
-        if !controller.resolution.isEmpty { video.append(controller.resolution) }
-        if controller.frameRate > 0 { video.append(PlaybackController.fpsLabel(controller.frameRate)) }
-        if controller.usesHDRPlayer { video.append("HDR player") }
-        return VStack(alignment: .leading, spacing: 14) {
-            Text("Stream information")
-                .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(Theme.accent)
-            row("Channel", item.lineup.count > 1 ? "\(item.channel.name) · \(position) of \(item.lineup.count)" : item.channel.name)
-            row("Now", now.map { "\($0.title)  (\(time($0.start)) – \(time($0.end)))" } ?? model.playerTitle(item))
-            if let next { row("Next", "\(time(next.start))  \(next.title)") }
-            row("Video", video.isEmpty ? "Waiting for the picture…" : video.joined(separator: " · "))
-            row("Sound", controller.audio.isEmpty ? "–" : controller.audio)
-            if let n = item.channel.number { row("Number", "\(n)") }
-        }
-        .padding(28)
-        .frame(width: 760, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 22).fill(.black.opacity(0.82)))
     }
 
     private func poke() {
