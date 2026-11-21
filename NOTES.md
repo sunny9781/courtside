@@ -108,7 +108,13 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   bottom starting from the right (`TrailingRow`). Sideways on a game = full screen (back upright closes it);
   sideways on an EPG category = timeline (reuses `GuideRow`). Picture in picture: auto-enter on Android 12+,
   onUserLeaveHint on 8-11, PiP button in full screen; closing PiP or locking the phone stops the stream (onStop).
-- No Chromecast/AirPlay on the Android phone app (the iPhone app has them). material3 added for Switch,
+- Chromecast on the phone app (2.17, Cast.kt): play-services-cast-framework + the Default Media Receiver, own Compose
+  picker (MediaRouter routes; no MediaRouteButton, which needs AppCompat/FragmentActivity). `AppModel.startStream`
+  loads the HLS URL on the Chromecast instead of Playback while connected; `castChanged` moves the current stream
+  there or back. `streamOpen` counts `Cast.hasMedia`, so downloads wait while the TV plays. Leaving the app keeps
+  casting (onStop). Volume keys → TV volume. Crash guard like iOS (prefs "cast": starting/disabled). Unconfirmed:
+  the provider's HLS may lack CORS headers, which the web receiver needs; then casting fails ("couldn't play").
+  No AirPlay on Android. material3 added for Switch,
   pull to refresh, spinner, dialog.
 
 ## Working preferences (Sunny)
