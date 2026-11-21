@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.18", date: "2026-11-21", time: "00:25", title: "Chromecast on Android phones", changes: [
+            Change(text: "Phone app: a Cast button on the player (it shows when a Chromecast or a TV with Chromecast built in is on your Wi-Fi). Once connected, whatever you play goes to the TV instead of the phone, and the phone's own player stops so only one connection is used.", apps: android),
+            Change(text: "While casting, the player at the top becomes a remote: what's on, previous/next stream, pause, TV volume (the phone's volume buttons work too), and stop. Leaving the app keeps the TV playing.", apps: android),
+            Change(text: "The TV plays the provider's HLS version of the channel (Chromecast can't play plain TS). Settings › Playback › Chromecast shows what's found and can stop casting.", apps: android)
+        ]),
         Release(version: "2.17", date: "2026-11-21", time: "00:20", title: "No sound tag", changes: [
             Change(text: "A stream that shows a picture but no sound for 8 seconds (a dead audio feed) gets a No sound tag where the other tags show, and goes to the bottom of its category on the game screen. The tag goes away if the sound comes back on a later play.", apps: everywhere),
         ]),

@@ -63,6 +63,8 @@ object PhoneUi {
     var collapsed by mutableStateOf(false)
     /** EPG: opened groups (node ids), then possibly a category ("cat:<id>") at the end. */
     var epgPath by mutableStateOf<List<String>>(emptyList())
+    /** The Chromecast picker is open. */
+    var castPicker by mutableStateOf(false)
     /** Full screen came from turning the phone sideways: turning it back closes it. */
     var fullByRotation = false
 }
@@ -117,7 +119,9 @@ private fun PhoneShell(model: AppModel) {
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
             val item = model.pinned
-            if (item != null && !full) PinnedPlayer(model, item) else SideEffect { model.cornerBounds = null }
+            if (item != null && !full) {
+                if (Cast.connected) CastingBar(model, item) else PinnedPlayer(model, item)
+            } else SideEffect { model.cornerBounds = null }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (model.tab) {
                     Tab.HOME -> {
@@ -141,7 +145,7 @@ private fun PhoneShell(model: AppModel) {
             TabBar(model)
         }
         // The video: one view for the pinned player and full screen, which only moves and changes size.
-        if (full || model.pinned != null) {
+        if ((full || model.pinned != null) && !Cast.connected) {
             val b = model.cornerBounds
             val density = LocalDensity.current
             val place = when {
@@ -159,7 +163,8 @@ private fun PhoneShell(model: AppModel) {
                 }
             }
         }
-        if (!pip) model.nowPlaying?.let { PhoneFullScreen(model, it) }
+        if (!pip) model.nowPlaying?.let { if (Cast.connected) CastFullScreen(model, it) else PhoneFullScreen(model, it) }
+        if (PhoneUi.castPicker) CastPicker { PhoneUi.castPicker = false }
     }
 }
 
@@ -251,6 +256,7 @@ private fun PinnedOverlay(model: AppModel, item: NowPlaying, modifier: Modifier)
                 if (Playback.frameRate > 0) Badge(Playback.fpsLabel(Playback.frameRate))
                 if (Playback.audio.isNotEmpty()) Badge(Playback.audio)
                 Spacer(Modifier.weight(1f))
+                CastButton()
                 RoundButton(Icons.Filled.UnfoldLess, "Fold") { PhoneUi.collapsed = true }
                 RoundButton(Icons.Filled.Fullscreen, "Full screen") { model.play(item.channel, item.gameTitle, item.lineup, from = "strip") }
                 RoundButton(Icons.Filled.Stop, "Stop") { model.stopPinned() }
@@ -389,6 +395,7 @@ private fun PhoneFullScreen(model: AppModel, item: NowPlaying) {
                 horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
                 RoundButton(Icons.Filled.Close, "Close", size = 42.dp) { model.closePlayer() }
                 Spacer(Modifier.weight(1f))
+                CastButton(42.dp)
                 if (android.os.Build.VERSION.SDK_INT >= 26 && activity != null &&
                     activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE))
                     RoundButton(Icons.Filled.PictureInPictureAlt, "Picture in picture", size = 42.dp) { activity.enterPip() }
@@ -540,8 +547,8 @@ fun TrailingRow(content: @Composable RowScope.() -> Unit) {
 
 @Composable
 fun RoundButton(icon: ImageVector, description: String, size: Dp = 34.dp, fill: Color = Color.White.copy(alpha = 0.2f),
-                onClick: () -> Unit) {
-    Box(Modifier.size(size).clip(CircleShape).background(fill).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+                modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(modifier.size(size).clip(CircleShape).background(fill).clickable(onClick = onClick), contentAlignment = Alignment.Center) {
         Icon(icon, description, tint = Color.White, modifier = Modifier.size(size * 0.5f))
     }
 }
@@ -580,5 +587,121 @@ fun ConnectionsPill(account: AccountInfo?) {
         horizontalArrangement = Arrangement.spacedBy(5.dp)) {
         Icon(Icons.Filled.People, null, tint = if (full) Theme.onAccent else Theme.muted, modifier = Modifier.size(14.dp))
         Label("$active/$max", size = 13.sp, weight = FontWeight.SemiBold, color = if (full) Theme.onAccent else Theme.muted)
+    }
+}
+
+// MARK: Chromecast
+
+/** The Cast button: shows only when a Chromecast is on the network (or one is connected). Orange while casting. */
+@Composable
+fun CastButton(size: Dp = 34.dp, fill: Color = Color.White.copy(alpha = 0.2f)) {
+    if (!Cast.ready || (!Cast.connected && Cast.routes.isEmpty())) return
+    Box(Modifier.size(size).clip(CircleShape).background(fill).clickable { PhoneUi.castPicker = true }, contentAlignment = Alignment.Center) {
+        Icon(if (Cast.connected) Icons.Filled.CastConnected else Icons.Filled.Cast, "Chromecast",
+            tint = if (Cast.connected) Theme.accent else Color.White, modifier = Modifier.size(size * 0.5f))
+    }
+}
+
+/** Pick a Chromecast, or stop casting to the one that's connected. */
+@Composable
+private fun CastPicker(close: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = close,
+        containerColor = Theme.card,
+        title = { Label(if (Cast.connected) "Casting to ${Cast.deviceName}" else "Play on a TV", size = 18.sp, weight = FontWeight.SemiBold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                if (Cast.connected) {
+                    Label("Streams play on the TV while it's connected. Stop casting to play them on the phone again.",
+                        size = 14.sp, color = Theme.muted, maxLines = 4)
+                } else if (Cast.routes.isEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Spinner(18.dp)
+                        Label("Looking for Chromecasts on this Wi-Fi…", size = 14.sp, color = Theme.muted, maxLines = 2)
+                    }
+                } else for (route in Cast.routes) {
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable { Cast.connect(route); close() }
+                        .padding(horizontal = 8.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Filled.Tv, null, tint = Theme.accent, modifier = Modifier.size(22.dp))
+                        Column(Modifier.weight(1f)) {
+                            Label(route.name, size = 15.sp, weight = FontWeight.SemiBold)
+                            route.description?.takeIf { it.isNotBlank() }?.let { Label(it, size = 12.sp, color = Theme.muted) }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (Cast.connected) Box(Modifier.clip(RoundedCornerShape(8.dp)).clickable { Cast.disconnect(); close() }.padding(12.dp)) {
+                Label("Stop casting", size = 15.sp, weight = FontWeight.Bold, color = Theme.accent)
+            }
+        },
+        dismissButton = {
+            Box(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = close).padding(12.dp)) {
+                Label(if (Cast.connected) "Close" else "Cancel", size = 15.sp, color = Theme.soft)
+            }
+        })
+}
+
+/**
+ * In place of the pinned player while casting: what's on the TV, and the buttons to flip streams, pause, change the
+ * TV's volume (the phone's volume buttons do too), stop casting, or stop the stream.
+ */
+@Composable
+private fun CastingBar(model: AppModel, item: NowPlaying) {
+    SideEffect { model.cornerBounds = null }
+    Column(Modifier.fillMaxWidth().background(Theme.bg).padding(horizontal = 12.dp).padding(top = 6.dp, bottom = 8.dp)) {
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Theme.card)
+            .clickable { model.play(item.channel, item.gameTitle, item.lineup, from = "strip") }.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(Icons.Filled.CastConnected, null, tint = Theme.accent, modifier = Modifier.size(22.dp))
+                Column(Modifier.weight(1f)) {
+                    Label(model.playerTitle(item), size = 14.sp, weight = FontWeight.SemiBold)
+                    Label(listOf(item.channel.name, "on ${Cast.deviceName}", Cast.status).filter { it.isNotEmpty() }.joinToString(" · "),
+                        size = 11.sp, color = Theme.muted, maxLines = 2)
+                }
+            }
+            CastControls(model, item, step = { model.stepPinned(it) }, stop = { model.stopPinned() })
+        }
+    }
+}
+
+@Composable
+private fun CastControls(model: AppModel, item: NowPlaying, size: Dp = 36.dp, step: (Int) -> Unit, stop: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (item.lineup.size > 1) {
+            RoundButton(Icons.Filled.KeyboardArrowUp, "Previous stream", size, Theme.raised) { step(-1) }
+            RoundButton(Icons.Filled.KeyboardArrowDown, "Next stream", size, Theme.raised) { step(1) }
+        }
+        RoundButton(if (Cast.status == "Paused") Icons.Filled.PlayArrow else Icons.Filled.Pause, "Pause", size, Theme.raised) { Cast.togglePause() }
+        Spacer(Modifier.weight(1f))
+        RoundButton(Icons.Filled.VolumeDown, "Volume down", size, Theme.raised) { Cast.volumeStep(false) }
+        RoundButton(Icons.Filled.VolumeUp, "Volume up", size, Theme.raised) { Cast.volumeStep(true) }
+        CastButton(size, Theme.raised)
+        RoundButton(Icons.Filled.Stop, "Stop", size, Theme.raised) { stop() }
+    }
+}
+
+/** Full screen while casting: the video is on the TV, so this is the remote for it. */
+@Composable
+private fun CastFullScreen(model: AppModel, item: NowPlaying) {
+    val pos = item.lineup.indexOfFirst { it.id == item.channel.id } + 1
+    Box(Modifier.fillMaxSize().background(Color.Black).clickable(remember { MutableInteractionSource() }, null) {}
+        .windowInsetsPadding(WindowInsets.safeDrawing).padding(20.dp)) {
+        RoundButton(Icons.Filled.Close, "Close", size = 42.dp, modifier = Modifier.align(Alignment.TopStart)) { model.closePlayer() }
+        Column(Modifier.align(Alignment.Center).widthIn(max = 480.dp), horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Icon(Icons.Filled.CastConnected, null, tint = Theme.accent, modifier = Modifier.size(56.dp))
+            Label("Playing on ${Cast.deviceName}", size = 14.sp, color = Theme.muted)
+            Label(model.playerTitle(item), size = 22.sp, weight = FontWeight.Bold, maxLines = 2,
+                align = androidx.compose.ui.text.style.TextAlign.Center)
+            Label(if (item.lineup.size > 1) "${item.channel.name} · $pos of ${item.lineup.size}" else item.channel.name,
+                size = 13.sp, color = Theme.soft)
+            if (Cast.status.isNotEmpty()) Label(Cast.status, size = 13.sp, color = Theme.muted)
+            Spacer(Modifier.height(10.dp))
+            CastControls(model, item, size = 46.dp, step = { model.step(it) }, stop = { model.closePlayer(); model.stopPinned() })
+        }
     }
 }

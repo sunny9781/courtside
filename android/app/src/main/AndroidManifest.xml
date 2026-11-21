@@ -17,6 +17,11 @@
         android:usesCleartextTraffic="true"
         android:supportsRtl="true">
 
+        <!-- Chromecast (phone app): Google's Cast framework reads its options from this class. -->
+        <meta-data
+            android:name="com.google.android.gms.cast.framework.OPTIONS_PROVIDER_CLASS_NAME"
+            android:value="ca.sunny9781.courtside.CastOptionsProvider" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
