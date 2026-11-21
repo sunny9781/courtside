@@ -141,6 +141,7 @@ struct IOSGameView: View {
                                      quality: model.measuredQuality[match.channel.id] ?? match.quality,
                                      frameRate: model.measuredFrameRate[match.channel.id],
                                      audio: model.measuredAudio[match.channel.id],
+                                     hdr: model.measuredHDR[match.channel.id],
                                      previewing: match.channel.id == previewID)
                             .onTapGesture { tap(match) }
                     }
@@ -244,6 +245,7 @@ struct IOSStreamRow: View {
     let quality: String
     var frameRate: Double?
     var audio: String?
+    var hdr: String?
     var previewing = false
 
     var body: some View {
@@ -267,8 +269,12 @@ struct IOSStreamRow: View {
                     IOSBadge(text: quality, fill: quality == "4K" ? Theme.accent : Theme.raised,
                              color: quality == "4K" ? Theme.onAccent : Theme.soft)
                 }
+                if let hdr, !hdr.isEmpty { IOSBadge(text: hdr) }
                 if let frameRate { IOSBadge(text: PlaybackController.fpsLabel(frameRate)) }
-                if let audio, !audio.isEmpty { IOSBadge(text: audio) }
+                HStack(spacing: 4) {
+                    if let audio, !audio.isEmpty { IOSBadge(text: audio) }
+                    ReliabilityDot(channelID: match.channel.id, size: 7, padding: 4)
+                }
             }
         }
         .padding(12)

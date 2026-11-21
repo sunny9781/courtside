@@ -242,3 +242,24 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - `ReliabilityDot` (Components.kt) on game-screen streams (TV `StreamCell`, phone `StreamRow`): shows after 5 min
   watched; red at rebuffer >5% / >20 events/h / fail >40% (or 2+ opens failing >50%), amber at >1% / >6 /h / >15% /
   startup >8 s. `StreamStats.reset()` exists but no Settings button yet. Not on Apple apps yet.
+
+
+## 2.21 (2026-11-21, Apple catch-up)
+- Reliability dots on Apple: `Shared/StreamStats.swift` (same maths as Android's StreamStats.kt; summaries only, in
+  UserDefaults key "streamStats", since tvOS has no lasting files). Hooks: PlaybackController + iPhone AVEngine
+  play() → begin (after the same-URL guard), stop() → end, timer tick (picture/playing/buffering), reconnect after a
+  drop → dropped, FreezeWatch restart → froze. `Shared/ReliabilityDot.swift` on Apple TV `TVChannelRow` (game screen
+  / channel sports, !showNext), Mac `GameStreamLine`, iPhone `IOSStreamRow`.
+- Phone sign-in on Apple TV + Mac: `Shared/PhoneSetup.swift` (`PhoneSetupServer` on NWListener port 8642 or any,
+  same pages/PIN rules as Android; `PhoneSetupPanel` beside TVLoginView / LoginView, also Edit account).
+  NSLocalNetworkUsageDescription added to Info.plist and CourtsideTV-Info.plist. Not on iPhone (phone apps skipped).
+- HDR tag on iPhone: AVEngine `dynamicRange` from the video format (PQ → HDR10, HLG, dvh1/dva1/dvav → Dolby
+  Vision), recorded via recordHDR; shown on game-screen rows and in the players. Mac: shows measuredHDR on rows but
+  VLCKit 3 gives no transfer info, so the Mac can't detect HDR itself.
+- EPG playing = orange outline (channel tile + show on now; no speaker): Apple TV `TVGuideRow`, Mac `ChannelCell` /
+  `ProgrammeBlock` (selected = previewing), iPhone `IOSChannelRow` and `IOSGuideTimeline`.
+- Apple TV: `TVScrollingText` and Mac `MacScrollingText` scroll once. Game-screen rows wrap to 2 lines (Apple TV
+  `TVChannelRow` when !showNext, Mac `GameStreamLine`). Apple TV EPG ends above the now-playing bar (padding, not
+  contentMargins); `TVGuide.channelWidth` 330 (was 220), logo 56, name 22 pt.
+- Home while loading (all Apple): `autoSport` + `openedAt`; for 30 s, while the selection is still the one Home
+  picked, it follows the top sport (TV `followTopSport` on games.count, Mac/iPhone `pickStartingSport`).

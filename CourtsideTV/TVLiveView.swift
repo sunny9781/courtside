@@ -351,8 +351,9 @@ struct TVLiveView: View {
             }
             // Use the full width: no Apple TV side insets on top of our own small margin.
             .ignoresSafeArea(.container, edges: .horizontal)
-            // Runs to the bottom of the screen, under the now-playing bar (the last row can scroll clear of it).
-            .contentMargins(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : TVLayout.margin, for: .scrollContent)
+            .contentMargins(.bottom, TVLayout.margin, for: .scrollContent)
+            // Ends level with the bottom of the corner player (2.21, like Android), not under the now-playing bar.
+            .padding(.bottom, model.pinned != nil ? TVLayout.barHeight + TVLayout.margin : 0)
         }
     }
 
@@ -445,8 +446,17 @@ struct TVChannelRow: View {
         HStack(spacing: 0) {
             HStack(spacing: 16) {
                 TVChannelIcon(url: channel.icon, size: 48)
-                TVScrollingText(text: channel.name, font: .system(size: 23, weight: .semibold), active: focused)
-                    .foregroundStyle(playing && !focused ? Theme.accent : (focused ? Theme.bg : Theme.text))
+                if showNext {
+                    TVScrollingText(text: channel.name, font: .system(size: 23, weight: .semibold), active: focused)
+                        .foregroundStyle(playing && !focused ? Theme.accent : (focused ? Theme.bg : Theme.text))
+                } else {
+                    // Game screen and channel sports (2.21): long names wrap onto a second line.
+                    Text(channel.name)
+                        .font(.system(size: 23, weight: .semibold))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .foregroundStyle(playing && !focused ? Theme.accent : (focused ? Theme.bg : Theme.text))
+                }
                 if playing {
                     Image(systemName: "speaker.wave.2.fill")
                         .font(.system(size: 18))
@@ -462,7 +472,14 @@ struct TVChannelRow: View {
             .clipped()
 
             VStack(alignment: .leading, spacing: 6) {
-                TVScrollingText(text: now?.title ?? "–", font: .system(size: 22, weight: .medium), active: focused)
+                if showNext {
+                    TVScrollingText(text: now?.title ?? "–", font: .system(size: 22, weight: .medium), active: focused)
+                } else {
+                    Text(now?.title ?? "–")
+                        .font(.system(size: 22, weight: .medium))
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 if let now {
                     ProgressView(value: progress(now))
                 }
@@ -489,6 +506,7 @@ struct TVChannelRow: View {
                 if !showNext, let range { TVBadge(text: range) }
                 if !showNext, fps > 0 { TVBadge(text: PlaybackController.fpsLabel(fps)) }
                 if !showNext, let sound { TVBadge(text: sound) }
+                if !showNext { ReliabilityDot(channelID: channel.id, size: 14, padding: 9) }
             }
             .fixedSize()
             Spacer(minLength: 0)
@@ -512,7 +530,8 @@ struct TVChannelRow: View {
 /// The EPG's timeline: a channel column on the left, then two and a half hours of programmes laid out by time,
 /// coloured by sport, with a line at the current time. The row you're on opens up to two lines.
 enum TVGuide {
-    static let channelWidth: CGFloat = 220
+    /// Half as wide again since 2.21 (was 220), with a bigger logo and name, like Android.
+    static let channelWidth: CGFloat = 330
     static let span: TimeInterval = 150 * 60
     static let rowHeight: CGFloat = 92
     static let gap: CGFloat = 8
@@ -619,21 +638,15 @@ struct TVGuideRow: View {
     }
 
     private var tile: some View {
-        return HStack(spacing: 10) {
-            TVChannelIcon(url: channel.icon, size: 40)
+        return HStack(spacing: 12) {
+            TVChannelIcon(url: channel.icon, size: 56)
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     Text(channel.name)
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(.system(size: 22, weight: .semibold))
                         .lineLimit(3)
-                        .minimumScaleFactor(0.85)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .minimumScaleFactor(0.75)
                         .foregroundStyle(playing && !focused ? Theme.accent : (focused ? Theme.bg : Theme.text))
-                    if playing {
-                        Image(systemName: "speaker.wave.2.fill")
-                            .font(.system(size: 17))
-                            .foregroundStyle(focused ? Theme.bg : Theme.accent)
-                    }
                     if model.isFavorite(channel: channel.id) {
                         Image(systemName: "heart.fill").font(.system(size: 15)).foregroundStyle(Theme.accent)
                     }
@@ -645,6 +658,8 @@ struct TVGuideRow: View {
         .frame(width: TVGuide.channelWidth, alignment: .leading)
         .frame(maxHeight: .infinity)
         .background(RoundedRectangle(cornerRadius: 10).fill(focused ? Theme.text : Theme.card))
+        // What's playing: an orange outline on its channel and the show on now (2.21, like Android; no speaker icon).
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(playing ? Theme.accent : .clear, lineWidth: 3))
     }
 
     @ViewBuilder
@@ -682,7 +697,8 @@ struct TVGuideRow: View {
         }
         .frame(width: width, height: height, alignment: .leading)
         .clipShape(RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(lit ? Theme.accent : .clear, lineWidth: 4))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(lit || (playing && isNow) ? Theme.accent : .clear,
+                                                                 lineWidth: lit ? 4 : 3))
         .offset(x: s.timeIntervalSince(start) * perSecond)
     }
 }

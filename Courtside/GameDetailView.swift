@@ -168,7 +168,7 @@ struct GameStreamLine: View {
         let channel = match.channel
         let now = model.currentProgramme(channel)
         let quality = model.measuredQuality[channel.id] ?? (match.quality.isEmpty ? nil : match.quality)
-        let tags = [quality, model.measuredFrameRate[channel.id].map(PlaybackController.fpsLabel),
+        let tags = [quality, model.measuredHDR[channel.id], model.measuredFrameRate[channel.id].map(PlaybackController.fpsLabel),
                     model.measuredAudio[channel.id]].compactMap { $0 }.filter { !$0.isEmpty }
         CardButton(radius: 10, action: onSelect) {
             HStack(spacing: 12) {
@@ -184,7 +184,7 @@ struct GameStreamLine: View {
                     Text(channel.name)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(playing ? Theme.accent : Theme.text)
-                        .lineLimit(1)
+                        .lineLimit(2)
                     if playing {
                         Image(systemName: "speaker.wave.2.fill").font(.system(size: 11)).foregroundStyle(Theme.accent)
                     }
@@ -194,7 +194,7 @@ struct GameStreamLine: View {
                     Text(now?.title.isEmpty == false ? now!.title : "–")
                         .font(.system(size: 13))
                         .foregroundStyle(Theme.soft)
-                        .lineLimit(1)
+                        .lineLimit(2)
                     if let now {
                         let total = max(now.end.timeIntervalSince(now.start), 1)
                         ProgressView(value: min(max(Date().timeIntervalSince(now.start) / total, 0), 1))
@@ -205,9 +205,11 @@ struct GameStreamLine: View {
                 }
                 Spacer(minLength: 8)
                 ForEach(tags, id: \.self) { Badge(text: $0) }
+                ReliabilityDot(channelID: channel.id)
             }
             .padding(.horizontal, 12)
-            .frame(height: 52)
+            .padding(.vertical, 6)
+            .frame(minHeight: 52)
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(playing ? Theme.accent : Color.clear, lineWidth: 1.5))
         }
         .simultaneousGesture(TapGesture(count: 2).onEnded { onWatch() })

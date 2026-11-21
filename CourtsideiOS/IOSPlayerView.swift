@@ -86,6 +86,7 @@ struct IOSPlayerView: View {
             model.recordFrameRate(item.channel.id, playback.frameRate)
         }
         .onChange(of: playback.audio) { model.recordAudio(item.channel.id, playback.audio) }
+        .onChange(of: playback.dynamicRange) { model.recordHDR(item.channel.id, playback.dynamicRange) }
         .onDisappear {
             hideTask?.cancel()
             flipTask?.cancel()
@@ -256,6 +257,7 @@ struct IOSPlayerView: View {
                 .lineLimit(1)
                 Spacer()
                 if !playback.resolution.isEmpty { IOSBadge(text: playback.resolution) }
+                if !playback.dynamicRange.isEmpty { IOSBadge(text: playback.dynamicRange) }
                 if playback.frameRate > 0 { IOSBadge(text: PlaybackController.fpsLabel(playback.frameRate)) }
                 if !playback.audio.isEmpty { IOSBadge(text: playback.audio) }
                 if item.lineup.count > 1 {

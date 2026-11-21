@@ -123,6 +123,7 @@ final class PlaybackController: ObservableObject {
         }
         freezeWatch.reset()
         droppedSince = nil
+        StreamStats.shared.begin(url)
         #if os(tvOS) && canImport(KSPlayer)
         wantHDR = hdrPlayer && !hdrFailed.contains(url)
         #endif
@@ -140,6 +141,7 @@ final class PlaybackController: ObservableObject {
     private func reconnectAfterDrop() -> Bool {
         guard !resolution.isEmpty, currentURL != nil else { return false }
         let now = Date()
+        if droppedSince == nil { StreamStats.shared.dropped() }
         let since = droppedSince ?? now
         droppedSince = since
         guard now.timeIntervalSince(since) < 120 else { return false }
@@ -269,6 +271,7 @@ final class PlaybackController: ObservableObject {
     }
 
     func stop() {
+        StreamStats.shared.end()
         timer?.invalidate()
         timer = nil
         pendingOpen?.cancel()
@@ -285,7 +288,13 @@ final class PlaybackController: ObservableObject {
     private func startPolling() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.poll() }
+            Task { @MainActor in
+                guard let self else { return }
+                self.poll()
+                let picture = !self.resolution.isEmpty
+                StreamStats.shared.tick(picture: picture, playing: picture && self.status == .playing,
+                                        buffering: picture && self.status == .buffering)
+            }
         }
     }
 
@@ -323,7 +332,7 @@ final class PlaybackController: ObservableObject {
         // Hiccups are waited out with the connection open; only 10 seconds without progress reopens the stream.
         let watching = !resolution.isEmpty && (status == .playing || status == .buffering || status == .opening)
         switch freezeWatch.check(progress: Double(player.time.intValue), watching: watching) {
-        case .restart: restartQuietly()
+        case .restart: StreamStats.shared.froze(); restartQuietly()
         case .skip: onRepeatedFreezing?()
         case .none: break
         }
@@ -385,7 +394,7 @@ final class PlaybackController: ObservableObject {
         if height > 0 { resolution = Self.label(height) }
         let watching = !resolution.isEmpty && (status == .playing || status == .buffering)
         switch freezeWatch.check(progress: hdr.time, watching: watching) {
-        case .restart: restartQuietly()
+        case .restart: StreamStats.shared.froze(); restartQuietly()
         case .skip: onRepeatedFreezing?()
         case .none: break
         }

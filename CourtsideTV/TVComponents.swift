@@ -314,7 +314,7 @@ struct TVVideoSurface: UIViewRepresentable {
 }
 
 /// One line of text in a fixed column. On the row you're on (`active`), text too long for the column slides along
-/// inside it and back; otherwise it ends in "…". Like the Android TV app's EPG.
+/// inside it once and back; otherwise it ends in "…". Like the Android TV app's EPG.
 struct TVScrollingText: View {
     let text: String
     let font: Font
@@ -338,14 +338,13 @@ struct TVScrollingText: View {
                         let distance = textWidth - boxWidth
                         guard distance > 1 else { return }
                         let seconds = Double(distance) / 70
-                        while !Task.isCancelled {
-                            try? await Task.sleep(for: .seconds(1.2))
-                            guard !Task.isCancelled else { break }
-                            withAnimation(.linear(duration: seconds)) { offset = -distance }
-                            try? await Task.sleep(for: .seconds(seconds + 1.2))
-                            guard !Task.isCancelled else { break }
-                            offset = 0
-                        }
+                        // Once (2.21), like Android: scrolling forever kept redrawing the screen.
+                        try? await Task.sleep(for: .seconds(1.2))
+                        guard !Task.isCancelled else { return }
+                        withAnimation(.linear(duration: seconds)) { offset = -distance }
+                        try? await Task.sleep(for: .seconds(seconds + 1.5))
+                        guard !Task.isCancelled else { return }
+                        withAnimation(.easeOut(duration: 0.3)) { offset = 0 }
                     }
             } else {
                 Text(text).font(font).lineLimit(1)

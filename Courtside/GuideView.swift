@@ -784,6 +784,7 @@ struct ChannelCell: View {
         .frame(width: width, height: height, alignment: .leading)
         // A panel of its own, so the channel names stand apart from the categories and the programmes.
         .background(RoundedRectangle(cornerRadius: 8).fill(selected ? Theme.cardHover : (hovering ? Theme.card : Theme.sidebar)))
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(selected ? Theme.accent : Color.clear, lineWidth: 2))
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .contextMenu {
@@ -816,14 +817,13 @@ struct MacScrollingText: View {
                 let distance = textWidth - boxWidth
                 guard distance > 1 else { return }
                 let seconds = Double(distance) / 50
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(0.8))
-                    guard !Task.isCancelled else { break }
-                    withAnimation(.linear(duration: seconds)) { offset = -distance }
-                    try? await Task.sleep(for: .seconds(seconds + 1.2))
-                    guard !Task.isCancelled else { break }
-                    offset = 0
-                }
+                // Once (2.21), like the TVs.
+                try? await Task.sleep(for: .seconds(0.8))
+                guard !Task.isCancelled else { return }
+                withAnimation(.linear(duration: seconds)) { offset = -distance }
+                try? await Task.sleep(for: .seconds(seconds + 1.5))
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeOut(duration: 0.3)) { offset = 0 }
             }
     }
 }
@@ -863,7 +863,8 @@ struct ProgrammeBlock: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 8))
         )
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(selectedRow && isNow ? Color.white.opacity(0.7) : Color.clear, lineWidth: 1.5))
+        // What's playing (the selected channel plays in the preview): an orange outline on the show on now (2.21).
+        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(selectedRow && isNow ? Theme.accent : Color.clear, lineWidth: 2))
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .help(programme.title)

@@ -80,6 +80,9 @@ struct IOSGuideTimeline: View {
             }
             .frame(width: channelWidth, alignment: .leading)
             .padding(.leading, 8)
+            .padding(.vertical, 2)
+            // What's playing: an orange outline on its channel and the show on now (2.21, like the TVs).
+            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(playing ? Theme.accent : .clear, lineWidth: 2))
 
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 6).fill(Theme.card)
@@ -87,6 +90,8 @@ struct IOSGuideTimeline: View {
                     let from = max(x(p.start, start, area), 0)
                     let to = min(x(p.end, start, area), area)
                     cell(p, channel: channel, width: max(to - from - 2, 2), now: now, start: start, area: area, from: from)
+                        .overlay(RoundedRectangle(cornerRadius: 6)
+                            .strokeBorder(playing && p.start <= now && p.end > now ? Theme.accent : .clear, lineWidth: 2))
                         .offset(x: from)
                 }
                 // The current time.

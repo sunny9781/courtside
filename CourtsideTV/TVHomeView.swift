@@ -76,6 +76,9 @@ struct TVSportList: View {
     var focused: FocusState<TVNav.HomeSelection?>.Binding
     /// A selection waiting for you to stop on that row.
     @State private var pendingSelection: Task<Void, Never>?
+    /// The sport Home picked by itself (not you), and when Home opened.
+    @State private var autoSport: Sport?
+    @State private var openedAt = Date()
     @State private var waitingSelection: TVNav.HomeSelection?
     /// Just icons and counts (while you're on the games), to leave more room for them.
     var compact = false
@@ -139,6 +142,7 @@ struct TVSportList: View {
         // Live Now isn't listed any more: start on (and fall back to) the first sport instead.
         .onAppear { leaveLiveNow() }
         .onChange(of: nav.homeSelection) { leaveLiveNow() }
+        .onChange(of: model.games.count) { followTopSport() }
         .onChange(of: focused.wrappedValue) {
             // Moving onto a row shows its games once you stop on it (a quarter second), so passing several sports
             // doesn't draw each one's games. Moving right into the games shows it straight away. Coming back to the
@@ -174,7 +178,19 @@ struct TVSportList: View {
 
     /// Live games as an orange number; otherwise today's count.
     private func leaveLiveNow() {
-        if nav.homeSelection == .liveNow, let first = sports.first { nav.homeSelection = .sport(first) }
+        if nav.homeSelection == .liveNow, let first = sports.first {
+            nav.homeSelection = .sport(first)
+            autoSport = first
+        }
+    }
+
+    /// While today's games are still coming in (the first 30 seconds), Home keeps moving to the top sport until you
+    /// pick one yourself (2.21, like Android), instead of staying on whichever sport loaded first.
+    private func followTopSport() {
+        guard let auto = autoSport, nav.homeSelection == .sport(auto), Date().timeIntervalSince(openedAt) < 30,
+              let first = sports.first, first != auto else { return }
+        nav.homeSelection = .sport(first)
+        autoSport = first
     }
 
     private func row(_ selection: TVNav.HomeSelection, symbol: String, name: String, live: Int, total: Int, detail: String,
