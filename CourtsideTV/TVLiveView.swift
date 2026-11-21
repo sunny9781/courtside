@@ -20,6 +20,9 @@ struct TVLiveView: View {
     /// Result groups opened or closed by hand (otherwise they follow Hit.startsOpen).
     @State private var flipped: Set<String> = []
     @FocusState private var focusedChannel: Int?
+    /// The category you're moving over, shown once you stop on it (see onChange(of: focusedCategory)).
+    @State private var pendingCategory: Task<Void, Never>?
+    @State private var waitingCategory: String?
 
     struct Entry: Identifiable, Hashable {
         let id: String
@@ -130,9 +133,21 @@ struct TVLiveView: View {
             .onDisappear { nav.sideFocused = false }
             .onChange(of: focusedCategory) {
                 nav.sideFocused = focusedCategory != nil
-                // Moving onto a category shows its channels; moving onto a group ("g:" ids) shows all of the group's
-                // channels, and clicking it opens it.
-                if let focusedCategory, focusedCategory != selectedID {
+                // Moving onto a category shows its channels once you stop on it (0.4 s), so scrolling past several
+                // categories doesn't draw each one's guide; moving right into the channels shows it straight away.
+                // A group ("g:" ids) shows all of the group's channels, and clicking it opens it.
+                pendingCategory?.cancel()
+                guard let focusedCategory else {
+                    if let waitingCategory { selectedID = waitingCategory }
+                    waitingCategory = nil
+                    return
+                }
+                guard focusedCategory != selectedID else { waitingCategory = nil; return }
+                waitingCategory = focusedCategory
+                pendingCategory = Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(400))
+                    guard !Task.isCancelled else { return }
+                    waitingCategory = nil
                     selectedID = focusedCategory
                 }
             }

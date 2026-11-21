@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.27", date: "2026-11-21", time: "13:05", title: "Smoother EPG scrolling", changes: [
+            Change(text: "EPG: moving up and down the categories no longer draws each category's guide on the way; it shows once you stop on one (or right away when you move into the channels or click it).", apps: tv)
+        ]),
         Release(version: "2.26", date: "2026-11-21", time: "12:05", title: "Reliability dots in the EPG", changes: [
             Change(text: "The green, amber or red reliability dot now shows next to channel names in the EPG (list and timeline) too.", apps: android),
             Change(text: "Fixed: on the TVs the dot didn't show on the game screen's streams (only on phones).", apps: android),
