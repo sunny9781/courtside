@@ -112,6 +112,10 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   bottom starting from the right (`TrailingRow`). Sideways on a game = full screen (back upright closes it);
   sideways on an EPG category = timeline (reuses `GuideRow`). Picture in picture: auto-enter on Android 12+,
   onUserLeaveHint on 8-11, PiP button in full screen; closing PiP or locking the phone stops the stream (onStop).
+- Tablets (2.25, `isTablet()` = smallestScreenWidthDp >= 600, like iPad's regular size class): `TabletHome`
+  (sports sidebar, `PinnedSlot` at the top of the right column, league chips on top, cards per row = width / 210 dp);
+  EPG and Settings keep the phone layout with `PinnedSlot` above them. No sideways-to-full-screen on tablets.
+  EPG rows: orange outline for what's playing (no speaker icon). Home: "Updated 9:41 AM" top right, tap = refresh.
 - Chromecast on the phone app (2.17, Cast.kt): play-services-cast-framework + the Default Media Receiver, own Compose
   picker (MediaRouter routes; no MediaRouteButton, which needs AppCompat/FragmentActivity). `AppModel.startStream`
   loads the HLS URL on the Chromecast instead of Playback while connected; `castChanged` moves the current stream

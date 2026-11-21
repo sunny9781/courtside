@@ -1,6 +1,7 @@
 package ca.sunny9781.courtside
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -187,8 +188,11 @@ fun PhoneChannelRow(model: AppModel, channel: Channel, playing: Boolean, heart: 
     val nn = model.nowNext(channel)
     val now = nn.now
     Column {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.weight(1f).clickable(onClick = onClick).padding(start = 16.dp, end = if (heart) 4.dp else 16.dp, top = 10.dp, bottom = 10.dp),
+        // What's playing: an orange outline around the row (like the iPhone and the TVs; no speaker icon).
+        Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp)
+            .border(2.dp, if (playing) Theme.accent else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(10.dp)), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f).clickable(onClick = onClick).padding(start = 10.dp, end = if (heart) 0.dp else 10.dp, top = 10.dp, bottom = 10.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(Modifier.width(4.dp).height(44.dp).clip(RoundedCornerShape(2.dp))
                     .background(Guide.fill(now?.title ?: "", channel, model.games)))
@@ -197,7 +201,6 @@ fun PhoneChannelRow(model: AppModel, channel: Channel, playing: Boolean, heart: 
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Label(channel.name, size = 14.sp, weight = FontWeight.SemiBold, color = if (playing) Theme.accent else Theme.text,
                             modifier = Modifier.weight(1f, fill = false))
-                        if (playing) Icon(Icons.Filled.GraphicEq, null, tint = Theme.accent, modifier = Modifier.size(13.dp))
                     }
                     if (now != null) {
                         Label(now.title, size = 13.sp, color = Theme.soft)
