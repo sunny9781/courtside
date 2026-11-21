@@ -3,9 +3,6 @@ import SwiftUI
 /// Home. iPhone: sport chips across the top, games below. iPad: sports down the left like the Mac, games on the
 /// right. Tap a game for its streams.
 struct IOSHomeView: View {
-    /// The sport Home picked by itself (not you), and when Home opened.
-    @State private var autoSport: Sport?
-    @State private var openedAt = Date()
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var nav: IOSNav
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -92,6 +89,9 @@ struct IOSSportSidebar: View {
 // MARK: Games
 
 struct IOSGamesList: View {
+    /// The sport Home picked by itself (not you), and when Home opened.
+    @State private var autoSport: Sport?
+    @State private var openedAt = Date()
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var nav: IOSNav
     @AppStorage(Prefs.hiddenSports) private var hiddenSports = ""
