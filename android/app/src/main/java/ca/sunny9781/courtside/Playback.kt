@@ -82,6 +82,7 @@ object Playback {
 
     fun init(context: Context) {
         if (::player.isInitialized) return
+        StreamStats.load(context)
         val bufferMs = Prefs.bufferMs(context)
         val load = DefaultLoadControl.Builder()
             .setBufferDurationsMs(maxOf(bufferMs, 2500), maxOf(bufferMs * 4, 15_000), bufferMs, bufferMs)
@@ -103,6 +104,7 @@ object Playback {
                 override fun onIsPlayingChanged(isPlaying: Boolean) = refreshStatus()
                 override fun onRenderedFirstFrame() {
                     firstFrame = true
+                    StreamStats.firstPicture()
                     fallbackUrl = null   // this format works: a later drop reopens it, never the other format
                 }
                 override fun onVideoSizeChanged(size: VideoSize) {
@@ -170,6 +172,7 @@ object Playback {
         audio = ""
         fallbackUrl = hlsFallback
         currentUrl = url
+        StreamStats.begin(url)
         open(url)
     }
 
@@ -240,6 +243,7 @@ object Playback {
         pendingOpen?.let { mainHandler.removeCallbacks(it) }
         pendingOpen = null
         currentUrl?.let { ConnLog.add("Stopped ${ConnLog.stream(it)}") }
+        StreamStats.end()
         player.stop()
         player.clearMediaItems()
         currentUrl = null
@@ -342,7 +346,7 @@ object Playback {
         if (resolution.isEmpty() || currentUrl == null) return false
         val url = player.currentMediaItem?.localConfiguration?.uri?.toString() ?: currentUrl ?: return false
         val now = System.currentTimeMillis()
-        if (droppedSince == 0L) droppedSince = now
+        if (droppedSince == 0L) { droppedSince = now; StreamStats.dropped() }
         if (now - droppedSince >= 120_000) return false
         if (pendingOpen != null) return true   // already reopening
         val run = Runnable {
@@ -373,6 +377,8 @@ object Playback {
     private fun poll() {
         if (!::player.isInitialized || currentUrl == null) return
         measureFrameRate()
+        StreamStats.tick(playing = firstFrame && status == Status.PLAYING,
+            buffering = firstFrame && player.playWhenReady && status == Status.BUFFERING)
         soundLabel(player.audioFormat).let { if (it.isNotEmpty() && it != audio) audio = it }
         // A picture for 8 seconds but no sound: "No sound" (2.17, a dead audio feed), replaced if it turns up later.
         if (firstFrame && audio.isEmpty() && status == Status.PLAYING && System.currentTimeMillis() - openedAt > 8000) audio = NO_SOUND
@@ -390,6 +396,7 @@ object Playback {
             FreezeWatch.Action.RESTART -> player.currentMediaItem?.localConfiguration?.uri?.toString()?.let { url ->
                 // Close the frozen stream first and give the provider a moment, like switching channels: opening
                 // the new one straight away counted as two connections (2/2) for a while.
+                StreamStats.froze()
                 ConnLog.add("Picture froze: reopening ${ConnLog.stream(url)}")
                 pendingOpen?.let { mainHandler.removeCallbacks(it) }
                 player.stop()

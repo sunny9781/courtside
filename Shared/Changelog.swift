@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.18", date: "2026-11-21", time: "00:25", title: "Stream reliability dots", changes: [
+            Change(text: "Game screen: a green, amber or red dot on streams shows how reliable they've been on this device (buffering, freezes, drops, slow or failed starts). It appears once a stream has been watched for about 5 minutes, or straight away red if it keeps failing to start.", apps: android),
+        ]),
         Release(version: "2.17", date: "2026-11-21", time: "00:20", title: "No sound tag", changes: [
             Change(text: "A stream that shows a picture but no sound for 8 seconds (a dead audio feed) gets a No sound tag where the other tags show, and goes to the bottom of its category on the game screen. The tag goes away if the sound comes back on a later play.", apps: everywhere),
         ]),
