@@ -405,13 +405,13 @@ object Matcher {
         val keys = games.map { key(it, now) }
         val triggers = keys.flatMap { it.triggers }.toSet()
         val live = channels.filter { !neverLive(it.channel) }
-        val from = keys.minOfOrNull { it.from } ?: return emptyMap()
-        val to = keys.maxOf { it.to }
+        val windowFrom = keys.minOfOrNull { it.from } ?: return emptyMap()
+        val windowTo = keys.maxOf { it.to }
 
         // 1. Guide titles (only the programmes inside some game's time window; titles are split once and kept)
         val guideHits = HashMap<String, MutableSet<String>>()
         for ((epg, progs) in guide) {
-            for (p in progs.overlapping(from, to)) {
+            for (p in progs.overlapping(windowFrom, windowTo)) {
                 val hay = p.words
                 if (hay.none { it in triggers }) continue
                 val set = hay.toSet()
