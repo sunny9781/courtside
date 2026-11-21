@@ -471,6 +471,7 @@ private fun StreamRow(model: AppModel, m: StreamMatch, previewing: Boolean, modi
                 Label(m.channel.categoryName, size = 11.sp, color = Theme.muted)
             }
         }
+        ReliabilityDot(m.channel.id)
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             if (quality.isNotEmpty()) Badge(quality, fill = if (quality == "4K") Theme.accent else Theme.raised,
                 color = if (quality == "4K") Theme.onAccent else Theme.soft)

@@ -207,6 +207,23 @@ fun Badge(text: String, fill: Color = Theme.raised, color: Color = Theme.soft) {
     }
 }
 
+/**
+ * How reliable a stream has been on this device (2.17): a green, amber or red dot in a chip. Nothing until the
+ * stream has enough history (StreamStats).
+ */
+@Composable
+fun ReliabilityDot(channelId: Int) {
+    val rating = StreamStats.ratings[channelId] ?: return
+    val dot = when (rating) {
+        StreamStats.Rating.GOOD -> Theme.winning
+        StreamStats.Rating.OK -> Color(0xFFF59E0B)
+        StreamStats.Rating.POOR -> Theme.losing
+    }
+    Box(Modifier.clip(RoundedCornerShape(6.dp)).background(Theme.raised).padding(horizontal = 6.dp, vertical = 5.dp)) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
+    }
+}
+
 @Composable
 fun Logo(url: String?, size: Dp, fallback: String = "") {
     Box(Modifier.size(size).clip(CircleShape).background(Theme.raised), contentAlignment = Alignment.Center) {

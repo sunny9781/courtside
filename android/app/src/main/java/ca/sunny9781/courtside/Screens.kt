@@ -1582,6 +1582,7 @@ private fun StreamCell(model: AppModel, m: StreamMatch, previewing: Boolean, mod
                     Label(m.channel.categoryName, size = 10.sp, color = if (focused) Theme.bg else Theme.soft)
                 }
             }
+            ReliabilityDot(m.channel.id)
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (quality.isNotEmpty()) Badge(quality, fill = if (quality == "4K") Theme.accent else Theme.raised,
                     color = if (quality == "4K") Theme.onAccent else Theme.soft)
