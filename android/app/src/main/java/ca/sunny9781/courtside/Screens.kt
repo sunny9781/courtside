@@ -363,7 +363,8 @@ fun NavRail(model: AppModel) {
         if (changed) model.tab = tab
         intoPage(changed)
     }
-    Column(Modifier.width(RAIL_WIDTH).fillMaxHeight().background(Theme.bg)
+    // The three tabs in the middle of the screen's height (2.36); the status and the update button at the bottom.
+    Box(Modifier.width(RAIL_WIDTH).fillMaxHeight().background(Theme.bg)
         .onFocusChanged {
             model.tabsFocused = it.hasFocus
             if (!it.hasFocus) focusedItem = null
@@ -376,11 +377,8 @@ fun NavRail(model: AppModel) {
             true
         }
         .enterAt { tabs[model.tab] }
-        .padding(horizontal = 8.dp, vertical = Theme.margin),
-        verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(Modifier.height(34.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            Label("C", size = 17.sp, weight = FontWeight.Bold, color = Theme.accent)
-        }
+        .padding(horizontal = 8.dp, vertical = Theme.margin)) {
+      Column(Modifier.fillMaxWidth().align(Alignment.CenterStart), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (tab in Tab.entries) {
             val popped = focusedItem == tab
             TvButton(onClick = { open(tab) }, selected = model.tab == tab,
@@ -396,7 +394,8 @@ fun NavRail(model: AppModel) {
                 }
             }
         }
-        Spacer(Modifier.weight(1f))
+      }
+      Column(Modifier.fillMaxWidth().align(Alignment.BottomStart), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         RailStatus(model)
         // The version is the update button: one click checks for a new version and installs it. When one has
         // already downloaded by itself it shows "Install update".
@@ -435,6 +434,7 @@ fun NavRail(model: AppModel) {
                 }, size = 12.sp, weight = FontWeight.SemiBold, color = color)
             }
         }
+      }
     }
 }
 

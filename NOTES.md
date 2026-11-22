@@ -64,7 +64,10 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   version/update button at the bottom) pops out as a pill with its name, past the rail edge over the page
   (Android `wrapContentWidth(unbounded)`, Apple TV `fixedSize` inside a fixed `inner` frame). Moving through the tabs
   doesn't switch pages any more (no 250 ms settle): click, or Right/leaving the rail, opens the focused tab.
-  Game screen categories spaced out (Android TV 8 dp, Apple TV 14 pt, Mac 8 pt; "All" headings get more top room).
+  Game screen categories spaced out (Android TV 8 dp, Apple TV 14 pt, Mac 8 pt; "All" headings get more top room);
+  phones keep their old spacing (Sunny). No "C" logo; the three tabs are centred in the rail's height (Box/ZStack,
+  status + version pinned to the bottom). Apple TV: no animation on the rail (it stuttered); game categories use
+  defaultFocus .userInitiated + a redirect in onChange so coming back from the streams lands on the selected one.
 - Android Home 2.20: Sunny kept the 2.7 league side menu (folding sports + `LeagueList`; chips were tried and dropped
   in the same request). Focusing a section's first card row scrolls its heading
   into view (`showHeading`). Rail Right/click emits focusMoves "side" (page focuses its selected left-menu item), with

@@ -185,7 +185,6 @@ struct TVShell: View {
                 leavingFullScreen = false
             }
         }
-        .animation(.easeOut(duration: 0.15), value: nav.tabsFocused)
         // Use almost the whole screen: no Apple TV insets at the sides, top or bottom, just our own small margin
         // (the bottom inset left a big empty strip under the now-playing bar).
         .ignoresSafeArea(.container, edges: .all)
@@ -294,10 +293,9 @@ struct TVRail: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("C").foregroundStyle(Theme.accent)
-                .font(.system(size: 30, weight: .bold))
-                .frame(width: inner, height: 56)
+        // The three tabs in the middle of the screen's height (2.36); the status and version at the bottom.
+        ZStack(alignment: .leading) {
+          VStack(alignment: .leading, spacing: 10) {
             ForEach(TVTab.allCases) { tab in
                 let popped = focused == .tab(tab)
                 Button {
@@ -325,6 +323,9 @@ struct TVRail: View {
                 .fixedSize(horizontal: popped, vertical: false)
                 .frame(width: inner, alignment: .leading)
             }
+          }
+          .frame(maxHeight: .infinity, alignment: .center)
+          VStack(alignment: .leading, spacing: 10) {
             Spacer(minLength: 0)
             status
             // The version, which checks for a newer Courtside (Apple TV is updated from the Mac): an icon, with its
@@ -350,6 +351,8 @@ struct TVRail: View {
             .focused($focused, equals: .version)
             .fixedSize(horizontal: versionPopped, vertical: false)
             .frame(width: inner, alignment: .leading)
+          }
+          .frame(maxHeight: .infinity, alignment: .bottom)
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
@@ -379,7 +382,6 @@ struct TVRail: View {
             waitingTab = tab
         }
         .task { await versions.check() }
-        .animation(.easeOut(duration: 0.15), value: focused)
     }
 
     /// Connections ("1/2", orange at the limit) and the EPG time, short under the icons.
