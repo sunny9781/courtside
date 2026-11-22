@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.35", date: "2026-11-22", time: "01:00", title: "Reliability dot after the tags", changes: [
+            Change(text: "Game screen: the reliability dot now comes after a stream's tags (quality, frame rate, sound, HDR) instead of before them.", apps: android),
+        ]),
         Release(version: "2.34", date: "2026-11-22", time: "00:32", title: "Lighter multiview on Chromecast", changes: [
             Change(text: "Multiview on Chromecast and other Lite-mode TVs: the second game picks a 720p stream first (then SD, then 1080p), and a 1080p game already playing moves to a 720p stream of the same game when there is one, so two pictures play more smoothly.", apps: android),
         ]),
