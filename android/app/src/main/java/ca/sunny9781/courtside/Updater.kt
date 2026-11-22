@@ -7,6 +7,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
@@ -27,6 +29,18 @@ object Updater {
     var checking by mutableStateOf(false)
         private set
     var message by mutableStateOf<String?>(null)
+    /**
+     * The result of a check you asked for ("You're up to date."): shown on the button you pressed (2.32), not as a
+     * notice in the middle of the screen. Clears itself after a few seconds.
+     */
+    var status by mutableStateOf<String?>(null)
+        private set
+    private var statusJob: kotlinx.coroutines.Job? = null
+    private fun showStatus(text: String) {
+        statusJob?.cancel()
+        status = text
+        statusJob = appScope.launch { delay(4000); status = null }
+    }
     /** The new version being downloaded right now, and how far it's got (0..1, null if the size isn't known). */
     var downloading by mutableStateOf<String?>(null)
         private set
@@ -40,6 +54,14 @@ object Updater {
         private set
     private var readyFile: File? = null
     private var readyBuild = 0
+    /** When the ready download finished (elapsedRealtime), so Install right after Download doesn't check again. */
+    private var readyAt = 0L
+
+    /** Runs Install update outside any screen, so the rail closing (or a recomposition) can't cancel it half way. */
+    private val appScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.Main)
+
+    /** Whether the app is in front (MainActivity onResume/onPause): tells if the installer screen really opened. */
+    @Volatile var inFront = false
 
     /** One check at a time; a press while the app is already checking (or downloading) waits for it, then carries on. */
     private val lock = kotlinx.coroutines.sync.Mutex()
@@ -54,12 +76,12 @@ object Updater {
             val version = json.optString("version")
             val url = json.optString("url")
             if (build <= maxOf(BuildConfig.VERSION_CODE, readyBuild) || url.isEmpty()) {
-                if (userInitiated && readyVersion == null) message = "You're up to date."
+                if (userInitiated && readyVersion == null) showStatus("You're up to date")
                 return@withContext
             }
             if (!download) {
                 availableVersion = version
-                if (userInitiated) message = "Version $version is out: Download update gets it."
+                if (userInitiated) status = null
                 return@withContext
             }
             val dir = File(context.cacheDir, "updates").apply { mkdirs() }
@@ -69,11 +91,12 @@ object Updater {
             try { download(url, file) } finally { downloading = null; downloadProgress = null }
             readyFile = file
             readyBuild = build
+            readyAt = android.os.SystemClock.elapsedRealtime()
             readyVersion = version
             availableVersion = null
             message = null
         } catch (e: Exception) {
-            if (userInitiated) message = "Couldn't check for updates."
+            if (userInitiated) showStatus("Couldn't check")
         } finally {
             checking = false
             lock.unlock()
@@ -89,13 +112,25 @@ object Updater {
      * one is fetched and installed instead (no installing 1.42 only to be offered 1.43 straight after).
      */
     suspend fun installLatest(context: Context) {
-        installing = true
-        try {
-            check(context)
-        } finally {
-            installing = false
+        // 2.32: straight after Download update (within 10 min) there's nothing newer to look for, so the installer
+        // opens at once instead of after another trip to GitHub.
+        val fresh = readyFile != null && android.os.SystemClock.elapsedRealtime() - readyAt < 10 * 60_000L
+        if (!fresh) {
+            installing = true
+            try {
+                check(context)
+            } finally {
+                installing = false
+            }
         }
         withContext(Dispatchers.Main) { install(context) }
+    }
+
+    /** The Install update button: one press, always carried through (see appScope). */
+    fun installNow(context: Context) {
+        if (installing) return
+        val app = context
+        appScope.launch { installLatest(app) }
     }
 
     /** "Install update" was pressed and the latest version is being fetched. */
@@ -138,10 +173,17 @@ object Updater {
         System.gc()
         // Android's installer screen: asks to confirm, then says "App installed" with Done / Open.
         val uri = FileProvider.getUriForFile(context, "${context.packageName}.updates", file)
-        context.startActivity(Intent(Intent.ACTION_VIEW).apply {
+        val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-        })
+        }
+        runCatching { context.startActivity(intent) }.onFailure { message = "Couldn't open Android's installer. Try Install update again." }
+        // 2.32: on some TVs the first press didn't bring the installer up (it took a second press). If the app is
+        // still in front shortly after, open it once more by itself.
+        appScope.launch {
+            delay(3000)
+            if (inFront && readyFile == file) runCatching { context.startActivity(intent) }
+        }
     }
 
     /**

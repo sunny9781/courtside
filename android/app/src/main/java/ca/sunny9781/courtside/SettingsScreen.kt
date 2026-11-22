@@ -153,7 +153,7 @@ private fun Updates(model: AppModel) {
         value = if (model.refreshWaiting) "After this stream" else if (model.loading || model.guideLoading) "Refreshing…" else null) { model.refresh(force = true) }
     val ready = Updater.readyVersion
     if (ready != null) {
-        Action("Install version $ready", "Already downloaded. Android's own screen asks you to confirm the install.") { scope.launch { Updater.installLatest(context) } }
+        Action("Install version $ready", "Already downloaded. Android's own screen asks you to confirm the install.") { Updater.installNow(context) }
     } else if (Updater.downloading != null) {
         Action("Downloading version ${Updater.downloading}", null,
             value = Updater.downloadProgress?.let { "${(it * 100).toInt()}%" } ?: "…") { }
@@ -162,7 +162,7 @@ private fun Updates(model: AppModel) {
             scope.launch { Updater.check(context, userInitiated = true, download = true) }
         }
     } else {
-        Action("Check for updates", Updater.message ?: "Courtside checks by itself every time it opens.",
+        Action("Check for updates", Updater.status ?: Updater.message ?: "Courtside checks by itself every time it opens.",
             value = if (Updater.checking) "Checking…" else null) { scope.launch { Updater.check(context, userInitiated = true, download = false) } }
     }
     Info("Version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
