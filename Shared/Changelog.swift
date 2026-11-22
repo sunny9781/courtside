@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.37", date: "2026-11-22", time: "12:27", title: "Game screen keeps your stream", changes: [
+            Change(text: "Opening a game while another stream plays no longer starts one of its streams: press a stream to switch to it, or hold it and pick Watch alongside to watch both.", apps: [.tv, .android]),
+        ]),
         Release(version: "2.36", date: "2026-11-22", time: "12:10", title: "Slimmer side menu", changes: [
             Change(text: "The menu down the left stays icons only, so it no longer covers the player: just the highlighted tab pops out with its name", apps: tvAndroid),
             Change(text: "Home, EPG and Settings sit in the middle of the side menu (no more C at the top)", apps: tvAndroid),
