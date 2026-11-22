@@ -136,6 +136,13 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - 2.42 (Sunny): on Home it's a slim full-width bar, not a score card (Android `RedZoneBar`, Apple TV `TVRedZoneBar`,
   inline bars on Mac / iPhone / Android phone).
 
+## 2.43 (all apps)
+- Hide a league from Home: TVs hold on the league list (Android `LeagueRow onHold`, Apple TV `TVLeagueList`
+  contextMenu), Mac right-click chip, iPhone/Android phone hold chip. Apple apps share `hideLeague()` (GameOrdering).
+- Home league sections share a row when they fit: `packRows` (Screens.kt and GameOrdering.swift) packs consecutive
+  sections with fewer games than a row (phones/Mac: sections with finished games stay alone). iPad not packed.
+- Android `PhoneSetupPanel` is as wide as its title (300–520 dp).
+
 ## Android phone app (2.0, 2026-11-20)
 - Same APK as the TVs. `Device.tv` (Device.kt: UI mode television, leanback, Fire TV, or no touchscreen) picks the
   layout in `CourtsideApp`: TVs keep `Shell`, phones/tablets get `PhoneApp` (Phone.kt, PhoneHome.kt, PhoneEpg.kt,

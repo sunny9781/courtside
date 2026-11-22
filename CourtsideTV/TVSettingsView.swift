@@ -140,7 +140,7 @@ struct TVSettingsView: View {
             let cats = model.hiddenCategoryNames
             let chans = model.hiddenChannelNames
             if sports.isEmpty && leagues.isEmpty && cats.isEmpty && chans.isEmpty {
-                Text("Nothing is hidden. Hold the select button on a sport on Home, or a category or channel in the EPG, and choose Hide.")
+                Text("Nothing is hidden. Hold the select button on a sport or league on Home, or a category or channel in the EPG, and choose Hide.")
                     .font(.system(size: 22))
                     .foregroundStyle(Theme.muted)
                     .padding(.horizontal, 22)

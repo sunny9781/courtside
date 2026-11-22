@@ -140,3 +140,28 @@ func channelSportGroups(_ sport: Sport, model: AppModel) -> [(category: String, 
     }
     return order.map { ($0, groups[$0] ?? []) }
 }
+
+/// Groups consecutive sections into rows (2.43): sections with fewer items than a row holds share one while they
+/// fit; a section that fills a row (or more) stays on its own.
+func packRows<T>(_ sections: [T], columns: Int, size: (T) -> Int) -> [[T]] {
+    var out: [[T]] = []
+    var used = 0
+    for s in sections {
+        let n = size(s)
+        if n < columns, !out.isEmpty, used > 0, used + n <= columns {
+            out[out.count - 1].append(s); used += n
+        } else {
+            out.append([s]); used = n < columns ? n : 0
+        }
+    }
+    return out
+}
+
+/// Hide a league from Home (2.43): switched off like one turned off in Settings; Settings › Hidden brings it back.
+@MainActor func hideLeague(_ league: League, model: AppModel) {
+    var set = League.hidden(UserDefaults.standard.string(forKey: Prefs.hiddenLeagues) ?? "")
+    set.insert(league.id)
+    UserDefaults.standard.set(League.all.filter { set.contains($0.id) }.map(\.id).joined(separator: ","), forKey: Prefs.hiddenLeagues)
+    model.sportsChanged()
+    model.notice = "\(league.name) is hidden. Settings › Hidden brings it back."
+}

@@ -74,6 +74,13 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.43", date: "2026-11-22", time: "14:40", title: "Hide leagues, leagues share rows", changes: [
+            Change(text: "Hide a league straight from Home: hold select on it in the league list", apps: tvAndroid),
+            Change(text: "Hide a league straight from Home: right-click its chip", apps: mac),
+            Change(text: "Hide a league straight from Home: press and hold its chip", apps: [.ios, .android]),
+            Change(text: "Home: leagues with only a few games sit side by side on one row when they fit, each with its name above its cards", apps: everywhere),
+            Change(text: "Settings › VPN: \"Send a WireGuard config from your phone\" is no longer cut off", apps: android),
+        ]),
         Release(version: "2.42", date: "2026-11-22", time: "14:05", title: "Slim RedZone bar", changes: [
             Change(text: "NFL RedZone on Home is a slim bar across the whole row (LIVE · NFL RedZone · channels) above the score cards", apps: everywhere),
         ]),

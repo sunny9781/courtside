@@ -310,6 +310,7 @@ struct TVLeagueList: View {
     @EnvironmentObject var nav: TVNav
     let sport: Sport
     var focused: FocusState<TVNav.HomeSelection?>.Binding
+    @AppStorage(Prefs.hiddenLeagues) private var hiddenLeagues = ""
 
     var body: some View {
         ScrollView(.vertical) {
@@ -324,6 +325,17 @@ struct TVLeagueList: View {
                 ForEach(model.leagues(for: sport)) { league in
                     row(.league(league.id), league: league, name: league.name,
                         games: model.games.filter { $0.league.id == league.id })
+                        // Hold select (2.43): hide the league (Settings › Hidden brings it back).
+                        .contextMenu {
+                            Button("Hide", systemImage: "eye.slash") {
+                                if nav.homeSelection == .league(league.id) { nav.homeSelection = .sport(sport) }
+                                var set = League.hidden(hiddenLeagues)
+                                set.insert(league.id)
+                                hiddenLeagues = League.all.filter { set.contains($0.id) }.map(\.id).joined(separator: ",")
+                                model.sportsChanged()
+                                model.notice = "\(league.name) is hidden. Settings › Hidden brings it back."
+                            }
+                        }
                 }
             }
             .padding(.vertical, 20)
@@ -469,22 +481,53 @@ struct TVGamesPane: View {
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 20, alignment: .top), count: count),
                          alignment: .leading, spacing: 20) {
             ForEach(Array(games.enumerated()), id: \.element.id) { index, game in
-                let button = Button {
-                    nav.homePath.append(game.id)
-                } label: {
-                    TVScoreCard(game: game)
+                cardButton(game)
+            }
+        }
+        .padding(.horizontal, 8)
+    }
+
+    private func cardButton(_ game: Game) -> some View {
+        Button {
+            nav.homePath.append(game.id)
+        } label: {
+            TVScoreCard(game: game)
+        }
+        .buttonStyle(TVCardButtonStyle())
+        .focused(focusedGame, equals: game.id)
+        // Hold select (2.30): this game's best stream beside the one playing.
+        .contextMenu {
+            if multiviewOn && model.pinned != nil && !model.mainStreams(game.id).isEmpty {
+                Button("Watch alongside", systemImage: "rectangle.split.2x1") {
+                    TVMultiview.shared.watchAlongside(nil, game: game, model: model)
                 }
-                .buttonStyle(TVCardButtonStyle())
-                .focused(focusedGame, equals: game.id)
-                // Hold select (2.30): this game's best stream beside the one playing.
-                .contextMenu {
-                    if multiviewOn && model.pinned != nil && !model.mainStreams(game.id).isEmpty {
-                        Button("Watch alongside", systemImage: "rectangle.split.2x1") {
-                            TVMultiview.shared.watchAlongside(nil, game: game, model: model)
-                        }
+            }
+        }
+    }
+
+    private func sectionHeading(_ section: PaneSection) -> some View {
+        HStack(spacing: 12) {
+            if let league = section.league { TVLeagueLogo(league: league, size: 30) }
+            Text(section.title.uppercased())
+                .font(.system(size: 19, weight: .bold))
+                .foregroundStyle(Theme.muted)
+                .lineLimit(1)
+        }
+    }
+
+    /// Leagues with only a few games side by side on one row (2.43), each with its heading above its cards, the
+    /// cards as wide as in the grid.
+    private func sharedRow(_ pack: [PaneSection]) -> some View {
+        let count = columns
+        let card = max(0, (paneWidth - 16 - 20 * CGFloat(count - 1)) / CGFloat(count))
+        return HStack(alignment: .top, spacing: 20) {
+            ForEach(pack) { section in
+                VStack(alignment: .leading, spacing: 12) {
+                    sectionHeading(section).padding(.leading, 14).padding(.top, 16)
+                    HStack(alignment: .top, spacing: 20) {
+                        ForEach(section.games) { game in cardButton(game).frame(width: card) }
                     }
                 }
-                button
             }
         }
         .padding(.horizontal, 8)
@@ -514,18 +557,18 @@ struct TVGamesPane: View {
                         .padding(22)
                 }
 
-                ForEach(open) { section in
-                    if !section.title.isEmpty && open.count > 1 {
-                        HStack(spacing: 12) {
-                            if let league = section.league { TVLeagueLogo(league: league, size: 30) }
-                            Text(section.title.uppercased())
-                                .font(.system(size: 19, weight: .bold))
-                                .foregroundStyle(Theme.muted)
+                let packs = open.count > 1 && paneWidth > 0 ? packRows(open, columns: columns) { $0.games.count } : open.map { [$0] }
+                ForEach(packs, id: \.first!.id) { pack in
+                    if pack.count > 1 {
+                        sharedRow(pack)
+                    } else if let section = pack.first {
+                        if !section.title.isEmpty && open.count > 1 {
+                            sectionHeading(section)
+                                .padding(.leading, 22)
+                                .padding(.top, 16)
                         }
-                        .padding(.leading, 22)
-                        .padding(.top, 16)
+                        gameGrid(section.games)
                     }
-                    gameGrid(section.games)
                 }
 
                 // Finished games fold into one row at the bottom ("Finished · 6", click to show them), so a page

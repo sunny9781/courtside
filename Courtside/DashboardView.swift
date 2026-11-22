@@ -148,6 +148,13 @@ struct DashboardView: View {
                         .opacity(leagueGames.isEmpty && selectedLeague != league.id ? 0.55 : 1)
                     }
                     .buttonStyle(ChipStyle(selected: selectedLeague == league.id))
+                    // Right-click › Hide (2.43).
+                    .contextMenu {
+                        Button("Hide \(league.name)") {
+                            if selectedLeague == league.id { selectedLeague = nil }
+                            hideLeague(league, model: model)
+                        }
+                    }
                 }
             }
             .padding(.leading, 32)

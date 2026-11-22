@@ -9,6 +9,7 @@ struct SportView: View {
     let onOpen: (Game) -> Void
 
     private var allGames: [Game] { model.games(for: sport) }
+    @State private var width: CGFloat = 0
 
     private var league: League? {
         leagueID.flatMap { id in sport.leagues.first { $0.id == id } }
@@ -52,15 +53,43 @@ struct SportView: View {
                     emptyState
                 }
 
-                ForEach(sections) { item in
-                    // One league on screen with the chip row above: its name sits at the end of that row instead.
-                    LeagueSection(league: item, games: allGames.filter { $0.league == item },
-                                  showHeading: sections.count > 1 || model.leagues(for: sport).count <= 1,
-                                  onOpen: onOpen)
+                // Leagues with only a few games (and none finished) share a row when they fit (2.43).
+                let cardMin = cardWidth(for: allGames, charWidth: 9.5, fixed: 112, minimum: 260, maximum: 560) * 0.86
+                let cols = max(1, Int((width + 16) / (cardMin + 16)))
+                let packs = sections.count > 1 && width > 0
+                    ? packRows(sections, columns: cols) { l in
+                        let g = allGames.filter { $0.league == l }
+                        return g.contains { $0.state == .finished } ? cols : g.count
+                    }
+                    : sections.map { [$0] }
+                ForEach(packs, id: \.first!.id) { pack in
+                    if pack.count > 1 {
+                        let card = (width - 16 * CGFloat(cols - 1)) / CGFloat(cols)
+                        HStack(alignment: .top, spacing: 16) {
+                            ForEach(pack) { item in
+                                let games = allGames.filter { $0.league == item }
+                                VStack(alignment: .leading, spacing: 16) {
+                                    LeagueSummary(league: item, games: games)
+                                    HStack(alignment: .top, spacing: 16) {
+                                        ForEach(games.sorted { ($0.state == .live ? 0 : 1, $0.start ?? .distantFuture) < ($1.state == .live ? 0 : 1, $1.start ?? .distantFuture) }) { game in
+                                            LiveGameCard(game: game, streams: model.streamCount(game.id)) { onOpen(game) }
+                                                .frame(width: card)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else if let item = pack.first {
+                        // One league on screen with the chip row above: its name sits at the end of that row instead.
+                        LeagueSection(league: item, games: allGames.filter { $0.league == item },
+                                      showHeading: sections.count > 1 || model.leagues(for: sport).count <= 1,
+                                      onOpen: onOpen)
+                    }
                 }
             }
             // Always full width on the left: with every game folded away it used to shrink and sit in the middle.
             .frame(maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
             .padding(.horizontal, 40)
             .padding(.top, 20)
             .padding(.bottom, 48)
