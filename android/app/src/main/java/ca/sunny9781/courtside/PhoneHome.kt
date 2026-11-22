@@ -190,9 +190,9 @@ private fun GameList(model: AppModel, selection: HomeSelection, sport: Sport?, c
         else -> emptyList()
     }
     var openFinished by remember { mutableStateOf(setOf<String>()) }
-    var redZoneOpen by remember { mutableStateOf(false) }
+    // NFL RedZone (2.40): a card that opens a game screen of its channels, while an NFL game is live.
     val nflLive = (sport == Sport.FOOTBALL) && model.gamesIn("nfl").any { it.state == GameState.LIVE }
-    val redZone = if (nflLive) model.redZoneChannels() else emptyList()
+    val redZone = if (nflLive) model.redZoneGame() else null
 
     fun LazyListScope.cards(games: List<Game>, prefix: String) {
         items(games.chunked(columns), key = { "$prefix:${it.first().id}" }, contentType = { "cards" }) { row ->
@@ -205,12 +205,7 @@ private fun GameList(model: AppModel, selection: HomeSelection, sport: Sport?, c
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 12.dp)) {
         item(key = "status") { HomeStatus(model) }
-        if (redZone.isNotEmpty()) {
-            item(key = "rz") { Fold("NFL RedZone · ${redZone.size}", redZoneOpen, Theme.accent) { redZoneOpen = !redZoneOpen } }
-            if (redZoneOpen) items(redZone, key = { "rz:${it.id}" }) { ch ->
-                PhoneChannelRow(model, ch, model.pinned?.channel?.id == ch.id) { tapChannel(model, ch, redZone) }
-            }
-        }
+        if (redZone != null) cards(listOf(redZone), "rz")
         if (sections.isEmpty()) item(key = "empty") {
             Label(if (model.loading || model.games.isEmpty()) "Loading today's games…" else "No games today.",
                 size = 15.sp, color = Theme.muted, modifier = Modifier.padding(16.dp))
@@ -425,7 +420,7 @@ private fun PhoneGameCard(model: AppModel, game: Game, modifier: Modifier, onCli
  */
 @Composable
 fun PhoneGame(model: AppModel, gameId: String) {
-    val game = model.games.firstOrNull { it.id == gameId }
+    val game = model.game(gameId)
     if (game == null) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Label("This game is no longer on today's schedule.", size = 15.sp, color = Theme.muted, maxLines = 2)

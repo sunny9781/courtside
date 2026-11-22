@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.40", date: "2026-11-22", time: "13:40", title: "NFL RedZone gets its own screen", changes: [
+            Change(text: "NFL RedZone on Home is now a card (while an NFL game is live) that opens its own screen, with its channels grouped like a game's streams (4K, USA, Canada…), instead of a folder of channels", apps: everywhere),
+        ]),
         Release(version: "2.39", date: "2026-11-22", time: "13:18", title: "Watch alongside from the EPG", changes: [
             Change(text: "EPG: hold select on a channel and pick Watch alongside to watch it beside the stream that's playing (multiview).", apps: [.tv, .android]),
         ]),

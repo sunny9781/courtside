@@ -156,6 +156,9 @@ data class Team(
 
 enum class GameState { UPCOMING, LIVE, FINISHED }
 
+/** NFL RedZone's game id (a game screen of its channels, not one of today's games). */
+const val REDZONE_ID = "redzone"
+
 data class Game(
     val id: String,
     val league: League,

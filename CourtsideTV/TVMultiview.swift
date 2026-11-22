@@ -474,7 +474,7 @@ struct TVMultiviewTile: View {
     @ViewBuilder
     private var chip: some View {
         Group {
-            if let id = tile.gameID, let game = model.games.first(where: { $0.id == id }) {
+            if let id = tile.gameID, let game = model.game(id) {
                 HStack(spacing: 10) {
                     if game.isEvent && !game.hasSides {
                         Text(game.eventTitle).foregroundStyle(Theme.text).lineLimit(1)
@@ -545,7 +545,7 @@ struct TVMultiviewPanel: View {
     }
 
     private var tile: TVMultiview.Tile? { mv.tiles.indices.contains(index) ? mv.tiles[index] : nil }
-    private var game: Game? { tile?.gameID.flatMap { id in model.games.first { $0.id == id } } }
+    private var game: Game? { tile?.gameID.flatMap { id in model.game(id) } }
 
     var body: some View {
         ScrollView(.vertical) {
