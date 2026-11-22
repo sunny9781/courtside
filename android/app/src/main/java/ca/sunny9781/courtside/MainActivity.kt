@@ -137,12 +137,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        Updater.inFront = true
         Updater.afterInstall(this)
         Cast.discover(true)
     }
 
     override fun onPause() {
         super.onPause()
+        Updater.inFront = false
         Cast.discover(false)
     }
 

@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.32", date: "2026-11-22", time: "00:25", title: "Install update in one press", changes: [
+            Change(text: "Install update opens Android's installer on the first press: straight after Download update it no longer checks GitHub again first, and if the installer doesn't come up it's opened once more by itself.", apps: android)
+        ]),
         Release(version: "2.31", date: "2026-11-21", time: "15:00", title: "Back from full screen", changes: [
             Change(text: "Back from full screen always returns to the screen you were on (and the stream you watched), instead of sometimes jumping to the Home / EPG / Settings menu on the left.", apps: tv)
         ]),

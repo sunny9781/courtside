@@ -250,7 +250,7 @@ private fun HomeStatus(model: AppModel) {
         val downloading = Updater.downloading
         if (ready != null || downloading != null) {
             Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Theme.card)
-                .clickable(enabled = ready != null && downloading == null) { scope.launch { Updater.installLatest(context) } }
+                .clickable(enabled = ready != null && downloading == null) { Updater.installNow(context) }
                 .padding(horizontal = 14.dp, vertical = 11.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(Icons.Filled.SystemUpdate, null, tint = Theme.accent, modifier = Modifier.size(20.dp))

@@ -408,7 +408,7 @@ fun NavRail(model: AppModel) {
             var busy by remember { mutableStateOf(false) }
             TvButton(onClick = {
                 if (busy || Updater.downloading != null) Unit
-                else if (ready != null) scope.launch { Updater.installLatest(context) }
+                else if (ready != null) Updater.installNow(context)
                 else if (available != null) scope.launch { Updater.check(context, userInitiated = true, download = true) }
                 else scope.launch {
                     busy = true
