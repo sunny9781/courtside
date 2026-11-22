@@ -160,11 +160,23 @@ struct IOSGamesList: View {
                                                 : (nav.homeSelection == .sport(.football) ? .football : nil))
                 if let redZone {
                     // A card (2.41): opens a game screen of RedZone's channels, grouped like any game's streams.
+                    // A slim bar across the whole row (2.42).
                     NavigationLink(value: redZone.id) {
-                        IOSGameCard(game: redZone, compact: showsSportChips)
+                        HStack(spacing: 10) {
+                            Text("LIVE").font(.caption.bold()).foregroundStyle(Theme.accent)
+                            Text(redZone.title).font(.subheadline.bold()).foregroundStyle(Theme.text)
+                            Spacer(minLength: 8)
+                            let n = model.streamCount(redZone.id)
+                            Text(n == 1 ? "1 channel" : "\(n) channels").font(.caption).foregroundStyle(Theme.muted)
+                            Image(systemName: "chevron.right").font(.caption.bold()).foregroundStyle(Theme.muted)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 11)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Theme.card))
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .frame(maxWidth: 420, alignment: .leading)
                     .padding(.horizontal)
                 }
 

@@ -495,7 +495,16 @@ struct TVGamesPane: View {
     private var cards: some View {
         ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: 6) {
-                if let redZone { gameGrid([redZone]) }
+                if let redZone {
+                    // A slim bar across the whole row (2.42), above the cards.
+                    Button { nav.homePath.append(redZone.id) } label: {
+                        TVRedZoneBar(game: redZone, streams: model.mainStreams(redZone.id).count)
+                    }
+                    .buttonStyle(TVCardButtonStyle(vertical: 12))
+                    .focused(focusedGame, equals: redZone.id)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 8)
+                }
 
                 // Only when there's nothing at all (no "Nothing live or coming up": the folds below say it).
                 if open.isEmpty && finished.isEmpty {
@@ -824,19 +833,42 @@ struct TVScoreCard: View {
 }
 
 /// A score card: a dark card that turns white when it's focused (no zoom, like the rows).
+/// NFL RedZone on Home (2.42): one line across the row: LIVE, the name, how many channels.
+struct TVRedZoneBar: View {
+    let game: Game
+    let streams: Int
+    @Environment(\.isFocused) private var focused
+
+    var body: some View {
+        HStack(spacing: 18) {
+            Text("LIVE").font(.system(size: 20, weight: .bold)).foregroundStyle(focused ? Theme.bg : Theme.accent)
+            Text(game.title).font(.system(size: 28, weight: .bold)).foregroundStyle(focused ? Theme.bg : Theme.text)
+                .lineLimit(1)
+            Spacer(minLength: 12)
+            Text(streams == 1 ? "1 channel" : "\(streams) channels").font(.system(size: 22))
+                .foregroundStyle(focused ? Theme.bg : Theme.muted)
+            Image(systemName: "chevron.right").font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(focused ? Theme.bg : Theme.muted)
+        }
+    }
+}
+
 struct TVCardButtonStyle: ButtonStyle {
+    var vertical: CGFloat = 16
+
     func makeBody(configuration: Configuration) -> some View {
-        Card(configuration: configuration)
+        Card(configuration: configuration, vertical: vertical)
     }
 
     private struct Card: View {
         let configuration: ButtonStyleConfiguration
+        let vertical: CGFloat
         @Environment(\.isFocused) private var focused
 
         var body: some View {
             configuration.label
                 .padding(.horizontal, 20)
-                .padding(.vertical, 16)
+                .padding(.vertical, vertical)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 18).fill(focused ? Theme.text : Theme.card))
                 .scaleEffect(configuration.isPressed ? 0.98 : 1)

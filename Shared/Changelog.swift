@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.42", date: "2026-11-22", time: "14:05", title: "Slim RedZone bar", changes: [
+            Change(text: "NFL RedZone on Home is a slim bar across the whole row (LIVE · NFL RedZone · channels) above the score cards", apps: everywhere),
+        ]),
         Release(version: "2.41", date: "2026-11-22", time: "13:45", title: "NFL RedZone gets its own screen", changes: [
             Change(text: "NFL RedZone on Home is now a card (while an NFL game is live) that opens its own screen, with its channels grouped like a game's streams (4K, USA, Canada…), instead of a folder of channels", apps: everywhere),
         ]),

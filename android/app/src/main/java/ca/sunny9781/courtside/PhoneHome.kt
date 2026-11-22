@@ -205,7 +205,18 @@ private fun GameList(model: AppModel, selection: HomeSelection, sport: Sport?, c
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 12.dp)) {
         item(key = "status") { HomeStatus(model) }
-        if (redZone != null) cards(listOf(redZone), "rz")
+        if (redZone != null) item(key = "rz") {
+            // A slim bar across the row (2.42), above the cards.
+            val n = model.mainStreams(redZone.id).size
+            Row(Modifier.padding(horizontal = 16.dp, vertical = 5.dp).fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                .background(Theme.card).clickable { model.openGameId = redZone.id }.padding(horizontal = 12.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Label("LIVE", size = 11.sp, weight = FontWeight.Bold, color = Theme.accent)
+                Label(redZone.title, size = 15.sp, weight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Label(if (n == 1) "1 channel" else "$n channels", size = 12.sp, color = Theme.muted)
+                Icon(Icons.Filled.ChevronRight, null, tint = Theme.muted, modifier = Modifier.size(16.dp))
+            }
+        }
         if (sections.isEmpty()) item(key = "empty") {
             Label(if (model.loading || model.games.isEmpty()) "Loading today's games…" else "No games today.",
                 size = 15.sp, color = Theme.muted, modifier = Modifier.padding(16.dp))

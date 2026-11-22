@@ -133,6 +133,8 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   `Game.redZoneID` / `REDZONE_ID` = "redzone", league NFL, live, "N channels") and `model.game(id)` finds it; every
   game screen and multiview looks games up with `game(id)`. Streams: Swift puts them in `matches["redzone"]` in
   `rematch()`; Android `streams()`/`mainStreams()` return `redZoneMatches()` for that id. StreamSections groups them.
+- 2.42 (Sunny): on Home it's a slim full-width bar, not a score card (Android `RedZoneBar`, Apple TV `TVRedZoneBar`,
+  inline bars on Mac / iPhone / Android phone).
 
 ## Android phone app (2.0, 2026-11-20)
 - Same APK as the TVs. `Device.tv` (Device.kt: UI mode television, leanback, Fire TV, or no touchscreen) picks the

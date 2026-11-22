@@ -1082,7 +1082,11 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     Column(Modifier.fillMaxHeight()) {
     LazyColumn(Modifier.weight(1f), state = model.homeList, verticalArrangement = Arrangement.spacedBy(2.dp),
         contentPadding = PaddingValues(top = 6.dp, bottom = 6.dp + barInset(model))) {
-        if (redZone != null) cardRows(listOf(redZone), "rz", first = true)
+        if (redZone != null) item(key = "rz", contentType = "redzone") {
+            RedZoneBar(redZone, model.mainStreams(redZone.id).size,
+                Modifier.padding(horizontal = 4.dp, vertical = 4.dp).tracked(targets, "game:${redZone.id}"),
+                onFocus = { onFocusGame(redZone.id); showHeading("rz", false, true) }) { onOpen(redZone.id) }
+        }
         // Only when there's nothing at all (no "Nothing live or coming up": the folds below say it).
         if (open.isEmpty() && (model.error != null || (later.isEmpty() && finished.isEmpty()))) {
             item(key = "empty") {
@@ -1188,6 +1192,23 @@ private fun GameCard(game: Game, streams: Int, has4K: Boolean, modifier: Modifie
 }
 
 /** A folded group on Home ("Finished · 6", "Later today · 18"): click to show or hide its games. */
+/** NFL RedZone (2.42): one slim bar across the whole row, above the cards; opens its game screen. */
+@Composable
+private fun RedZoneBar(game: Game, streams: Int, modifier: Modifier, onFocus: () -> Unit, onClick: () -> Unit) {
+    TvButton(onClick = onClick, onFocus = onFocus, modifier = modifier.fillMaxWidth(), background = Theme.card,
+        shape = RoundedCornerShape(12.dp)) { focused ->
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Label("LIVE", size = 11.sp, weight = FontWeight.Bold, color = if (focused) Theme.bg else Theme.accent)
+            Label(game.title, size = 14.sp, weight = FontWeight.Bold, color = if (focused) Theme.bg else Theme.text,
+                modifier = Modifier.weight(1f))
+            Label(if (streams == 1) "1 channel" else "$streams channels", size = 12.sp,
+                color = if (focused) Theme.bg else Theme.muted)
+            Icon(Icons.Filled.ChevronRight, null, tint = if (focused) Theme.bg else Theme.muted, modifier = Modifier.size(16.dp))
+        }
+    }
+}
+
 @Composable
 private fun FoldRow(title: String, open: Boolean, modifier: Modifier, onClick: () -> Unit) {
     TvButton(onClick = onClick, modifier = modifier.fillMaxWidth().padding(top = 8.dp)) { focused ->

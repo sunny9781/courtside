@@ -30,8 +30,22 @@ struct SportView: View {
                 let redZone = HomeFolds.redZone(model: model, sport: leagueID == nil || leagueID == "nfl" ? sport : nil)
                 if let redZone {
                     // A card (2.41): opens a game screen of RedZone's channels, grouped like any game's streams.
-                    LiveGameCard(game: redZone, streams: model.streamCount(redZone.id)) { onOpen(redZone) }
-                        .frame(maxWidth: 420, alignment: .leading)
+                    // A slim bar across the whole row (2.42).
+                    Button { onOpen(redZone) } label: {
+                        HStack(spacing: 12) {
+                            Text("LIVE").font(.system(size: 11, weight: .bold)).foregroundStyle(Theme.accent)
+                            Text(redZone.title).font(.system(size: 14, weight: .bold)).foregroundStyle(Theme.text)
+                            Spacer(minLength: 8)
+                            let n = model.streamCount(redZone.id)
+                            Text(n == 1 ? "1 channel" : "\(n) channels").font(.system(size: 12)).foregroundStyle(Theme.muted)
+                            Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.muted)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 10).fill(Theme.card))
+                        .contentShape(Rectangle())
+                    }
                 }
 
                 if sections.isEmpty || sections.allSatisfy({ l in !allGames.contains { $0.league == l } }) {
