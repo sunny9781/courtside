@@ -73,6 +73,9 @@ class Settings(context: Context) {
     var multiview by Flag("multiview", !slowDevice)
     /** Select on a multiview tile moves the sound there and makes that tile big (off: it only moves the sound). */
     var multiviewMakeBig by Flag("multiviewMakeBig", true)
+    /** Built-in VPN (2.33): on, and the WireGuard config (.conf text) it uses. Only Courtside goes through it. */
+    var vpnOn by Flag("vpnOn", false)
+    var vpnConfig by Words("vpnConfig")
     var bufferMs by Number("bufferMs", 2000)
     /** Opening the app reuses the saved channels and guide until they're this old. */
     var refreshHours by Number("refreshHours", 6)

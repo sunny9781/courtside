@@ -23,11 +23,12 @@ struct IOSSettingsView: View {
 
     enum SettingsSection: String, CaseIterable, Identifiable {
         // The same sections as on the TVs.
-        case account = "Account", playback = "Playback", general = "General", hidden = "Hidden", changelog = "Changelog"
+        case account = "Account", proxy = "Proxy", playback = "Playback", general = "General", hidden = "Hidden", changelog = "Changelog"
         var id: String { rawValue }
         var symbol: String {
             switch self {
             case .account: return "person.crop.circle"
+            case .proxy: return "network.badge.shield.half.filled"
             case .playback: return "play.rectangle"
             case .general: return "slider.horizontal.3"
             case .hidden: return "eye.slash"
@@ -52,6 +53,10 @@ struct IOSSettingsView: View {
                     }
                 }
 
+                }
+
+                if section == .proxy {
+                    IOSProxySection()
                 }
 
                 if section == .playback {

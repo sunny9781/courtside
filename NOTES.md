@@ -9,6 +9,20 @@ Read this at the start of a session. Keep it short and current.
   download without its program or a valid signature. A Changelog-only fix doesn't republish the Mac app (paths-ignore):
   after fixing a broken Mac release, run `gh workflow run mac.yml --ref main`.
 
+## 2.33 (2026-11-22, VPN on Android, proxy on Apple)
+- Android: built-in WireGuard VPN (`Vpn.kt`, lib com.wireguard.android:tunnel GoBackend). The config gets
+  `IncludedApplications = ca.sunny9781.courtside` (any app list in the file is replaced), so only Courtside uses it.
+  Up in MainActivity.onStart, down in onStop (no background VPN). Prefs `vpnOn` / `vpnConfig` (Vpn reads the prefs
+  itself, attached first thing in AppModel). Strict: while on, `Vpn.require()` in XtreamClient.get/guide and
+  `Vpn.blocked` in startStream / watchAlongside stop provider traffic until the tunnel is up. TV: Settings › VPN
+  shows the phone page (PhoneSetupServer `onVpn`, POST /vpn, textarea + .conf file picker). Phone: pick file / paste.
+- Apple: Settings › Proxy (SOCKS5 / HTTPS / HTTP CONNECT, optional login) in `Shared/Proxy.swift`. Provider API +
+  guide use `ProxyNet.session` (Network ProxyConfiguration, allowFailover false). Players can't use a proxy, so
+  `ProxyRelay.shared.wrap(url)` (PlaybackController.open, AVEngine, Mac IINA/VLC) gives a 127.0.0.1 relay address
+  (random code per launch); HLS playlists are rewritten through it. iPhone: AirPlay external playback off while a
+  proxy is set (the Apple TV can't reach 127.0.0.1); Chromecast still fetches directly. ESPN/logos go direct.
+- Unconfirmed on real devices: VPN permission dialog on Google TV / Shield, relay with VLC/KSPlayer/AVPlayer.
+
 ## What it is
 Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - **Apple** (Swift/SwiftUI): `Courtside/` (Mac), `CourtsideTV/` (Apple TV), `CourtsideiOS/` (iPhone/iPad), shared code in `Shared/`.

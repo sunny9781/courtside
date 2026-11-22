@@ -195,6 +195,8 @@ final class PlaybackController: ObservableObject {
             guard let self, self.currentURL == url else { return }
             self.pendingOpen = nil
             ConnLog.add("Opened \(ConnLog.stream(url))\(quiet ? " again (it froze)" : "")")
+            // Settings › Proxy: the players open it from the app's own relay, which goes through the proxy.
+            let playURL = ProxyRelay.shared.wrap(url)
             #if canImport(VLCKitSPM)
             #if os(tvOS) && canImport(KSPlayer)
             self.usesHDRPlayer = self.wantHDR
@@ -204,17 +206,17 @@ final class PlaybackController: ObservableObject {
                     guard let self, self.usesHDRPlayer else { return }
                     self.displayCriteria = criteria
                 }
-                self.hdr.open(url, bufferMs: bufferMs, in: self.view)
+                self.hdr.open(playURL, bufferMs: bufferMs, in: self.view)
                 return
             }
             #endif
-            let media = VLCMedia(url: url)
+            let media = VLCMedia(url: playURL)
             media.addOption(":network-caching=\(bufferMs)")
             self.player.media = media
             self.player.play()
             if self.muted { self.volumeDirty = true }
             #else
-            let item = AVPlayerItem(url: url)
+            let item = AVPlayerItem(url: playURL)
             item.preferredForwardBufferDuration = Double(bufferMs) / 1000
             self.player.replaceCurrentItem(with: item)
             self.player.play()

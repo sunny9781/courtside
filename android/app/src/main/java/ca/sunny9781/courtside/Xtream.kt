@@ -39,6 +39,7 @@ class XtreamClient(private val creds: Credentials) {
     }
 
     private suspend fun get(url: String, timeoutMs: Int = 45_000, label: String? = null): String = withContext(Dispatchers.IO) {
+        Vpn.require()
         label?.let { ConnLog.add("Downloading $it") }
         val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 20_000
@@ -103,6 +104,7 @@ class XtreamClient(private val creds: Credentials) {
      */
     suspend fun guide(wanted: Set<String>, from: Long, to: Long, progress: (read: Long, total: Long) -> Unit = { _, _ -> }):
         Map<String, List<Programme>> = withContext(Dispatchers.IO) {
+        Vpn.require()
         ConnLog.add("Downloading the guide")
         val conn = (URL("$base/xmltv.php?username=${enc(creds.username)}&password=${enc(creds.password)}")
             .openConnection() as HttpURLConnection).apply {

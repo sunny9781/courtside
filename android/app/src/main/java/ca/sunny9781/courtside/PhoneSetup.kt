@@ -36,7 +36,9 @@ import kotlin.concurrent.thread
  * Nothing goes through the internet, and the details are never logged. A PIN (in the QR code) stops anyone else on
  * the Wi-Fi from sending a login; five wrong PINs make a new one.
  */
-class PhoneSetupServer(private val onLogin: suspend (Credentials) -> String?) {
+class PhoneSetupServer(private val onLogin: suspend (Credentials) -> String?,
+                       /** Settings › VPN (2.33): the page takes a WireGuard config instead of the Xtream login. */
+                       private val onVpn: (suspend (String) -> String?)? = null) {
     @Volatile var pin: String = newPin(); private set
     @Volatile private var socket: ServerSocket? = null
     private var wrong = 0
@@ -88,7 +90,28 @@ class PhoneSetupServer(private val onLogin: suspend (Credentials) -> String?) {
             out.flush()
         }
         when {
-            method == "GET" && path == "/" -> send("200 OK", page(query["pin"].orEmpty(), null, null))
+            method == "GET" && path == "/" ->
+                send("200 OK", if (onVpn != null) vpnPage(query["pin"].orEmpty(), null) else page(query["pin"].orEmpty(), null, null))
+            method == "POST" && path == "/vpn" && onVpn != null -> {
+                val bytes = ByteArray(length.coerceIn(0, 32768))
+                var read = 0
+                while (read < bytes.size) { val n = input.read(bytes, read, bytes.size - read); if (n < 0) break; read += n }
+                val form = parse(String(bytes, 0, read))
+                if (form["pin"]?.trim() != pin) {
+                    synchronized(this) {
+                        wrong++
+                        if (wrong >= 5) { wrong = 0; pin = newPin(); onPinChange(pin) }
+                    }
+                    send("200 OK", vpnPage("", "That PIN doesn't match the one on the TV."))
+                    return
+                }
+                val config = form["config"].orEmpty().trim()
+                if (config.isEmpty()) { send("200 OK", vpnPage(pin, "Paste the WireGuard config first.")); return }
+                ConnLog.add("Phone setup: VPN config received")
+                val error = runBlocking(Dispatchers.Main) { onVpn.invoke(config) }
+                if (error == null) send("200 OK", done("VPN config saved", "The TV is connecting to the VPN. You can close this page."))
+                else send("200 OK", vpnPage(pin, error))
+            }
             method == "POST" && path == "/login" -> {
                 val bytes = ByteArray(length.coerceIn(0, 8192))
                 var read = 0
@@ -165,10 +188,29 @@ class PhoneSetupServer(private val onLogin: suspend (Credentials) -> String?) {
           <button type="submit">Send to TV</button>
         </form></body></html>"""
 
-    private fun done(): String = """
+    private fun done(title: String = "Signed in", detail: String = "The TV is loading your channels. You can close this page."): String = """
         <!doctype html><html><head><title>Courtside setup</title>$style</head><body style="text-align:center">
-        <div class="ok">✓</div><h1>Signed in</h1><p>The TV is loading your channels. You can close this page.</p>
+        <div class="ok">✓</div><h1>${esc(title)}</h1><p>${esc(detail)}</p>
         </body></html>"""
+
+    /** Settings › VPN: paste the WireGuard config (or pick the .conf file) and send it to the TV. */
+    private fun vpnPage(pinValue: String, error: String?): String = """
+        <!doctype html><html><head><title>Courtside VPN</title>$style
+        <style>textarea{width:100%;box-sizing:border-box;min-height:220px;background:#171B22;color:#F2F4F7;
+          border:1.5px solid #2E3643;border-radius:10px;padding:12px;font:13px ui-monospace,Menlo,monospace}
+          input[type=file]{padding:10px}</style></head><body>
+        <h1>Courtside VPN</h1><p>Send a WireGuard config to the TV. Only Courtside will use it.</p>
+        ${error?.let { "<div class=\"err\">${esc(it)}</div>" } ?: ""}
+        <form method="post" action="/vpn" onsubmit="this.querySelector('button').textContent='Sending…'">
+          <label>WireGuard config (.conf file)</label>
+          <input type="file" accept=".conf,text/plain" onchange="var f=this.files[0];if(f){var r=new FileReader();
+            r.onload=function(){document.getElementById('c').value=r.result};r.readAsText(f)}">
+          <textarea id="c" name="config" autocapitalize="off" autocorrect="off" spellcheck="false"
+            placeholder="[Interface]&#10;PrivateKey = …&#10;Address = …&#10;&#10;[Peer]&#10;PublicKey = …&#10;Endpoint = …" required></textarea>
+          <label>PIN on the TV</label><input name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="4"
+            value="${esc(pinValue)}" required>
+          <button type="submit">Send to TV</button>
+        </form></body></html>"""
 
     companion object {
         const val PORT = 8642
@@ -194,9 +236,11 @@ class PhoneSetupServer(private val onLogin: suspend (Credentials) -> String?) {
 
 /** The right-hand side of the TV sign-in screen: QR code, address and PIN, while the setup page is on. */
 @Composable
-fun PhoneSetupPanel(onLogin: suspend (Credentials) -> String?) {
+fun PhoneSetupPanel(title: String = "Or set up from your phone", onVpn: (suspend (String) -> String?)? = null,
+                    onLogin: suspend (Credentials) -> String?) {
     val latest by rememberUpdatedState(onLogin)
-    val server = remember { PhoneSetupServer { latest(it) } }
+    val latestVpn by rememberUpdatedState(onVpn)
+    val server = remember { PhoneSetupServer({ latest(it) }, if (onVpn != null) { c -> latestVpn?.invoke(c) } else null) }
     var pin by remember { mutableStateOf(server.pin) }
     var started by remember { mutableStateOf(false) }
     val address = remember { PhoneSetupServer.localAddress() }
@@ -211,7 +255,7 @@ fun PhoneSetupPanel(onLogin: suspend (Credentials) -> String?) {
     } else null
     val code = remember(base, pin) { base?.let { PhoneSetupServer.qr("$it/?pin=$pin") } }
     Column(Modifier.width(300.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Label("Or set up from your phone", size = 17.sp, weight = FontWeight.SemiBold)
+        Label(title, size = 17.sp, weight = FontWeight.SemiBold)
         Spacer(Modifier.height(4.dp))
         if (base == null || code == null) {
             Label("Connect the TV to your home network to use your phone.", size = 13.sp, color = Theme.muted, maxLines = 3)

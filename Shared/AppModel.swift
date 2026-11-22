@@ -913,7 +913,7 @@ final class AppModel: ObservableObject {
         guard let url = streamURL(for: channel, hls: false) else { return }
         for bundleID in apps {
             if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) {
-                NSWorkspace.shared.open([url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
+                NSWorkspace.shared.open([ProxyRelay.shared.wrap(url)], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration())
                 return
             }
         }

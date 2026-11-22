@@ -46,6 +46,8 @@ class MainActivity : ComponentActivity() {
             crashFile.renameTo(java.io.File(filesDir, "crash-last.txt"))
         }
         Perf.settings = model.settings
+        // Built-in VPN (Settings › VPN): Android's permission dialog opens from here.
+        Vpn.askPermission = { vpnPermission.launch(it) }
         // Logos: a small memory cache and no fade-in animation (cheap on low-power TVs).
         coil.Coil.setImageLoader(coil.ImageLoader.Builder(this)
             .memoryCache { coil.memory.MemoryCache.Builder(this).maxSizePercent(0.08).build() }
@@ -101,6 +103,11 @@ class MainActivity : ComponentActivity() {
             return true
         }
         return super.onKeyLongPress(keyCode, event)
+    }
+
+    private val vpnPermission = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) {
+        Vpn.permissionAnswered(it.resultCode == RESULT_OK)
     }
 
     private var pipReady = false
@@ -160,6 +167,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        // The built-in VPN comes up while the app is on screen only (provider requests wait for it).
+        if (Vpn.wanted) Vpn.start(this)
         model.cameBack()
     }
 
@@ -169,12 +178,13 @@ class MainActivity : ComponentActivity() {
         // Multiview's second tile stops too (2.30).
         model.stopMultiview()
         // Casting: the TV carries on playing (the phone isn't using a connection).
-        if (Cast.connected) { Playback.stop(); return }
+        if (Cast.connected) { Playback.stop(); Vpn.stop(); return }
         // Leaving the app (Home button) stops the stream, so it doesn't keep using a connection.
         Playback.stop()
         model.pinned = null
         if (model.nowPlaying != null) model.closePlayer()
         model.pinned = null
+        Vpn.stop()
     }
 
     /** Picks the display mode at the current resolution whose refresh rate fits the frame rate (0 = back to default). */

@@ -23,6 +23,8 @@ import java.util.Date
 
 private enum class Section(val title: String, val icon: ImageVector) {
     ACCOUNT("Account", Icons.Filled.AccountCircle),
+    /** Built-in VPN (WireGuard, Courtside's traffic only). */
+    VPN("VPN", Icons.Filled.VpnLock),
     /** How streams play: switching, frame rate, Lite mode, format, buffer. */
     PLAYBACK("Playback", Icons.Filled.PlayCircle),
     /** Channels and guide, updates. */
@@ -69,6 +71,7 @@ fun SettingsScreen(model: AppModel) {
             .padding(top = 8.dp, bottom = 8.dp + barInset(model)), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             when (section) {
                 Section.ACCOUNT -> Account(model)
+                Section.VPN -> VpnSection(model)
                 Section.PLAYBACK -> PlaybackSection(model)
                 Section.GENERAL -> {
                     Toggle("Hide SD streams", "Most providers have HD versions of the same channels.", model.settings.hideSD) {
@@ -102,6 +105,53 @@ private fun Account(model: AppModel) {
     Action(if (confirm) "Click again to sign out" else "Sign out", if (confirm) "Press Back or move away to cancel." else null,
         destructive = true, modifier = Modifier.onFocusChanged { if (!it.isFocused) confirm = false }) {
         if (confirm) model.signOut() else confirm = true
+    }
+}
+
+/** The VPN's status line: connected (and where), connecting, off, or what went wrong. */
+fun vpnStatus(on: Boolean): String = when {
+    !on -> "Off"
+    Vpn.state == Vpn.State.ON -> if (Vpn.detail.isNotEmpty()) "Connected · ${Vpn.detail}" else "Connected"
+    Vpn.state == Vpn.State.CONNECTING -> "Connecting…"
+    Vpn.state == Vpn.State.FAILED -> "Not connected"
+    else -> "Not connected yet"
+}
+
+@Composable
+private fun VpnSection(model: AppModel) {
+    val s = model.settings
+    val activity = LocalContext.current as android.app.Activity
+    val hasConfig = s.vpnConfig.isNotBlank()
+    var sending by remember { mutableStateOf(!hasConfig) }
+    Label("Courtside's own WireGuard VPN: only this app goes through it, the rest of the TV stays on its normal " +
+        "connection. While it's on, Courtside won't contact your provider without it. It connects when you open " +
+        "the app and disconnects when you leave.", size = 12.sp, color = Theme.muted, maxLines = 5,
+        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+    if (hasConfig) {
+        Action("VPN", null, value = if (s.vpnOn) "On" else "Off") { model.vpnSwitched(!s.vpnOn, activity) }
+        Info("Status", vpnStatus(s.vpnOn))
+        if (s.vpnOn && Vpn.state == Vpn.State.FAILED && Vpn.detail.isNotEmpty())
+            Label(Vpn.detail, size = 12.sp, color = Theme.losing, maxLines = 4, modifier = Modifier.padding(horizontal = 10.dp))
+        Info("Server", Vpn.server(s.vpnConfig).ifEmpty { "–" })
+        Spacer(Modifier.height(6.dp))
+        Action(if (sending) "Hide the phone page" else "Send a new config from your phone", null) { sending = !sending }
+        var confirm by remember { mutableStateOf(false) }
+        Action(if (confirm) "Click again to remove the VPN" else "Remove the VPN", null, destructive = true,
+            modifier = Modifier.onFocusChanged { if (!it.isFocused) confirm = false }) {
+            if (confirm) { model.removeVpnConfig(); sending = true; confirm = false } else confirm = true
+        }
+    } else {
+        Info("Status", "No VPN set up")
+    }
+    if (sending) {
+        Spacer(Modifier.height(10.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            PhoneSetupPanel(title = "Send a WireGuard config from your phone",
+                onVpn = { text -> model.saveVpnConfig(text, activity).also { if (it == null) sending = false } }) { null }
+        }
+        Label("Use the .conf file from your VPN provider's WireGuard setup page (Proton VPN, Mullvad, Surfshark, " +
+            "AirVPN and others offer one), or from your own WireGuard server.", size = 11.sp, color = Theme.muted, maxLines = 3,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
     }
 }
 

@@ -26,6 +26,8 @@ struct TVSettingsView: View {
 
     enum Section: String, CaseIterable, Identifiable {
         case account = "Account"
+        /// A SOCKS5 / HTTPS / HTTP proxy for the provider's traffic (2.33).
+        case proxy = "Proxy"
         /// How streams play: switching, frame rate, buffer.
         case playback = "Playback"
         /// Channels and guide, updates.
@@ -39,6 +41,7 @@ struct TVSettingsView: View {
         var symbol: String {
             switch self {
             case .account: return "person.crop.circle"
+            case .proxy: return "network.badge.shield.half.filled"
             case .hidden: return "eye.slash"
             case .playback: return "play.circle"
             case .general: return "slider.horizontal.3"
@@ -127,6 +130,9 @@ struct TVSettingsView: View {
                 .padding(.top, 20)
                 // The connection count is fetched fresh each time you open Account.
                 .task { await model.refreshAccount() }
+
+        case .proxy:
+            TVProxySection()
 
         case .hidden:
             let sports = Sport.allCases.filter { Sport.hidden(hiddenSports).contains($0) }

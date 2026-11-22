@@ -82,6 +82,8 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
     // QR code for "Set up from your phone" on the TV sign-in screen.
     implementation("com.google.zxing:core:3.5.3")
+    // Built-in VPN (Settings › VPN): WireGuard's own Android tunnel, carrying only Courtside's traffic.
+    implementation("com.wireguard.android:tunnel:1.0.20230706")
     // Prepares the app's code for speed when it's installed (the Play Store does this for its apps; sideloaded
     // apps need this library or everything runs slower).
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")

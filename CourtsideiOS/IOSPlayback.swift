@@ -83,7 +83,10 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
         droppedSince = nil
         if player.currentItem != nil { ConnLog.add("Closed \(ConnLog.stream((player.currentItem?.asset as? AVURLAsset)?.url))") }
         ConnLog.add("Opened \(ConnLog.stream(url))")
-        let item = AVPlayerItem(url: url)
+        // With a proxy the stream comes from the app's own relay (127.0.0.1), which an Apple TV can't reach: AirPlay
+        // then sends the picture from the phone instead of handing the TV the address.
+        player.allowsExternalPlayback = !ProxySettings.current.enabled
+        let item = AVPlayerItem(url: ProxyRelay.shared.wrap(url))
         item.preferredForwardBufferDuration = Double(bufferMs) / 1000
         player.replaceCurrentItem(with: item)
         player.play()
@@ -110,7 +113,7 @@ final class AVEngine: NSObject, ObservableObject, AVPictureInPictureControllerDe
     private func restartQuietly() {
         guard let url = currentURL else { return }
         ConnLog.add("Opened \(ConnLog.stream(url)) again")
-        let item = AVPlayerItem(url: url)
+        let item = AVPlayerItem(url: ProxyRelay.shared.wrap(url))
         item.preferredForwardBufferDuration = Double(lastBufferMs) / 1000
         player.replaceCurrentItem(with: item)
         player.play()
