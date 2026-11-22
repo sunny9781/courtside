@@ -276,7 +276,7 @@ struct TVRail: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var nav: TVNav
     @ObservedObject private var versions = VersionCheck.shared
-    enum Item: Hashable { case tab(TVTab), version }
+    enum Item: Hashable { case tab(TVTab) }
     @FocusState private var focused: Item?
     /// The tab under focus, shown once focus leaves the rail (going right).
     @State private var waitingTab: TVTab?
@@ -319,19 +319,14 @@ struct TVRail: View {
           VStack(alignment: .leading, spacing: 10) {
             Spacer(minLength: 0)
             status
-            // Checks for a newer Courtside (Apple TV is updated from the Mac): an icon only, orange when one is out.
-            Button {
-                Task { await versions.check() }
-            } label: {
-                Image(systemName: versions.checking ? "hourglass"
-                      : (versions.newer != nil ? "arrow.down.circle.fill" : "arrow.clockwise"))
-                    .font(.system(size: 24))
-                    .frame(width: 40)
-                    .foregroundStyle(focused == .version ? Theme.bg : (versions.newer != nil ? Theme.accent : Theme.muted))
-            }
-            .buttonStyle(TVRowButtonStyle())
-            .focused($focused, equals: .version)
-            .frame(width: inner, alignment: .leading)
+            // Newer Courtside out? Apple TV is updated from the Mac, so this is only a sign, not a button: it can't be
+            // selected, and turns yellow when an update is available (checked on opening and every hour).
+            Image(systemName: versions.newer != nil ? "arrow.down.circle.fill" : "arrow.clockwise")
+                .font(.system(size: 24))
+                .frame(width: 40)
+                .foregroundStyle(versions.newer != nil ? Theme.champion : Theme.muted.opacity(0.6))
+                .padding(.horizontal, 16)
+                .frame(width: inner, alignment: .leading)
           }
           .frame(maxHeight: .infinity, alignment: .bottom)
         }
@@ -362,7 +357,12 @@ struct TVRail: View {
             guard case .tab(let tab) = focused, tab != nav.tab else { waitingTab = nil; return }
             waitingTab = tab
         }
-        .task { await versions.check() }
+        .task {
+            while !Task.isCancelled {
+                await versions.check()
+                try? await Task.sleep(for: .seconds(3600))
+            }
+        }
     }
 
     /// Connections ("1/2", orange at the limit) and the EPG time, short under the icons.

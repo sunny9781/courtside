@@ -15,9 +15,6 @@ struct TVHomeView: View {
     /// leagues and the sports fold to icons; going back onto the sports opens them out again.
     @State private var folded = false
     @FocusState private var leagueFocus: TVNav.HomeSelection?
-    /// An invisible strip at the right edge of the sports: right from a sport with leagues lands here, which opens
-    /// the leagues and moves onto the selected one.
-    @FocusState private var bridge: Bool
 
     /// The sport whose leagues can open beside it (more than one league, and not a channel sport).
     private var leagueSport: Sport? {
@@ -66,7 +63,8 @@ struct TVHomeView: View {
             // The left column stays lined up with the player above it (it no longer shrinks), so moving across is smooth.
             HStack(alignment: .top, spacing: TVLayout.playerGap - 24) {
                 HStack(alignment: .top, spacing: 0) {
-                    TVSportList(focused: $sidebarFocus, compact: folded)
+                    // Clicking a sport that has several leagues opens them beside it (moving never does).
+                    TVSportList(focused: $sidebarFocus, compact: folded, openLeagues: { focusLeagues() })
                         .frame(width: folded ? 100 : TVLayout.sidebar)
                         .focusSection()
                         // Coming back from the games lands on the sport you left, not the row beside it.
@@ -80,14 +78,6 @@ struct TVHomeView: View {
                     }
                 }
                 .frame(width: TVLayout.sidebar, alignment: .leading)
-                // Right from a sport with leagues: open them (the strip only takes focus from the sports).
-                .overlay(alignment: .trailing) {
-                    if leagueSport != nil && !folded && (sidebarFocus != nil || bridge) {
-                        Color.clear.frame(width: 4).frame(maxHeight: .infinity)
-                            .focusable()
-                            .focused($bridge)
-                    }
-                }
                 // On top of the player in the bottom-left corner.
                 .padding(.bottom, model.pinned != nil ? TVLayout.playerInset : TVLayout.margin)
                 .zIndex(0)
@@ -109,7 +99,6 @@ struct TVHomeView: View {
                 nav.leaguesFocused = leagueFocus != nil
                 if leagueFocus != nil { inPane = false }
             }
-            .onChange(of: bridge) { if bridge { focusLeagues() } }
             .onChange(of: leagueSport) { if leagueSport == nil { folded = false } }
             // Back from the games (or the rail): to the league you're in when they're out, otherwise the sport.
             .onChange(of: nav.sideRequest) {
@@ -147,6 +136,9 @@ struct TVSportList: View {
     @State private var waitingSelection: TVNav.HomeSelection?
     /// Just icons and counts (while you're on the games), to leave more room for them.
     var compact = false
+    /// Clicking a sport with several leagues: open its leagues beside it (2.39: no longer on moving, since an
+    /// invisible strip that opened them was picked up by pressing up on the top sport).
+    var openLeagues: (() -> Void)? = nil
 
     private var sports: [Sport] {
         _ = (sportOrder, hiddenSports, favoriteSports)
@@ -264,6 +256,10 @@ struct TVSportList: View {
             pendingSelection?.cancel()
             waitingSelection = nil
             nav.homeSelection = selection
+            if case .sport(let sport) = selection, model.leagues(for: sport).count > 1,
+               !isChannelSport(sport, model: model) {
+                openLeagues?()
+            }
         } label: {
             HStack(spacing: 18) {
                 Image(systemName: symbol)

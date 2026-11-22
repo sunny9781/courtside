@@ -74,6 +74,10 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.40", date: "2026-11-22", time: "13:30", title: "", changes: [
+            Change(text: "The update icon at the bottom of the side menu can't be selected any more (Apple TV updates come from the Mac): it just turns yellow when a new version is out.", apps: tv),
+            Change(text: "Home: a sport's leagues open when you click the sport, not by moving (pressing up on the top sport kept opening them for a moment).", apps: tv)
+        ]),
         Release(version: "2.39", date: "2026-11-22", time: "13:18", title: "Watch alongside from the EPG", changes: [
             Change(text: "EPG: hold select on a channel and pick Watch alongside to watch it beside the stream that's playing (multiview).", apps: [.tv, .android]),
         ]),
