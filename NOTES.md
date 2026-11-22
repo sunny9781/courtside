@@ -60,6 +60,11 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   (short) + an update dot at the bottom; open = names, full status, version button. Left off a page's left edge opens
   it, Right goes to `model.leftPanel`, Back from a left panel focuses it ("tabs"). Pages start at the top (Column has
   start padding RAIL_WIDTH). EPG download status also at the right end of the now-playing bar.
+- 2.35 (both TVs, Sunny): the rail never opens (no 400 pt / 214 dp width, no shade). Only the focused tab (and the
+  version/update button at the bottom) pops out as a pill with its name, past the rail edge over the page
+  (Android `wrapContentWidth(unbounded)`, Apple TV `fixedSize` inside a fixed `inner` frame). Moving through the tabs
+  doesn't switch pages any more (no 250 ms settle): click, or Right/leaving the rail, opens the focused tab.
+  Game screen categories spaced out (Android TV 8 dp, Apple TV 14 pt, Mac 8 pt; "All" headings get more top room).
 - Android Home 2.20: Sunny kept the 2.7 league side menu (folding sports + `LeagueList`; chips were tried and dropped
   in the same request). Focusing a section's first card row scrolls its heading
   into view (`showHeading`). Rail Right/click emits focusMoves "side" (page focuses its selected left-menu item), with
