@@ -262,7 +262,7 @@ private fun Hidden(model: AppModel) {
     val cats = model.hiddenCategoryNames()
     val chans = model.hiddenChannelNames()
     if (sports.isEmpty() && leagues.isEmpty() && cats.isEmpty() && chans.isEmpty()) {
-        Label("Nothing is hidden. Hold the select button on a sport on Home, or a category or channel in the EPG, and choose Hide.",
+        Label("Nothing is hidden. Hold the select button on a sport or league on Home, or a category or channel in the EPG, and choose Hide.",
             size = 13.sp, color = Theme.muted, maxLines = 3, modifier = Modifier.padding(10.dp))
         return
     }

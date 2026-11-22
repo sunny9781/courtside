@@ -186,7 +186,29 @@ struct IOSGamesList: View {
                         .padding(.horizontal)
                 }
 
-                ForEach(sections) { section in
+                // iPhone (two cards to a row): leagues with one game share a row (2.43), each with its name above.
+                let packs = showsSportChips && sections.count > 1
+                    ? packRows(sections, columns: 2) { $0.games.contains { $0.state == .finished } ? 2 : $0.games.count }
+                    : sections.map { [$0] }
+                ForEach(packs, id: \.first!.id) { pack in
+                  if pack.count > 1 {
+                    HStack(alignment: .top, spacing: 10) {
+                        ForEach(pack) { section in
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack(spacing: 8) {
+                                    if let league = section.league { IOSLeagueLogo(league: league, size: 24) }
+                                    Text(section.title).font(.title3.bold()).foregroundStyle(Theme.text).lineLimit(1)
+                                }
+                                ForEach(section.games) { game in
+                                    NavigationLink(value: game.id) { IOSGameCard(game: game, compact: true) }
+                                        .buttonStyle(.plain)
+                                }
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    .padding(.horizontal)
+                  } else if let section = pack.first {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(spacing: 8) {
                             if let league = section.league {
@@ -222,6 +244,7 @@ struct IOSGamesList: View {
                         .padding(.horizontal)
                         if !finished.isEmpty { foldButton("Finished · \(finished.count)", id: section.id, in: $openFinished) }
                     }
+                  }
                 }
             }
             .padding(.vertical, 12)
@@ -377,6 +400,12 @@ struct IOSGamesList: View {
                 }
             }
             .opacity(count == 0 ? 0.5 : 1)
+            .contextMenu {
+                Button("Hide \(league.name)", systemImage: "eye.slash") {
+                    if nav.homeSelection == .league(league.id) { nav.homeSelection = .sport(sport) }
+                    hideLeague(league, model: model)
+                }
+            }
         }
         IOSChip(selected: nav.homeSelection == .sport(sport), action: { nav.homeSelection = .sport(sport) }) {
             Text("All")
@@ -427,6 +456,13 @@ struct IOSGamesList: View {
                         }
                     }
                     .opacity(count == 0 ? 0.5 : 1)
+                    // Press and hold › Hide (2.43).
+                    .contextMenu {
+                        Button("Hide \(league.name)", systemImage: "eye.slash") {
+                            if nav.homeSelection == .league(league.id) { nav.homeSelection = .sport(sport) }
+                            hideLeague(league, model: model)
+                        }
+                    }
                 }
             }
             .padding(.horizontal)
