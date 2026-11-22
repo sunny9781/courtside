@@ -170,7 +170,7 @@ struct TVShell: View {
                     .focusSection()
                     .transition(.opacity)
             }
-            // The rail stays slim (2.35): only the focused tab pops out over the page, so the player stays in view.
+            // The rail stays slim (2.36): only the focused tab pops out over the page, so the player stays in view.
             TVRail()
                 .frame(maxHeight: .infinity, alignment: .top)
                 // Leaving full screen: focus goes back into the page (the screen you were on, then the stream you
@@ -270,7 +270,7 @@ func tvEPGStatus(_ model: AppModel) -> (text: String, busy: Bool)? {
 
 /// Home, EPG and Settings down the left edge, where every move starts (2.24, like Android TV): left from a page's
 /// left column opens it, right (or clicking a tab) goes back into the page on its selected item, never straight to
-/// the games. It stays a slim strip of icons (2.35) so it never covers the player: only the focused tab pops out as a
+/// the games. It stays a slim strip of icons (2.36) so it never covers the player: only the focused tab pops out as a
 /// pill with its name. Moving through the tabs doesn't switch the page; clicking a tab, or going right off it, does.
 /// At the bottom: connections, the EPG time, and the version button (its text pops out when focused).
 struct TVRail: View {
@@ -365,7 +365,7 @@ struct TVRail: View {
         .defaultFocus($focused, .tab(nav.tab), priority: .userInitiated)
         // Back from a left column: to the tab you're on.
         .onChange(of: nav.tabsRequest) { focused = .tab(nav.tab) }
-        // Moving through the tabs doesn't switch the page (2.35); leaving the rail (right) shows the tab you were
+        // Moving through the tabs doesn't switch the page (2.36); leaving the rail (right) shows the tab you were
         // on, and lands on the page's selected item.
         .onChange(of: focused) {
             nav.tabsFocused = focused != nil

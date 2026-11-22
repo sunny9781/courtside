@@ -330,7 +330,7 @@ val RAIL_WIDTH = 56.dp
 
 /**
  * The tabs (Home, EPG, Settings) down the left edge, where every move starts: left from a left panel lands on it,
- * right goes back into the page's left panel. It stays a slim strip of icons (2.35) so it never covers the player in
+ * right goes back into the page's left panel. It stays a slim strip of icons (2.36) so it never covers the player in
  * the corner: only the focused tab pops out as a pill with its name. Moving through the tabs doesn't switch the page;
  * clicking a tab, or pressing right on it, shows it. Connections and the EPG time sit at the bottom, then the update
  * button (the version pops out when it's focused).

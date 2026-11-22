@@ -20,7 +20,7 @@ enum TVLayout {
     /// The channel column: the same fixed width on every screen (long names scroll on the row you're on).
     static func nameWidth(_ channels: [Channel]) -> CGFloat { TVChannelRow.channelWidth }
     static let corner: CGFloat = 20
-    /// The rail down the left edge (Home / EPG / Settings, 2.24): icons only (2.35: only the focused tab pops out).
+    /// The rail down the left edge (Home / EPG / Settings, 2.24): icons only (2.36: only the focused tab pops out).
     static let rail: CGFloat = 108
 }
 
