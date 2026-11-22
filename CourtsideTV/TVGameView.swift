@@ -89,8 +89,14 @@ struct TVGameView: View {
         }
         // Moving through the categories shows one's streams once you stop on it (a quarter second, 2.28), like the
         // EPG; moving right into the streams shows it at once.
-        .onChange(of: focusedCategory) {
+        .onChange(of: focusedCategory) { old, new in
             pendingCategory?.cancel()
+            // Entering the list (from the streams) somewhere other than the selected category: go to it instead.
+            if old == nil, let new, new != selected, categories.contains(where: { $0.name == selected }) {
+                waitingCategory = nil
+                focusedCategory = selected
+                return
+            }
             guard let focusedCategory else {
                 if let waitingCategory { selected = waitingCategory }
                 waitingCategory = nil
@@ -118,7 +124,7 @@ struct TVGameView: View {
 
     private var categoryList: some View {
         ScrollView(.vertical) {
-            VStack(spacing: 6) {
+            VStack(spacing: 14) {
                 ForEach(categories, id: \.name) { item in
                     Button { selected = item.name } label: {
                         HStack {
@@ -137,7 +143,8 @@ struct TVGameView: View {
             }
             .padding(.vertical, 20)
         }
-        .defaultFocus($focusedCategory, selected)
+        // Coming back from the streams lands on the category you're in, not the one nearest the row you left.
+        .defaultFocus($focusedCategory, selected, priority: .userInitiated)
     }
 
     private func channelList(_ game: Game) -> some View {
@@ -167,7 +174,8 @@ struct TVGameView: View {
                             .foregroundStyle(Theme.muted)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.leading, 22)
-                            .padding(.top, 14)
+                            .padding(.top, 28)
+                            .padding(.bottom, 4)
                     }
                     ForEach(group.streams) { match in
                         Button { select(match, game: game) } label: {

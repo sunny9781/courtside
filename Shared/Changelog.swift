@@ -74,6 +74,13 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.36", date: "2026-11-22", time: "12:10", title: "Slimmer side menu", changes: [
+            Change(text: "The menu down the left stays icons only, so it no longer covers the player: just the highlighted tab pops out with its name", apps: tvAndroid),
+            Change(text: "Home, EPG and Settings sit in the middle of the side menu (no more C at the top)", apps: tvAndroid),
+            Change(text: "Moving up and down the menu no longer switches pages as you go: click a tab or press right to open it", apps: tvAndroid),
+            Change(text: "More space between the stream categories on a game's screen", apps: [.mac, .tv, .android]),
+            Change(text: "Going back from a game's streams to its categories lands on the category you're in", apps: tv),
+        ], titleApps: tvAndroid),
         Release(version: "2.35", date: "2026-11-22", time: "01:00", title: "Reliability dot after the tags", changes: [
             Change(text: "Game screen: the reliability dot now comes after a stream's tags (quality, frame rate, sound, HDR) instead of before them.", apps: android),
         ]),

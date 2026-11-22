@@ -89,7 +89,7 @@ struct GameDetailView: View {
 
     private var categoryList: some View {
         ScrollView {
-            VStack(spacing: 4) {
+            VStack(spacing: 8) {
                 ForEach(categories, id: \.name) { category in
                     CategoryRow(name: category.name, count: category.streams.count,
                                 selected: selected == category.name) { selected = category.name }
@@ -121,7 +121,7 @@ struct GameDetailView: View {
                                 .font(.system(size: 12, weight: .bold))
                                 .foregroundStyle(Theme.muted)
                                 .padding(.leading, 4)
-                                .padding(.top, 14)
+                                .padding(.top, 24)
                         }
                         ForEach(group.streams) { match in
                             GameStreamLine(match: match, playing: match.channel.id == previewChannel?.id,

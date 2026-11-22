@@ -306,7 +306,7 @@ fun Shell(model: AppModel) {
             }
             PlayerVideo(place)
         }
-        // After the video, so the open rail (and its shade over the page) draws on top of the player in the corner.
+        // After the video, so a tab popping out of the rail draws on top of the page.
         if (!full && !multi) NavRail(model)
         if (multi && !full) MultiviewScreen(model)
         model.nowPlaying?.let { FullScreenPlayer(model, it) }
@@ -325,30 +325,30 @@ fun Shell(model: AppModel) {
     }
 }
 
-/** How wide the rail down the left edge is while you're on a page (icons only), and when you move onto it. */
+/** How wide the rail down the left edge is (icons only; it never opens out over the page). */
 val RAIL_WIDTH = 56.dp
-private val RAIL_OPEN = 214.dp
 
 /**
- * The tabs (Home, EPG, Settings) down the left edge, where every move starts: left from a left panel opens it, right
- * goes back into the page's left panel. Closed it's a strip of icons, with the connections, the EPG time and a dot
- * when an update is ready at the bottom; open it shows names, the full status and the version button, over the page.
- * Moving through the tabs shows a page once you stop on its tab; clicking, or pressing right, is instant.
+ * The tabs (Home, EPG, Settings) down the left edge, where every move starts: left from a left panel lands on it,
+ * right goes back into the page's left panel. It stays a slim strip of icons (2.36) so it never covers the player in
+ * the corner: only the focused tab pops out as a pill with its name. Moving through the tabs doesn't switch the page;
+ * clicking a tab, or pressing right on it, shows it. Connections and the EPG time sit at the bottom, then the update
+ * button (the version pops out when it's focused).
  */
 @Composable
 fun NavRail(model: AppModel) {
     val context = LocalContext.current
     val tabs = remember { FocusTargets() }
-    val settle = rememberSettle()
     val scope = rememberCoroutineScope()
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-    var open by remember { mutableStateOf(false) }
+    // The tab under focus (only it shows its name); "update" for the update button.
+    var focusedItem by remember { mutableStateOf<Any?>(null) }
     // Back from a left panel: to the tab you're on.
     LaunchedEffect(Unit) {
-        model.focusMoves.collect { if (it == "tabs") { settle.cancel(); delay(30); tabs.focus(model.tab) } }
+        model.focusMoves.collect { if (it == "tabs") { delay(30); tabs.focus(model.tab) } }
     }
     // Into the page's left menu, on its selected item (the sport, category or section), never straight into the
-    // games: the same as Back from a page in reverse. The rail closes as focus leaves it.
+    // games: the same as Back from a page in reverse.
     fun intoPage(waitForPage: Boolean) {
         scope.launch {
             if (waitForPage) { androidx.compose.runtime.withFrameNanos { }; androidx.compose.runtime.withFrameNanos { } }
@@ -357,83 +357,84 @@ fun NavRail(model: AppModel) {
             if (model.tabsFocused && runCatching { model.leftPanel.requestFocus() }.isFailure) focusManager.moveFocus(FocusDirection.Right)
         }
     }
-    val width by animateDpAsState(if (open) RAIL_OPEN else RAIL_WIDTH,
-        androidx.compose.animation.core.tween(if (Perf.slowSettle) 0 else 140), label = "rail")
-    if (open) Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.55f)))
-    Column(Modifier.width(width).fillMaxHeight().background(if (open) Theme.card else Theme.bg)
+    // Show [tab] (if it isn't already) and go into its page.
+    fun open(tab: Tab) {
+        val changed = model.tab != tab
+        if (changed) model.tab = tab
+        intoPage(changed)
+    }
+    // The three tabs in the middle of the screen's height (2.36); the status and the update button at the bottom.
+    Box(Modifier.width(RAIL_WIDTH).fillMaxHeight().background(Theme.bg)
         .onFocusChanged {
-            open = it.hasFocus
             model.tabsFocused = it.hasFocus
-            if (!it.hasFocus) settle.flush()
+            if (!it.hasFocus) focusedItem = null
         }
         .onPreviewKeyEvent { e ->
-            // Right: into the page's left panel (the selected sport, category or section), after showing the tab
-            // you stopped on.
+            // Right on a tab: show that tab's page and go into its left panel.
             if (e.type != KeyEventType.KeyDown || e.key.nativeKeyCode != KeyEvent.KEYCODE_DPAD_RIGHT) return@onPreviewKeyEvent false
-            intoPage(settle.flush())
+            val tab = focusedItem as? Tab ?: model.tab
+            open(tab)
             true
         }
         .enterAt { tabs[model.tab] }
-        .padding(horizontal = 8.dp, vertical = Theme.margin),
-        verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(Modifier.height(34.dp).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (open) {
-                Label("Court", size = 17.sp, weight = FontWeight.Bold)
-                Label("side", size = 17.sp, weight = FontWeight.Bold, color = Theme.accent)
-            } else Label("C", size = 17.sp, weight = FontWeight.Bold, color = Theme.accent)
-        }
+        .padding(horizontal = 8.dp, vertical = Theme.margin)) {
+      Column(Modifier.fillMaxWidth().align(Alignment.CenterStart), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (tab in Tab.entries) {
-            TvButton(onClick = { settle.now { model.tab = tab }; intoPage(true) }, selected = model.tab == tab,
-                onFocus = { if (model.tab != tab) settle.later { model.tab = tab } else settle.cancel() },
-                modifier = Modifier.fillMaxWidth().tracked(tabs, tab)) { focused ->
+            val popped = focusedItem == tab
+            TvButton(onClick = { open(tab) }, selected = model.tab == tab,
+                onFocus = { focusedItem = tab },
+                modifier = (if (popped) Modifier.wrapContentWidth(Alignment.Start, unbounded = true) else Modifier.fillMaxWidth())
+                    .tracked(tabs, tab)) { focused ->
                 val color = if (focused) Theme.bg else if (model.tab == tab) Theme.accent else Theme.muted
-                Row(Modifier.height(40.dp).padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(Modifier.height(40.dp).padding(start = 10.dp, end = if (popped) 16.dp else 10.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Icon(when (tab) { Tab.HOME -> Icons.Filled.Home; Tab.EPG -> Icons.Filled.Tv; Tab.SETTINGS -> Icons.Filled.Tune },
                         tab.title, tint = color, modifier = Modifier.size(20.dp))
-                    if (open) Label(tab.title, size = 15.sp, weight = FontWeight.SemiBold,
-                        color = if (focused) Theme.bg else Theme.text)
+                    if (popped) Label(tab.title, size = 15.sp, weight = FontWeight.SemiBold, color = Theme.bg)
                 }
             }
         }
-        Spacer(Modifier.weight(1f))
-        RailStatus(model, open)
-        if (open) {
-            // The version is the update button: one click checks for a new version and installs it. When one has
-            // already downloaded by itself it shows "Install update".
-            // 2.20: "Download update vX" (found, not fetched yet) → "Downloading vX · 40%" → "Install update vX" →
-            // Android's installer. With nothing new, the version number: pressing it checks.
-            val ready = Updater.readyVersion
-            val available = Updater.availableVersion
-            var busy by remember { mutableStateOf(false) }
-            TvButton(onClick = {
-                if (busy || Updater.downloading != null) Unit
-                else if (ready != null) Updater.installNow(context)
-                else if (available != null) scope.launch { Updater.check(context, userInitiated = true, download = true) }
-                else scope.launch {
-                    busy = true
-                    Updater.check(context, userInitiated = true, download = false)
-                    busy = false
-                }
-            }, background = if (ready != null || available != null) Theme.accent else Color.Transparent, modifier = Modifier.fillMaxWidth()) { focused ->
-                Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val color = if (focused) Theme.bg else if (ready != null || available != null) Theme.onAccent else Theme.muted
-                    Icon(if (ready != null || available != null) Icons.Filled.Download else if (Updater.checking) Icons.Filled.HourglassTop
-                        else if (Updater.status != null) Icons.Filled.Check else Icons.Filled.Refresh,
-                        null, tint = color, modifier = Modifier.size(14.dp))
-                    val dl = Updater.downloading
-                    Label(when {
-                        dl != null -> "Downloading $dl" + (Updater.downloadProgress?.let { " · ${(it * 100).toInt()}%" } ?: "…")
-                        Updater.installing || busy -> "Checking…"
-                        ready != null -> "Install update v$ready"
-                        available != null -> "Download update v$available"
-                        Updater.status != null -> "${Updater.status} · v${BuildConfig.VERSION_NAME}"
-                        else -> "v${BuildConfig.VERSION_NAME}"
-                    }, size = 12.sp, weight = FontWeight.SemiBold, color = color)
-                }
+      }
+      Column(Modifier.fillMaxWidth().align(Alignment.BottomStart), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        RailStatus(model)
+        // The version is the update button: one click checks for a new version and installs it. When one has
+        // already downloaded by itself it shows "Install update".
+        // 2.20: "Download update vX" (found, not fetched yet) → "Downloading vX · 40%" → "Install update vX" →
+        // Android's installer. With nothing new, the version number: pressing it checks.
+        val ready = Updater.readyVersion
+        val available = Updater.availableVersion
+        var busy by remember { mutableStateOf(false) }
+        val popped = focusedItem == "update"
+        TvButton(onClick = {
+            if (busy || Updater.downloading != null) Unit
+            else if (ready != null) Updater.installNow(context)
+            else if (available != null) scope.launch { Updater.check(context, userInitiated = true, download = true) }
+            else scope.launch {
+                busy = true
+                Updater.check(context, userInitiated = true, download = false)
+                busy = false
+            }
+        }, onFocus = { focusedItem = "update" },
+            background = if (ready != null || available != null) Theme.accent else Color.Transparent,
+            modifier = if (popped) Modifier.wrapContentWidth(Alignment.Start, unbounded = true) else Modifier.fillMaxWidth()) { focused ->
+            Row(Modifier.height(32.dp).padding(start = 13.dp, end = if (popped) 14.dp else 13.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val color = if (focused) Theme.bg else if (ready != null || available != null) Theme.onAccent else Theme.muted
+                Icon(if (ready != null || available != null) Icons.Filled.Download else if (Updater.checking) Icons.Filled.HourglassTop
+                    else if (Updater.status != null) Icons.Filled.Check else Icons.Filled.Refresh,
+                    null, tint = color, modifier = Modifier.size(14.dp))
+                val dl = Updater.downloading
+                if (popped) Label(when {
+                    dl != null -> "Downloading $dl" + (Updater.downloadProgress?.let { " · ${(it * 100).toInt()}%" } ?: "…")
+                    Updater.installing || busy -> "Checking…"
+                    ready != null -> "Install update v$ready"
+                    available != null -> "Download update v$available"
+                    Updater.status != null -> "${Updater.status} · v${BuildConfig.VERSION_NAME}"
+                    else -> "v${BuildConfig.VERSION_NAME}"
+                }, size = 12.sp, weight = FontWeight.SemiBold, color = color)
             }
         }
+      }
     }
 }
 
@@ -442,7 +443,7 @@ fun NavRail(model: AppModel) {
  * downloads): full lines when the rail is open, short ones under the icons when it's closed. A dot: an update is ready.
  */
 @Composable
-private fun RailStatus(model: AppModel, open: Boolean) {
+private fun RailStatus(model: AppModel) {
     val a = model.account
     val max = a?.maxConnections ?: 0
     val active = a?.activeConnections ?: 0
@@ -453,27 +454,7 @@ private fun RailStatus(model: AppModel, open: Boolean) {
         model.guideLoading -> "EPG…"
         else -> model.updatedAt?.let { clockTime(it).substringBefore(' ') }
     }
-    val epgLong = when {
-        model.refreshWaiting -> "EPG refreshes after this stream"
-        model.loading -> "Refreshing EPG · channels…"
-        model.guideLoading -> "Refreshing EPG…"
-        else -> model.updatedAt?.let { "EPG ${clockTime(it)}" }
-    }
-    if (open) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Theme.border))
-            if (max > 0) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Icons.Filled.People, null, tint = if (atLimit) Theme.accent else Theme.muted, modifier = Modifier.size(15.dp))
-                Label("$active/$max connections", size = 12.sp, weight = FontWeight.SemiBold, color = if (atLimit) Theme.accent else Theme.soft)
-            }
-            epgLong?.let {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Filled.Schedule, null, tint = Theme.muted, modifier = Modifier.size(15.dp))
-                    Label(it, size = 12.sp, color = Theme.muted, maxLines = 2)
-                }
-            }
-        }
-    } else {
+    run {
         Column(Modifier.fillMaxWidth().padding(bottom = 4.dp), horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (max > 0) Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -486,8 +467,6 @@ private fun RailStatus(model: AppModel, open: Boolean) {
                     Label(it, size = 10.sp, color = if (model.guideLoading) Theme.accent else Theme.muted)
                 }
             }
-            if (Updater.readyVersion != null || Updater.availableVersion != null || Updater.downloading != null)
-                Box(Modifier.size(8.dp).clip(RoundedCornerShape(4.dp)).background(Theme.accent))
         }
     }
 }
@@ -1448,7 +1427,7 @@ fun GameScreen(model: AppModel, gameId: String) {
         LazyColumn(Modifier.width(Theme.playerWidth).fillMaxHeight().padding(bottom = topInset(model)).focusRequester(model.leftPanel)
             .onFocusChanged { model.sideFocused = it.hasFocus }
             .flushOn(catSettle, androidx.compose.ui.focus.FocusDirection.Right).enterAt { cats["cat:$selected"] },
-            verticalArrangement = Arrangement.spacedBy(3.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
+            verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(vertical = 8.dp)) {
             items(categories, key = { it.first }) { (name, streams) ->
                 CategoryRow(cats, "cat:$name", null, name, "${streams.size}", selected == name,
                     onFocus = { if (selected != name) catSettle.later { selected = name } else catSettle.cancel() }) {
@@ -1472,7 +1451,7 @@ fun GameScreen(model: AppModel, gameId: String) {
             for ((name, streams) in shownGroups) {
                 if (selected == "All" && streams.isNotEmpty()) item(key = "h:$name") {
                     Label(name.uppercase(), size = 10.sp, weight = FontWeight.Bold, color = Theme.muted,
-                        modifier = Modifier.padding(start = 10.dp, top = 8.dp, bottom = 2.dp))
+                        modifier = Modifier.padding(start = 10.dp, top = 16.dp, bottom = 4.dp))
                 }
                 items(streams, key = { "$name:${it.channel.id}" }, contentType = { "stream" }) { m ->
                     val k = "s:${m.channel.id}"
