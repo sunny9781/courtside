@@ -118,7 +118,7 @@ struct TVGameView: View {
 
     private var categoryList: some View {
         ScrollView(.vertical) {
-            VStack(spacing: 6) {
+            VStack(spacing: 14) {
                 ForEach(categories, id: \.name) { item in
                     Button { selected = item.name } label: {
                         HStack {
@@ -167,7 +167,8 @@ struct TVGameView: View {
                             .foregroundStyle(Theme.muted)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.leading, 22)
-                            .padding(.top, 14)
+                            .padding(.top, 28)
+                            .padding(.bottom, 4)
                     }
                     ForEach(group.streams) { match in
                         Button { select(match, game: game) } label: {

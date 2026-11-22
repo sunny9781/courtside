@@ -170,13 +170,7 @@ struct TVShell: View {
                     .focusSection()
                     .transition(.opacity)
             }
-            // The open rail shades the page (the player too) and sits on top of it.
-            if nav.tabsFocused {
-                Color.black.opacity(0.55)
-                    .ignoresSafeArea()
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
-            }
+            // The rail stays slim (2.35): only the focused tab pops out over the page, so the player stays in view.
             TVRail()
                 .frame(maxHeight: .infinity, alignment: .top)
                 // Leaving full screen: focus goes back into the page (the screen you were on, then the stream you
@@ -277,19 +271,19 @@ func tvEPGStatus(_ model: AppModel) -> (text: String, busy: Bool)? {
 
 /// Home, EPG and Settings down the left edge, where every move starts (2.24, like Android TV): left from a page's
 /// left column opens it, right (or clicking a tab) goes back into the page on its selected item, never straight to
-/// the games. Closed it's icons, with the connections, the EPG time and a dot when a newer version is out at the
-/// bottom; open it shows names, the full status and the version button, over the page.
+/// the games. It stays a slim strip of icons (2.35) so it never covers the player: only the focused tab pops out as a
+/// pill with its name. Moving through the tabs doesn't switch the page; clicking a tab, or going right off it, does.
+/// At the bottom: connections, the EPG time, and the version button (its text pops out when focused).
 struct TVRail: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var nav: TVNav
     @ObservedObject private var versions = VersionCheck.shared
     enum Item: Hashable { case tab(TVTab), version }
     @FocusState private var focused: Item?
-    /// A tab switch waiting for you to stop on that tab.
-    @State private var pendingTab: Task<Void, Never>?
+    /// The tab under focus, shown once focus leaves the rail (going right).
     @State private var waitingTab: TVTab?
-
-    private var open: Bool { focused != nil }
+    /// Inside the rail's side padding.
+    private let inner = TVLayout.rail - 24
 
     private func symbol(_ tab: TVTab) -> String {
         switch tab {
@@ -301,20 +295,12 @@ struct TVRail: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 0) {
-                if open {
-                    Text("Court").foregroundStyle(Theme.text)
-                    Text("side").foregroundStyle(Theme.accent)
-                } else {
-                    Text("C").foregroundStyle(Theme.accent).frame(maxWidth: .infinity)
-                }
-            }
-            .font(.system(size: 30, weight: .bold))
-            .padding(.horizontal, open ? 22 : 0)
-            .frame(height: 56)
+            Text("C").foregroundStyle(Theme.accent)
+                .font(.system(size: 30, weight: .bold))
+                .frame(width: inner, height: 56)
             ForEach(TVTab.allCases) { tab in
+                let popped = focused == .tab(tab)
                 Button {
-                    pendingTab?.cancel()
                     waitingTab = nil
                     NotificationCenter.default.post(name: .tvSwitchTab, object: tab)
                     // Into the page, on its selected item (the rail closes as focus leaves it).
@@ -328,48 +314,58 @@ struct TVRail: View {
                             .font(.system(size: 28))
                             .frame(width: 40)
                             .foregroundStyle(focused == .tab(tab) ? Theme.bg : (nav.tab == tab ? Theme.accent : Theme.muted))
-                        if open {
+                        if popped {
                             Text(tab.rawValue).font(.system(size: 28, weight: .semibold)).lineLimit(1)
                         }
                     }
                 }
                 .buttonStyle(TVRowButtonStyle(selected: nav.tab == tab))
                 .focused($focused, equals: .tab(tab))
+                // The focused tab takes the width its name needs, past the rail's edge, over the page.
+                .fixedSize(horizontal: popped, vertical: false)
+                .frame(width: inner, alignment: .leading)
             }
             Spacer(minLength: 0)
             status
-            if open {
-                // The version, which checks for a newer Courtside (Apple TV is updated from the Mac).
-                Button {
-                    Task { await versions.check() }
-                } label: {
-                    Label(versions.newer.map { "Version \($0) is out: update from your Mac" } ?? "v\(versions.current)",
-                          systemImage: versions.checking ? "hourglass"
-                              : (versions.newer != nil ? "arrow.down.circle.fill" : "arrow.clockwise"))
-                        .font(.system(size: 21, weight: .medium))
-                        .lineLimit(2)
-                        .foregroundStyle(focused == .version ? Theme.bg : (versions.newer != nil ? Theme.accent : Theme.muted))
+            // The version, which checks for a newer Courtside (Apple TV is updated from the Mac): an icon, with its
+            // text popping out when focused.
+            let versionPopped = focused == .version
+            Button {
+                Task { await versions.check() }
+            } label: {
+                HStack(spacing: 16) {
+                    Image(systemName: versions.checking ? "hourglass"
+                          : (versions.newer != nil ? "arrow.down.circle.fill" : "arrow.clockwise"))
+                        .font(.system(size: 24))
+                        .frame(width: 40)
+                    if versionPopped {
+                        Text(versions.newer.map { "Version \($0) is out: update from your Mac" } ?? "v\(versions.current)")
+                            .font(.system(size: 21, weight: .medium))
+                            .lineLimit(1)
+                    }
                 }
-                .buttonStyle(TVRowButtonStyle())
-                .focused($focused, equals: .version)
+                .foregroundStyle(versionPopped ? Theme.bg : (versions.newer != nil ? Theme.accent : Theme.muted))
             }
+            .buttonStyle(TVRowButtonStyle())
+            .focused($focused, equals: .version)
+            .fixedSize(horizontal: versionPopped, vertical: false)
+            .frame(width: inner, alignment: .leading)
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
         .padding(.bottom, TVLayout.margin)
-        .frame(width: open ? TVLayout.railOpen : TVLayout.rail, alignment: .leading)
+        .frame(width: TVLayout.rail, alignment: .leading)
         .frame(maxHeight: .infinity, alignment: .top)
-        .background(open ? Theme.card : Theme.bg)
+        .background(Theme.bg)
         .focusSection()
         // Coming onto the rail lands on the tab you're on (so it doesn't switch by accident).
         .defaultFocus($focused, .tab(nav.tab), priority: .userInitiated)
         // Back from a left column: to the tab you're on.
         .onChange(of: nav.tabsRequest) { focused = .tab(nav.tab) }
-        // Moving through the tabs shows a page once you stop on its tab (a quarter second); leaving the rail shows it
-        // now, and lands on the page's selected item.
+        // Moving through the tabs doesn't switch the page (2.35); leaving the rail (right) shows the tab you were
+        // on, and lands on the page's selected item.
         .onChange(of: focused) {
             nav.tabsFocused = focused != nil
-            pendingTab?.cancel()
             guard let focused else {
                 if let waitingTab { NotificationCenter.default.post(name: .tvSwitchTab, object: waitingTab) }
                 waitingTab = nil
@@ -381,58 +377,34 @@ struct TVRail: View {
             }
             guard case .tab(let tab) = focused, tab != nav.tab else { waitingTab = nil; return }
             waitingTab = tab
-            pendingTab = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(250))
-                guard !Task.isCancelled else { return }
-                waitingTab = nil
-                NotificationCenter.default.post(name: .tvSwitchTab, object: tab)
-            }
         }
         .task { await versions.check() }
-        .animation(.easeOut(duration: 0.15), value: open)
+        .animation(.easeOut(duration: 0.15), value: focused)
     }
 
-    /// Connections ("1/2", orange at the limit) and the EPG time: full when open, short under the icons when closed.
+    /// Connections ("1/2", orange at the limit) and the EPG time, short under the icons.
     @ViewBuilder
     private var status: some View {
         let epg = tvEPGStatus(model)
-        if open {
-            VStack(alignment: .leading, spacing: 14) {
-                Rectangle().fill(Theme.raised).frame(height: 2)
-                TVConnectionsPill(account: model.account)
-                if let epg {
-                    Text(epg.text)
-                        .font(.system(size: 21, weight: .medium))
-                        .foregroundStyle(epg.busy ? Theme.accent : Theme.muted)
-                        .lineLimit(2)
+        VStack(spacing: 16) {
+            if let max = model.account?.maxConnections, max > 0 {
+                let active = model.account?.activeConnections ?? 0
+                VStack(spacing: 4) {
+                    Image(systemName: "person.2.fill").font(.system(size: 20))
+                    Text("\(active)/\(max)").font(.system(size: 17, weight: .semibold).monospacedDigit())
                 }
+                .foregroundStyle(active >= max ? Theme.accent : Theme.muted)
             }
-            .padding(.horizontal, 10)
-            .padding(.bottom, 6)
-        } else {
-            VStack(spacing: 16) {
-                if let max = model.account?.maxConnections, max > 0 {
-                    let active = model.account?.activeConnections ?? 0
-                    VStack(spacing: 4) {
-                        Image(systemName: "person.2.fill").font(.system(size: 20))
-                        Text("\(active)/\(max)").font(.system(size: 17, weight: .semibold).monospacedDigit())
-                    }
-                    .foregroundStyle(active >= max ? Theme.accent : Theme.muted)
+            if let epg {
+                VStack(spacing: 4) {
+                    Image(systemName: "clock").font(.system(size: 20))
+                    Text(epg.busy ? "EPG…" : String(epg.text.dropFirst(4)).components(separatedBy: " ").first ?? "")
+                        .font(.system(size: 17, weight: .semibold).monospacedDigit())
                 }
-                if let epg {
-                    VStack(spacing: 4) {
-                        Image(systemName: "clock").font(.system(size: 20))
-                        Text(epg.busy ? "EPG…" : String(epg.text.dropFirst(4)).components(separatedBy: " ").first ?? "")
-                            .font(.system(size: 17, weight: .semibold).monospacedDigit())
-                    }
-                    .foregroundStyle(epg.busy ? Theme.accent : Theme.muted)
-                }
-                if versions.newer != nil {
-                    Circle().fill(Theme.accent).frame(width: 12, height: 12)
-                }
+                .foregroundStyle(epg.busy ? Theme.accent : Theme.muted)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.bottom, 6)
         }
+        .frame(width: inner)
+        .padding(.bottom, 6)
     }
 }

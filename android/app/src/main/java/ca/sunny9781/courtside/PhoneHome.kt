@@ -478,7 +478,7 @@ fun PhoneGame(model: AppModel, gameId: String) {
         val open = !header || sec.name !in folded
         if (header) item(key = "h:${sec.name}") {
             Row(Modifier.fillMaxWidth().clickable { folded = if (sec.name in folded) folded - sec.name else folded + sec.name }
-                .padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
+                .padding(horizontal = 16.dp, vertical = 8.dp).padding(top = 10.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Icons.Filled.ChevronRight, null, tint = Theme.muted, modifier = Modifier.size(14.dp).rotate(if (open) 90f else 0f))
                 Label(sec.name.uppercase(), size = 12.sp, weight = FontWeight.Bold, color = Theme.muted)

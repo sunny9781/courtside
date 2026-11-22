@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.35", date: "2026-11-22", time: "01:05", title: "Slimmer side menu", changes: [
+            Change(text: "The menu down the left stays icons only, so it no longer covers the player: just the highlighted tab pops out with its name", apps: tvAndroid),
+            Change(text: "Moving up and down the menu no longer switches pages as you go: click a tab or press right to open it", apps: tvAndroid),
+            Change(text: "More space between the stream categories on a game's screen", apps: everywhere),
+        ], titleApps: [.tv, .android]),
         Release(version: "2.34", date: "2026-11-22", time: "00:32", title: "Lighter multiview on Chromecast", changes: [
             Change(text: "Multiview on Chromecast and other Lite-mode TVs: the second game picks a 720p stream first (then SD, then 1080p), and a 1080p game already playing moves to a 720p stream of the same game when there is one, so two pictures play more smoothly.", apps: android),
         ]),
