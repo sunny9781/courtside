@@ -410,7 +410,7 @@ struct TVLiveView: View {
         }
         .buttonStyle(TVGuideButtonStyle())
         .focused($focusedChannel, equals: channel.id)
-        .contextMenu { favoriteButton(channel: channel.id); hideButton(channel: channel) }
+        .contextMenu { WatchAlongsideButton(channel: channel); favoriteButton(channel: channel.id); hideButton(channel: channel) }
     }
 
     private var searching: Bool { search.trimmingCharacters(in: .whitespaces).count >= 2 }
@@ -496,6 +496,7 @@ struct TVGuideChannels: View, Equatable {
                         .buttonStyle(TVGuideButtonStyle())
                         .focused($focusedChannel, equals: channel.id)
                         .contextMenu {
+                            WatchAlongsideButton(channel: channel)
                             let on = model.isFavorite(channel: channel.id)
                             Button(on ? "Remove from Favourites" : "Add to Favourites", systemImage: on ? "heart.slash" : "heart") {
                                 model.toggleFavorite(channel: channel.id)
