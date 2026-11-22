@@ -376,7 +376,6 @@ struct TVGamesPane: View {
     @State private var paneWidth: CGFloat = 1300
     /// Finished games start open on Apple TV (Android folds them in Lite mode only).
     @State private var showFinished = true
-    @State private var showRedZone = false
     @FocusState private var focusedChip: TVNav.HomeSelection?
 
     struct PaneSection: Identifiable {
@@ -429,16 +428,17 @@ struct TVGamesPane: View {
 
     private var finished: [Game] { sections.flatMap { $0.games.filter { $0.state == .finished } } }
 
-    /// NFL RedZone: while any NFL game is live, its channels sit in a folder at the top of Live Now and Football.
-    private var redZone: [Channel] {
+    /// NFL RedZone (2.39): while any NFL game is live, a card at the top of Football / NFL that opens a game screen of
+    /// its channels, grouped like any game's streams.
+    private var redZone: Game? {
         let here: Bool
         switch nav.homeSelection {
         case .liveNow: here = true
         case .sport(let s): here = s == .football
         case .league(let id): here = id == "nfl"
         }
-        guard here, model.games.contains(where: { $0.league.id == "nfl" && $0.state == .live }) else { return [] }
-        return model.redZoneChannels()
+        guard here, model.games.contains(where: { $0.league.id == "nfl" && $0.state == .live }) else { return nil }
+        return model.redZoneGame
     }
 
     private func fold(_ title: String, open: Bool, toggle: @escaping () -> Void) -> some View {
@@ -499,21 +499,7 @@ struct TVGamesPane: View {
     private var cards: some View {
         ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: 6) {
-                let redZone = redZone
-                if !redZone.isEmpty {
-                    fold("NFL RedZone · \(redZone.count)", open: showRedZone) { showRedZone.toggle() }
-                    if showRedZone {
-                        let playing = model.pinned?.channel.id
-                        ForEach(redZone) { channel in
-                            Button {
-                                if channel.id == playing { model.play(channel, lineup: redZone) } else { model.pin(channel, lineup: redZone) }
-                            } label: {
-                                TVChannelRow(channel: channel, playing: channel.id == playing, showNext: false)
-                            }
-                            .buttonStyle(TVRowButtonStyle())
-                        }
-                    }
-                }
+                if let redZone { gameGrid([redZone]) }
 
                 // Only when there's nothing at all (no "Nothing live or coming up": the folds below say it).
                 if open.isEmpty && finished.isEmpty {
@@ -545,11 +531,11 @@ struct TVGamesPane: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .onChange(of: nav.homeSelection) { showFinished = true; showRedZone = false }
+            .onChange(of: nav.homeSelection) { showFinished = true }
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { paneWidth = $0 }
             .onChange(of: focusedGame.wrappedValue) { if focusedGame.wrappedValue != nil || focusedChip != nil { inPane = true } }
             .onChange(of: focusedChip) { if focusedGame.wrappedValue != nil || focusedChip != nil { inPane = true } }
-            .preference(key: TVFirstGameKey.self, value: open.first?.games.first?.id ?? (showFinished ? finished.first?.id : nil))
+            .preference(key: TVFirstGameKey.self, value: redZone?.id ?? open.first?.games.first?.id ?? (showFinished ? finished.first?.id : nil))
             .padding(.vertical, 20)
         }
         // Runs to the bottom of the screen, under the now-playing bar (the last row can scroll clear of it).

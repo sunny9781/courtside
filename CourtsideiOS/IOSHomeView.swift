@@ -100,7 +100,6 @@ struct IOSGamesList: View {
     let showsSportChips: Bool
     /// Sections whose finished games are open (they fold into one "Finished · 6" line under the cards).
     @State private var openFinished: Set<String> = []
-    @State private var redZoneOpen = false
 
     struct GameSection: Identifiable {
         let id: String
@@ -159,7 +158,15 @@ struct IOSGamesList: View {
                 }
                 let redZone = HomeFolds.redZone(model: model, sport: nav.homeSelection == .league("nfl") ? .football
                                                 : (nav.homeSelection == .sport(.football) ? .football : nil))
-                if !redZone.isEmpty { redZoneFolder(redZone) }
+                if let redZone {
+                    // A card (2.39): opens a game screen of RedZone's channels, grouped like any game's streams.
+                    NavigationLink(value: redZone.id) {
+                        IOSGameCard(game: redZone, compact: showsSportChips)
+                    }
+                    .buttonStyle(.plain)
+                    .frame(maxWidth: 420, alignment: .leading)
+                    .padding(.horizontal)
+                }
 
                 if sections.isEmpty {
                     Text(model.isLoading || model.games.isEmpty ? "Loading today's games…" : "No games today.")
@@ -236,33 +243,6 @@ struct IOSGamesList: View {
         }
         .buttonStyle(.plain)
         .padding(.horizontal)
-    }
-
-    /// "NFL RedZone · 2" while an NFL game is live: tap to show its channels; tap a channel to play it.
-    private func redZoneFolder(_ channels: [Channel]) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Button { redZoneOpen.toggle() } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: redZoneOpen ? "chevron.down" : "chevron.right").font(.caption.bold())
-                    Text("NFL RedZone · \(channels.count)").font(.subheadline.weight(.semibold))
-                }
-                .foregroundStyle(Theme.accent)
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal)
-            if redZoneOpen {
-                ForEach(channels) { channel in
-                    IOSChannelRow(channel: channel, playing: model.pinned?.channel.id == channel.id)
-                        .onTapGesture {
-                            if model.pinned?.channel.id == channel.id {
-                                model.play(channel, gameTitle: nil, lineup: channels)
-                            } else {
-                                model.pin(channel, lineup: channels)
-                            }
-                        }
-                }
-            }
-        }
     }
 
     /// Home opens on a sport (no Live Now page): a favourite with something live, else any sport with something

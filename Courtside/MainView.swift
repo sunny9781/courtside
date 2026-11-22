@@ -69,7 +69,7 @@ struct ShellView: View {
         .onChange(of: route) { filter = "" }
         .onChange(of: openGameID) { filter = "" }
         .onReceive(NotificationCenter.default.publisher(for: .openGame)) { note in
-            guard let id = note.object as? String, let game = model.games.first(where: { $0.id == id }) else { return }
+            guard let id = note.object as? String, let game = model.game(id) else { return }
             selectedSport = game.league.sport
             selectedLeague = nil
             route = .home
@@ -85,7 +85,7 @@ struct ShellView: View {
     private var pinnedGame: Game? {
         guard let item = model.pinned, let title = item.gameTitle else { return nil }
         if onHome, let id = openGameID, model.pinnedIsFrom(gameID: id) {
-            return model.games.first { $0.id == id }
+            return model.game(id)
         }
         return model.games.first { $0.title == title && model.pinnedIsFrom(gameID: $0.id) }
     }
@@ -111,7 +111,7 @@ struct ShellView: View {
     private var content: some View {
         switch route {
         case .home, .sport:
-            if let id = openGameID, let game = model.games.first(where: { $0.id == id }) {
+            if let id = openGameID, let game = model.game(id) {
                 GameDetailView(search: $filter, game: game) {
                     openGameID = nil
                 }
@@ -122,7 +122,7 @@ struct ShellView: View {
             }
         case .guide:
             GuideView(categorySearch: $filter) { gameID in
-                if let game = model.games.first(where: { $0.id == gameID }) {
+                if let game = model.game(gameID) {
                     selectedSport = game.league.sport
                     selectedLeague = nil
                     route = .home

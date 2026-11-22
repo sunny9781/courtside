@@ -15,7 +15,7 @@ struct TVGameView: View {
     @FocusState private var focusedStream: Int?
     let gameID: String
 
-    private var game: Game? { model.games.first { $0.id == gameID } }
+    private var game: Game? { model.game(gameID) }
 
     private var allStreams: [StreamMatch] {
         let all = model.matches[gameID] ?? []

@@ -13,7 +13,7 @@ struct IOSGameView: View {
     @State private var folded: Set<String> = []
     let gameID: String
 
-    private var game: Game? { model.games.first { $0.id == gameID } }
+    private var game: Game? { model.game(gameID) }
 
     private var allStreams: [StreamMatch] {
         let all = model.matches[gameID] ?? []

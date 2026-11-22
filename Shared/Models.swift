@@ -260,6 +260,9 @@ struct Game: Identifiable, Hashable {
 
     var title: String { isEvent ? eventTitle : "\(away.nickname) at \(home.nickname)" }
 
+    /// NFL RedZone's id: a game screen of its channels, not one of today's games.
+    static let redZoneID = "redzone"
+
     /// Events with two named sides (a UFC main event) also show them.
     var hasSides: Bool { !away.name.isEmpty && !home.name.isEmpty }
 }

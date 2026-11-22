@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.39", date: "2026-11-22", time: "13:35", title: "NFL RedZone gets its own screen", changes: [
+            Change(text: "NFL RedZone on Home is now a card (while an NFL game is live) that opens its own screen, with its channels grouped like a game's streams (4K, USA, Canada…), instead of a folder of channels", apps: everywhere),
+        ]),
         Release(version: "2.38", date: "2026-11-22", time: "12:35", title: "Side menu: icons only", changes: [
             Change(text: "The side menu is icons only: the highlighted tab no longer pops out with its name, and pressing down from Home goes to EPG again instead of into the sports", apps: tvAndroid),
         ]),

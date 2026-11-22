@@ -1022,16 +1022,16 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     val finished = sections.flatMap { it.games.filter { g -> g.state == GameState.FINISHED } }
     // Finished games show by default; Lite mode folds them (less to draw).
     var showFinished by remember(selection) { mutableStateOf(!Perf.foldFinished) }
-    val first = open.firstOrNull()?.games?.firstOrNull()?.id ?: if (showFinished) finished.firstOrNull()?.id else null
+    // NFL RedZone (2.39): while any NFL game is live, a card at the top of Football / NFL that opens a game screen of
+    // its channels, grouped like any game's streams.
+    val nflLive = selection.let { it is HomeSelection.LiveNow || selectedSport(it) == Sport.FOOTBALL ||
+        (it is HomeSelection.OfLeague && it.leagueId == "nfl") } && model.gamesIn("nfl").any { it.state == GameState.LIVE }
+    val redZone = if (nflLive) model.redZoneGame() else null
+    val first = redZone?.id ?: open.firstOrNull()?.games?.firstOrNull()?.id ?: if (showFinished) finished.firstOrNull()?.id else null
     SideEffect { onFirst(first) }
     // Right on the last card of a row goes nowhere (no jumping to another tab).
     val toEpg = Modifier
     var showLater by remember(selection) { mutableStateOf(false) }
-    // NFL RedZone: while any NFL game is live, its channels sit in a folder at the top of Live Now and Football.
-    val nflLive = selection.let { it is HomeSelection.LiveNow || selectedSport(it) == Sport.FOOTBALL ||
-        (it is HomeSelection.OfLeague && it.leagueId == "nfl") } && model.gamesIn("nfl").any { it.state == GameState.LIVE }
-    val redZone = if (nflLive) model.redZoneChannels() else emptyList()
-    var showRedZone by remember(selection) { mutableStateOf(false) }
     // Hold select on a score card (2.30): Watch alongside (multiview), while a stream plays.
     var prompt by remember { mutableStateOf<HoldPrompt?>(null) }
     prompt?.let { p -> HoldMenu(p) { prompt = null } }
@@ -1082,18 +1082,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
     Column(Modifier.fillMaxHeight()) {
     LazyColumn(Modifier.weight(1f), state = model.homeList, verticalArrangement = Arrangement.spacedBy(2.dp),
         contentPadding = PaddingValues(top = 6.dp, bottom = 6.dp + barInset(model))) {
-        if (redZone.isNotEmpty()) {
-            item(key = "redzone", contentType = "finished") {
-                FoldRow("NFL RedZone · ${redZone.size}", showRedZone, Modifier.tracked(targets, "redzone")) { showRedZone = !showRedZone }
-            }
-            if (showRedZone) items(redZone, key = { "rz:${it.id}" }, contentType = { "channel" }) { ch ->
-                val playing = model.pinned?.channel?.id
-                ChannelRow(model, ch, ch.id == playing, Modifier.tracked(targets, "rz:${ch.id}"), showNext = false,
-                    onFocus = { }) {
-                    if (ch.id == playing) model.play(ch, null, redZone, from = "home") else model.pin(ch, null, redZone)
-                }
-            }
-        }
+        if (redZone != null) cardRows(listOf(redZone), "rz", first = true)
         // Only when there's nothing at all (no "Nothing live or coming up": the folds below say it).
         if (open.isEmpty() && (model.error != null || (later.isEmpty() && finished.isEmpty()))) {
             item(key = "empty") {
@@ -1115,7 +1104,7 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             // Same content type: switching sports reuses the rows already built (new text, same row) instead of
             // building new ones.
             cardRows(section.games, section.id, headed = section.title.isNotEmpty() && open.size > 1,
-                first = section == open.first() && redZone.isEmpty())
+                first = section == open.first() && redZone == null)
         }
         if (later.isNotEmpty()) {
             item(key = "later", contentType = "finished") {
@@ -1345,7 +1334,7 @@ private fun GameCard(model: AppModel, game: Game, showLeague: Boolean, modifier:
  */
 @Composable
 fun GameScreen(model: AppModel, gameId: String) {
-    val game = model.games.firstOrNull { it.id == gameId }
+    val game = model.game(gameId)
     if (game == null) {
         Label("This game is no longer on today's schedule.", size = 14.sp, color = Theme.muted, modifier = Modifier.padding(Theme.margin))
         return

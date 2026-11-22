@@ -127,6 +127,13 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   interval ahead); the raw guide.xml is deleted after parsing. `refresh()` loads it right after saved channels, while
   ESPN downloads (Android does the same via Cache.kt). tvOS can still purge Caches (no persistent storage there).
 
+## NFL RedZone (2.39, all apps)
+- Not a folder any more: while an NFL game is live, Home (Football / NFL) shows a RedZone event card first that opens
+  the normal game screen. The game isn't in `games`: `model.redZoneGame` / `redZoneGame()` builds it (id
+  `Game.redZoneID` / `REDZONE_ID` = "redzone", league NFL, live, "N channels") and `model.game(id)` finds it; every
+  game screen and multiview looks games up with `game(id)`. Streams: Swift puts them in `matches["redzone"]` in
+  `rematch()`; Android `streams()`/`mainStreams()` return `redZoneMatches()` for that id. StreamSections groups them.
+
 ## Android phone app (2.0, 2026-11-20)
 - Same APK as the TVs. `Device.tv` (Device.kt: UI mode television, leanback, Fire TV, or no touchscreen) picks the
   layout in `CourtsideApp`: TVs keep `Shell`, phones/tablets get `PhoneApp` (Phone.kt, PhoneHome.kt, PhoneEpg.kt,
