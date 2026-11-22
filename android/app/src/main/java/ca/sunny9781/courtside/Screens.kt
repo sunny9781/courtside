@@ -414,13 +414,13 @@ fun NavRail(model: AppModel) {
                     busy = true
                     Updater.check(context, userInitiated = true, download = false)
                     busy = false
-                    if (Updater.availableVersion == null) model.notice = Updater.message ?: "You have the latest version."
                 }
             }, background = if (ready != null || available != null) Theme.accent else Color.Transparent, modifier = Modifier.fillMaxWidth()) { focused ->
                 Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     val color = if (focused) Theme.bg else if (ready != null || available != null) Theme.onAccent else Theme.muted
-                    Icon(if (ready != null || available != null) Icons.Filled.Download else if (Updater.checking) Icons.Filled.HourglassTop else Icons.Filled.Refresh,
+                    Icon(if (ready != null || available != null) Icons.Filled.Download else if (Updater.checking) Icons.Filled.HourglassTop
+                        else if (Updater.status != null) Icons.Filled.Check else Icons.Filled.Refresh,
                         null, tint = color, modifier = Modifier.size(14.dp))
                     val dl = Updater.downloading
                     Label(when {
@@ -428,6 +428,7 @@ fun NavRail(model: AppModel) {
                         Updater.installing || busy -> "Checking…"
                         ready != null -> "Install update v$ready"
                         available != null -> "Download update v$available"
+                        Updater.status != null -> "${Updater.status} · v${BuildConfig.VERSION_NAME}"
                         else -> "v${BuildConfig.VERSION_NAME}"
                     }, size = 12.sp, weight = FontWeight.SemiBold, color = color)
                 }

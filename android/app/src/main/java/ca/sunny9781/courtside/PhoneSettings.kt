@@ -204,7 +204,7 @@ private fun GeneralSection(model: AppModel) {
             downloading != null -> Line("Downloading $downloading", Updater.downloadProgress?.let { "${(it * 100).toInt()}%" })
             ready != null -> Line("Install version $ready", detail = "Android's own screen asks you to confirm the install.",
                 color = Theme.accent, onClick = { Updater.installNow(context) })
-            else -> Line(if (Updater.checking) "Checking…" else "Check for updates", detail = Updater.message ?: "Courtside checks by itself every time it opens.",
+            else -> Line(if (Updater.checking) "Checking…" else "Check for updates", detail = Updater.status ?: Updater.message ?: "Courtside checks by itself every time it opens.",
                 color = Theme.accent, onClick = { scope.launch { Updater.check(context, userInitiated = true) } })
         }
         Divider()

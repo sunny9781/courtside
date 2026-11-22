@@ -162,7 +162,7 @@ private fun Updates(model: AppModel) {
             scope.launch { Updater.check(context, userInitiated = true, download = true) }
         }
     } else {
-        Action("Check for updates", Updater.message ?: "Courtside checks by itself every time it opens.",
+        Action("Check for updates", Updater.status ?: Updater.message ?: "Courtside checks by itself every time it opens.",
             value = if (Updater.checking) "Checking…" else null) { scope.launch { Updater.check(context, userInitiated = true, download = false) } }
     }
     Info("Version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")

@@ -29,6 +29,18 @@ object Updater {
     var checking by mutableStateOf(false)
         private set
     var message by mutableStateOf<String?>(null)
+    /**
+     * The result of a check you asked for ("You're up to date."): shown on the button you pressed (2.32), not as a
+     * notice in the middle of the screen. Clears itself after a few seconds.
+     */
+    var status by mutableStateOf<String?>(null)
+        private set
+    private var statusJob: kotlinx.coroutines.Job? = null
+    private fun showStatus(text: String) {
+        statusJob?.cancel()
+        status = text
+        statusJob = appScope.launch { delay(4000); status = null }
+    }
     /** The new version being downloaded right now, and how far it's got (0..1, null if the size isn't known). */
     var downloading by mutableStateOf<String?>(null)
         private set
@@ -64,12 +76,12 @@ object Updater {
             val version = json.optString("version")
             val url = json.optString("url")
             if (build <= maxOf(BuildConfig.VERSION_CODE, readyBuild) || url.isEmpty()) {
-                if (userInitiated && readyVersion == null) message = "You're up to date."
+                if (userInitiated && readyVersion == null) showStatus("You're up to date")
                 return@withContext
             }
             if (!download) {
                 availableVersion = version
-                if (userInitiated) message = "Version $version is out: Download update gets it."
+                if (userInitiated) status = null
                 return@withContext
             }
             val dir = File(context.cacheDir, "updates").apply { mkdirs() }
@@ -84,7 +96,7 @@ object Updater {
             availableVersion = null
             message = null
         } catch (e: Exception) {
-            if (userInitiated) message = "Couldn't check for updates."
+            if (userInitiated) showStatus("Couldn't check")
         } finally {
             checking = false
             lock.unlock()
