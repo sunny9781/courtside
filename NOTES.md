@@ -329,4 +329,5 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   left panel (streams, another game, remove). Back = sound tile continues alone (tile 2 is reopened on the main player).
 - Auto-pick: no 4K, reliability, FHD > HD > SD, favourites, English; session memory of manual swaps; one fallback if
   an auto-pick shows no picture in 7 s. Tile 2 records no reliability stats yet.
-- Unconfirmed on real devices (Shield, Apple TV).
+- Works on the Shield. 2.34: Chromecast struggled with two tiles; on `slowDevice` the auto-pick ranks 720p > SD > 1080p
+  and a 1080p tile 1 moves to a 720p stream of its game (closed first). Lite devices keep multiview off by default.
