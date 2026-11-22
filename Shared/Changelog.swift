@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.37", date: "2026-11-22", time: "12:30", title: "Side menu: icons only", changes: [
+            Change(text: "The side menu is icons only: the highlighted tab no longer pops out with its name, and pressing down from Home goes to EPG again instead of into the sports", apps: tvAndroid),
+        ]),
         Release(version: "2.36", date: "2026-11-22", time: "12:10", title: "Slimmer side menu", changes: [
             Change(text: "The menu down the left stays icons only, so it no longer covers the player: just the highlighted tab pops out with its name", apps: tvAndroid),
             Change(text: "Home, EPG and Settings sit in the middle of the side menu (no more C at the top)", apps: tvAndroid),

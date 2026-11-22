@@ -64,6 +64,8 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   version/update button at the bottom) pops out as a pill with its name, past the rail edge over the page
   (Android `wrapContentWidth(unbounded)`, Apple TV `fixedSize` inside a fixed `inner` frame). Moving through the tabs
   doesn't switch pages any more (no 250 ms settle): click, or Right/leaving the rail, opens the focused tab.
+  2.37: the pop-out names are gone (Sunny: icons only; the wide pill made Down from Home jump into the sports).
+  The update button is an icon too (download / hourglass / check / refresh); no version text on the rail.
   Game screen categories spaced out (Android TV 8 dp, Apple TV 14 pt, Mac 8 pt; "All" headings get more top room);
   phones keep their old spacing (Sunny). No "C" logo; the three tabs are centred in the rail's height (Box/ZStack,
   status + version pinned to the bottom). Apple TV: no animation on the rail (it stuttered); game categories use
