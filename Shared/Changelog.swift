@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.31", date: "2026-11-22", time: "00:32", title: "Lighter multiview on Chromecast", changes: [
+            Change(text: "Multiview on Chromecast and other Lite-mode TVs: the second game picks a 720p stream first (then SD, then 1080p), and a 1080p game already playing moves to a 720p stream of the same game when there is one, so two pictures play more smoothly.", apps: android),
+        ]),
         Release(version: "2.33", date: "2026-11-22", time: "00:30", title: "VPN and proxy", changes: [
             Change(text: "Settings › VPN: Courtside's own WireGuard VPN. Only Courtside goes through it (the rest of the device stays on its normal connection). It connects when you open the app and disconnects when you leave.", apps: android),
             Change(text: "TVs: send the WireGuard config (.conf file) from your phone with the QR code in Settings › VPN. Phones: choose the .conf file or paste it.", apps: android),

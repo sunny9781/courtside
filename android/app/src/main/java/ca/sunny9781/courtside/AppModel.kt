@@ -1025,11 +1025,13 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         fun rel(m: StreamMatch) = when (StreamStats.ratings[m.channel.id]) {
             StreamStats.Rating.GOOD -> 0; StreamStats.Rating.OK -> 1; null -> 2; StreamStats.Rating.POOR -> 3
         }
+        // Lite devices (Chromecast, Google TV sets) struggle to decode two 1080p streams: 720p first, then SD, then 1080p.
+        fun light(rank: Int) = if (!settings.slowDevice) rank else when (rank) { 2 -> 3; 1 -> 2; 3 -> 1; else -> rank }
         return ordered.withIndex()
             .filter { (_, m) -> !isUhd(m) && !m.hidden && m.channel.id != avoid }
             .sortedWith(compareBy<IndexedValue<StreamMatch>> { if (it.value.channel.id == picked) 0 else 1 }
                 .thenBy { rel(it.value) }
-                .thenByDescending { StreamSections.qualityRank(it.value, measuredQuality) }
+                .thenByDescending { light(StreamSections.qualityRank(it.value, measuredQuality)) }
                 .thenBy { if (it.value.channel.id in favs) 0 else 1 }
                 .thenBy { if (it.value.channel.id in foreignIds) 1 else 0 }
                 .thenBy { it.index })
@@ -1088,6 +1090,17 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 Playback.player.volume = 1f
                 tile2.setVolume(0f)
                 setTile(1, second, gameId, auto = pick == null, rest = candidates.drop(1))
+                // Lite devices: a 1080p tile 1 moves to a 720p stream of the same game, if there is one (closed first).
+                if (settings.slowDevice) gameIdFor(first)?.let { g ->
+                    val current = streams(g).firstOrNull { it.channel.id == first.channel.id } ?: return@let
+                    if (StreamSections.qualityRank(current, measuredQuality) < 3) return@let
+                    val lighter = multiviewCandidates(g, avoid = second.channel.id)
+                        .firstOrNull { StreamSections.qualityRank(it, measuredQuality) == 2 } ?: return@let
+                    ConnLog.add("Multiview: tile 1 to a 720p stream (${lighter.channel.name}) on this device")
+                    Playback.stop()
+                    delay(1000)
+                    if (multiview) setTile(0, lighter, g, auto = false, rest = emptyList())
+                }
             } finally {
                 multiviewChecking = false
             }
