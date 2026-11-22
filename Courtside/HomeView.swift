@@ -28,7 +28,11 @@ struct SportView: View {
                 }
 
                 let redZone = HomeFolds.redZone(model: model, sport: leagueID == nil || leagueID == "nfl" ? sport : nil)
-                if !redZone.isEmpty { RedZoneFolder(channels: redZone) }
+                if let redZone {
+                    // A card (2.41): opens a game screen of RedZone's channels, grouped like any game's streams.
+                    LiveGameCard(game: redZone, streams: model.streamCount(redZone.id)) { onOpen(redZone) }
+                        .frame(maxWidth: 420, alignment: .leading)
+                }
 
                 if sections.isEmpty || sections.allSatisfy({ l in !allGames.contains { $0.league == l } }) {
                     emptyState
@@ -154,23 +158,6 @@ struct FoldButton: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-}
-
-/// "NFL RedZone · 2" at the top of Football while an NFL game is live: click to show its channels.
-struct RedZoneFolder: View {
-    let channels: [Channel]
-    @State private var open = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            FoldButton(text: "NFL RedZone · \(channels.count)", open: $open, colour: Theme.accent)
-            if open {
-                VStack(spacing: 6) {
-                    ForEach(channels) { MacChannelLine(channel: $0, lineup: channels) }
-                }
-            }
-        }
     }
 }
 

@@ -791,7 +791,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     fun pinnedIsFrom(gameId: String): Boolean {
         val id = pinned?.channel?.id ?: return false
-        return (matches[gameId] ?: emptyList()).any { it.channel.id == id }
+        return streams(gameId).any { it.channel.id == id }
     }
 
     /** The streams shown on a game's card: local stations and guesses left out, unless that's all there is. */
@@ -808,7 +808,39 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         return redZoneList
     }
 
-    fun mainStreams(gameId: String): List<StreamMatch> = home.main[gameId] ?: run {
+    /**
+     * NFL RedZone as a game (2.41): while an NFL game is live, Home shows it as a card that opens a game screen with
+     * its channels grouped like any game's streams (4K, USA, Canada…). It isn't in `games`; [game] finds it.
+     */
+    fun redZoneGame(): Game? {
+        val n = redZoneChannels().size
+        if (n == 0) return null
+        val nfl = League.all.firstOrNull { it.id == "nfl" } ?: return null
+        return Game(REDZONE_ID, nfl, null, GameState.LIVE, "Live", Team.none, Team.none, emptyList(), isEvent = true,
+            eventTitle = "NFL RedZone", eventDetail = if (n == 1) "1 channel" else "$n channels")
+    }
+
+    /** A game by id: today's games, or RedZone. */
+    fun game(id: String): Game? = games.firstOrNull { it.id == id } ?: if (id == REDZONE_ID) redZoneGame() else null
+
+    private var redZoneMatchesFor: List<Channel>? = null
+    private var redZoneMatchList: List<StreamMatch> = emptyList()
+
+    /** The RedZone channels as streams (quality from the name, or as measured). */
+    private fun redZoneMatches(): List<StreamMatch> {
+        val rz = redZoneChannels()
+        if (redZoneMatchesFor !== rz) {
+            redZoneMatchesFor = rz
+            redZoneMatchList = rz.map { ch ->
+                val q = measuredQuality[ch.id]?.let { it to when (it) { "4K" -> 4; "1080p" -> 3; "720p", "HD" -> 2; else -> 1 } }
+                    ?: Matcher.quality(Matcher.Indexed(ch).tokenSet)
+                StreamMatch(ch, "RedZone channel", 3, q.first, q.second, false, false, false, Matcher.country(ch))
+            }.sortedByDescending { it.qualityRank }
+        }
+        return redZoneMatchList
+    }
+
+    fun mainStreams(gameId: String): List<StreamMatch> = if (gameId == REDZONE_ID) redZoneMatches() else home.main[gameId] ?: run {
         val all = matches[gameId] ?: emptyList()
         all.filter { !it.hidden }.ifEmpty { all }
     }
@@ -839,7 +871,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
         item.gameTitle ?: currentProgramme(item.channel)?.title?.ifEmpty { null } ?: item.channel.name
 
     /** The streams for a game screen, with SD left out when better ones exist. */
-    fun streams(gameId: String): List<StreamMatch> = matches[gameId] ?: emptyList()
+    fun streams(gameId: String): List<StreamMatch> = if (gameId == REDZONE_ID) redZoneMatches() else matches[gameId] ?: emptyList()
 
     // MARK: Playing
 
@@ -1013,7 +1045,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
      * and the game screen's order. A stream you picked by hand for this game comes first.
      */
     fun multiviewCandidates(gameId: String, avoid: Int?): List<StreamMatch> {
-        val game = games.firstOrNull { it.id == gameId } ?: return emptyList()
+        val game = game(gameId) ?: return emptyList()
         val all = streams(gameId).let { l -> if (settings.hideSD) l.filter { it.quality != "SD" } else l }
         val listing = StreamSections.build(all, game.league, measured = measuredQuality, fps = measuredFrameRate,
             hdr = measuredHdr, audio = measuredAudio)
@@ -1040,7 +1072,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     /** The streams a tile's panel lists for its game (the game screen's order, 4K left out). */
     fun tileStreams(gameId: String): List<StreamMatch> {
-        val game = games.firstOrNull { it.id == gameId } ?: return emptyList()
+        val game = game(gameId) ?: return emptyList()
         val all = streams(gameId).let { l -> if (settings.hideSD) l.filter { it.quality != "SD" } else l }
         val listing = StreamSections.build(all, game.league, measured = measuredQuality, fps = measuredFrameRate,
             hdr = measuredHdr, audio = measuredAudio)
@@ -1054,7 +1086,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** The game a playing stream belongs to: the open game screen's, else a game listing that channel. */
     private fun gameIdFor(item: NowPlaying): String? {
         val id = item.channel.id
-        openGameId?.takeIf { g -> matches[g].orEmpty().any { it.channel.id == id } }?.let { return it }
+        openGameId?.takeIf { g -> streams(g).any { it.channel.id == id } }?.let { return it }
         return games.filter { g -> matches[g.id].orEmpty().any { it.channel.id == id } }
             .sortedBy { if (it.title == item.gameTitle) 0 else if (it.state == GameState.LIVE) 1 else 2 }
             .firstOrNull()?.id
@@ -1064,7 +1096,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
      * Hold select › Watch alongside: multiview with the stream playing now as tile 1 and this game's stream as tile 2
      * (`pick`, or the best one for it). The provider's count is checked first: there must be a free connection.
      */
-    /** Hold select on an EPG channel (2.39): this channel beside the stream playing (no game). */
+    /** Hold select on an EPG channel (2.41): this channel beside the stream playing (no game). */
     fun watchChannelAlongside(ch: Channel) {
         if (!canWatchAlongside) { notice = "Start a stream first, then hold a channel to watch it alongside"; return }
         if (ch.id == pinned?.channel?.id) { notice = "${ch.name} is already playing"; return }
@@ -1123,7 +1155,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
      */
     private fun setTile(i: Int, m: StreamMatch, gameId: String?, auto: Boolean, rest: List<StreamMatch>) {
         val creds = credentials ?: return
-        val game = gameId?.let { g -> games.firstOrNull { it.id == g } }
+        val game = gameId?.let { g -> game(g) }
         val item = NowPlaying(m.channel, game?.title, lineupFor(gameId, m.channel))
         tiles = tiles.mapIndexed { j, t -> if (j == i) Tile(item, gameId) else t }
         recent.add(m.channel.id)

@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.41", date: "2026-11-22", time: "13:45", title: "NFL RedZone gets its own screen", changes: [
+            Change(text: "NFL RedZone on Home is now a card (while an NFL game is live) that opens its own screen, with its channels grouped like a game's streams (4K, USA, Canada…), instead of a folder of channels", apps: everywhere),
+        ]),
         Release(version: "2.40", date: "2026-11-22", time: "13:30", title: "", changes: [
             Change(text: "The update icon at the bottom of the side menu can't be selected any more (Apple TV updates come from the Mac): it just turns yellow when a new version is out.", apps: tv),
             Change(text: "Home: a sport's leagues open when you click the sport, not by moving (pressing up on the top sport kept opening them for a moment).", apps: tv)

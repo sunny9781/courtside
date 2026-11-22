@@ -105,10 +105,10 @@ extension Array where Element == StreamMatch {
 
 /// Home's folds. (No "Later today" on the Apple apps since 2.2: it's an Android Lite mode option.)
 enum HomeFolds {
-    /// While an NFL game is live, the RedZone channels get a folder at the top of Football / NFL.
-    @MainActor static func redZone(model: AppModel, sport: Sport?) -> [Channel] {
-        guard sport == .football, model.games.contains(where: { $0.league.id == "nfl" && $0.state == .live }) else { return [] }
-        return model.redZoneChannels()
+    /// While an NFL game is live, a RedZone card at the top of Football / NFL (2.41: opens a game screen).
+    @MainActor static func redZone(model: AppModel, sport: Sport?) -> Game? {
+        guard sport == .football, model.games.contains(where: { $0.league.id == "nfl" && $0.state == .live }) else { return nil }
+        return model.redZoneGame
     }
 }
 

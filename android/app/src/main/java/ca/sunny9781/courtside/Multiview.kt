@@ -363,7 +363,7 @@ private fun TileVideo(tile: TilePlayer, modifier: Modifier) {
 /** "BOS 54 – 61 NYK · Q3 4:12" (status in orange), the event's name, or the channel's name for a channel with no game. */
 @Composable
 private fun ScoreChip(model: AppModel, tile: AppModel.Tile, modifier: Modifier) {
-    val game = tile.gameId?.let { id -> model.games.firstOrNull { it.id == id } }
+    val game = tile.gameId?.let { id -> model.game(id) }
     Row(modifier.clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.7f))
         .padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -400,7 +400,7 @@ private fun TilePanel(model: AppModel, index: Int, close: () -> Unit) {
     BackHandler { if (picking) picking = false else close() }
     val first = remember { FocusRequester() }
     LaunchedEffect(picking) { delay(50); runCatching { first.requestFocus() } }
-    val game = tile.gameId?.let { id -> model.games.firstOrNull { it.id == id } }
+    val game = tile.gameId?.let { id -> model.game(id) }
     val playing = tile.item.channel.id
     Box(Modifier.fillMaxHeight().width(320.dp).background(Theme.sidebar)) {
         LazyColumn(Modifier.fillMaxSize().focusGroup(), contentPadding = PaddingValues(12.dp),

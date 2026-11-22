@@ -590,8 +590,39 @@ final class AppModel: ObservableObject {
         if !guideGames.isEmpty || games.contains(where: { $0.id.hasPrefix("guide-") }) {
             games = (gs + guideGames).sorted { ($0.start ?? .distantFuture) < ($1.start ?? .distantFuture) }
         }
+        // NFL RedZone's channels, as the streams of its own game screen (2.41).
+        allMatches[Game.redZoneID] = redZoneMatches(measured: measured)
         matches = allMatches
         guideLinks = result.links
+    }
+
+    /// The RedZone channels as streams, best quality first (from the name, or as measured).
+    private func redZoneMatches(measured: [Int: String]) -> [StreamMatch] {
+        redZoneChannels().map { ch in
+            let t = Matcher.tokens(ch.name)
+            var q = Matcher.quality(Set(t))
+            if let real = measured[ch.id] { q = (real, real == "4K" ? 4 : (real == "1080p" ? 3 : (real == "720p" ? 2 : 1))) }
+            return StreamMatch(channel: ch, reason: "RedZone channel", score: 3, quality: q.label, qualityRank: q.rank,
+                               recent: false, local: false, likelyOnly: false, country: Matcher.country(of: ch))
+        }.sorted { $0.qualityRank > $1.qualityRank }
+    }
+
+    /// NFL RedZone as a game (2.41): while an NFL game is live, Home shows it as a card that opens a game screen with
+    /// its channels grouped like any game's streams. It isn't in `games`; `game(_:)` finds it.
+    var redZoneGame: Game? {
+        let n = redZoneChannels().count
+        guard n > 0, let nfl = League.all.first(where: { $0.id == "nfl" }) else { return nil }
+        var game = Game(id: Game.redZoneID, league: nfl, start: nil, state: .live, statusText: "Live",
+                        away: .none, home: .none, broadcasters: [])
+        game.isEvent = true
+        game.eventTitle = "NFL RedZone"
+        game.eventDetail = n == 1 ? "1 channel" : "\(n) channels"
+        return game
+    }
+
+    /// A game by id: today's games, or RedZone.
+    func game(_ id: String) -> Game? {
+        games.first { $0.id == id } ?? (id == Game.redZoneID ? redZoneGame : nil)
     }
 
     /// Streams shown by default for a game: everything except local stations, unless locals are all there is.
