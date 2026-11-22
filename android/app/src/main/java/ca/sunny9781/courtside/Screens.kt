@@ -330,10 +330,9 @@ val RAIL_WIDTH = 56.dp
 
 /**
  * The tabs (Home, EPG, Settings) down the left edge, where every move starts: left from a left panel lands on it,
- * right goes back into the page's left panel. It stays a slim strip of icons (2.36) so it never covers the player in
- * the corner: only the focused tab pops out as a pill with its name. Moving through the tabs doesn't switch the page;
+ * right goes back into the page's left panel. Icons only (2.38), so it never covers the player in the corner. Moving through the tabs doesn't switch the page;
  * clicking a tab, or pressing right on it, shows it. Connections and the EPG time sit at the bottom, then the update
- * button (the version pops out when it's focused).
+ * button (an icon: download when an update is out, a check after checking).
  */
 @Composable
 fun NavRail(model: AppModel) {
@@ -341,7 +340,7 @@ fun NavRail(model: AppModel) {
     val tabs = remember { FocusTargets() }
     val scope = rememberCoroutineScope()
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-    // The tab under focus (only it shows its name); "update" for the update button.
+    // The tab under focus (Right opens it); "update" for the update button.
     var focusedItem by remember { mutableStateOf<Any?>(null) }
     // Back from a left panel: to the tab you're on.
     LaunchedEffect(Unit) {
@@ -380,17 +379,13 @@ fun NavRail(model: AppModel) {
         .padding(horizontal = 8.dp, vertical = Theme.margin)) {
       Column(Modifier.fillMaxWidth().align(Alignment.CenterStart), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (tab in Tab.entries) {
-            val popped = focusedItem == tab
             TvButton(onClick = { open(tab) }, selected = model.tab == tab,
                 onFocus = { focusedItem = tab },
-                modifier = (if (popped) Modifier.wrapContentWidth(Alignment.Start, unbounded = true) else Modifier.fillMaxWidth())
-                    .tracked(tabs, tab)) { focused ->
+                modifier = Modifier.fillMaxWidth().tracked(tabs, tab)) { focused ->
                 val color = if (focused) Theme.bg else if (model.tab == tab) Theme.accent else Theme.muted
-                Row(Modifier.height(40.dp).padding(start = 10.dp, end = if (popped) 16.dp else 10.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(Modifier.fillMaxWidth().height(40.dp), contentAlignment = Alignment.Center) {
                     Icon(when (tab) { Tab.HOME -> Icons.Filled.Home; Tab.EPG -> Icons.Filled.Tv; Tab.SETTINGS -> Icons.Filled.Tune },
                         tab.title, tint = color, modifier = Modifier.size(20.dp))
-                    if (popped) Label(tab.title, size = 15.sp, weight = FontWeight.SemiBold, color = Theme.bg)
                 }
             }
         }
@@ -404,7 +399,6 @@ fun NavRail(model: AppModel) {
         val ready = Updater.readyVersion
         val available = Updater.availableVersion
         var busy by remember { mutableStateOf(false) }
-        val popped = focusedItem == "update"
         TvButton(onClick = {
             if (busy || Updater.downloading != null) Unit
             else if (ready != null) Updater.installNow(context)
@@ -416,22 +410,13 @@ fun NavRail(model: AppModel) {
             }
         }, onFocus = { focusedItem = "update" },
             background = if (ready != null || available != null) Theme.accent else Color.Transparent,
-            modifier = if (popped) Modifier.wrapContentWidth(Alignment.Start, unbounded = true) else Modifier.fillMaxWidth()) { focused ->
-            Row(Modifier.height(32.dp).padding(start = 13.dp, end = if (popped) 14.dp else 13.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            modifier = Modifier.fillMaxWidth()) { focused ->
+            Box(Modifier.fillMaxWidth().height(32.dp), contentAlignment = Alignment.Center) {
                 val color = if (focused) Theme.bg else if (ready != null || available != null) Theme.onAccent else Theme.muted
-                Icon(if (ready != null || available != null) Icons.Filled.Download else if (Updater.checking) Icons.Filled.HourglassTop
+                Icon(if (Updater.downloading != null || busy) Icons.Filled.HourglassTop
+                    else if (ready != null || available != null) Icons.Filled.Download else if (Updater.checking) Icons.Filled.HourglassTop
                     else if (Updater.status != null) Icons.Filled.Check else Icons.Filled.Refresh,
-                    null, tint = color, modifier = Modifier.size(14.dp))
-                val dl = Updater.downloading
-                if (popped) Label(when {
-                    dl != null -> "Downloading $dl" + (Updater.downloadProgress?.let { " · ${(it * 100).toInt()}%" } ?: "…")
-                    Updater.installing || busy -> "Checking…"
-                    ready != null -> "Install update v$ready"
-                    available != null -> "Download update v$available"
-                    Updater.status != null -> "${Updater.status} · v${BuildConfig.VERSION_NAME}"
-                    else -> "v${BuildConfig.VERSION_NAME}"
-                }, size = 12.sp, weight = FontWeight.SemiBold, color = color)
+                    null, tint = color, modifier = Modifier.size(16.dp))
             }
         }
       }
@@ -1393,7 +1378,7 @@ fun GameScreen(model: AppModel, gameId: String) {
     var lastRow by remember { mutableStateOf<String?>(null) }
 
     // Opening a game plays its first stream that isn't 4K (or the first, if they all are) in the player, unless one
-    // of its streams already is or another stream is playing (2.37: press a stream to replace it, hold it for Watch
+    // of its streams already is or another stream is playing (2.38: press a stream to replace it, hold it for Watch
     // alongside); focus starts on the stream that's playing.
     LaunchedEffect(gameId, all.isNotEmpty()) {
         var id = previewId

@@ -170,7 +170,7 @@ struct TVShell: View {
                     .focusSection()
                     .transition(.opacity)
             }
-            // The rail stays slim (2.36): only the focused tab pops out over the page, so the player stays in view.
+            // The rail stays slim, icons only (2.38), so the player stays in view.
             TVRail()
                 .frame(maxHeight: .infinity, alignment: .top)
                 // Leaving full screen: focus goes back into the page (the screen you were on, then the stream you
@@ -270,8 +270,7 @@ func tvEPGStatus(_ model: AppModel) -> (text: String, busy: Bool)? {
 
 /// Home, EPG and Settings down the left edge, where every move starts (2.24, like Android TV): left from a page's
 /// left column opens it, right (or clicking a tab) goes back into the page on its selected item, never straight to
-/// the games. It stays a slim strip of icons (2.36) so it never covers the player: only the focused tab pops out as a
-/// pill with its name. Moving through the tabs doesn't switch the page; clicking a tab, or going right off it, does.
+/// the games. Icons only (2.38), so it never covers the player. Moving through the tabs doesn't switch the page; clicking a tab, or going right off it, does.
 /// At the bottom: connections, the EPG time, and the version button (its text pops out when focused).
 struct TVRail: View {
     @EnvironmentObject var model: AppModel
@@ -297,7 +296,6 @@ struct TVRail: View {
         ZStack(alignment: .leading) {
           VStack(alignment: .leading, spacing: 10) {
             ForEach(TVTab.allCases) { tab in
-                let popped = focused == .tab(tab)
                 Button {
                     waitingTab = nil
                     NotificationCenter.default.post(name: .tvSwitchTab, object: tab)
@@ -307,20 +305,13 @@ struct TVRail: View {
                         nav.sideRequest += 1
                     }
                 } label: {
-                    HStack(spacing: 20) {
-                        Image(systemName: symbol(tab))
-                            .font(.system(size: 28))
-                            .frame(width: 40)
-                            .foregroundStyle(focused == .tab(tab) ? Theme.bg : (nav.tab == tab ? Theme.accent : Theme.muted))
-                        if popped {
-                            Text(tab.rawValue).font(.system(size: 28, weight: .semibold)).lineLimit(1)
-                        }
-                    }
+                    Image(systemName: symbol(tab))
+                        .font(.system(size: 28))
+                        .frame(width: 40)
+                        .foregroundStyle(focused == .tab(tab) ? Theme.bg : (nav.tab == tab ? Theme.accent : Theme.muted))
                 }
                 .buttonStyle(TVRowButtonStyle(selected: nav.tab == tab))
                 .focused($focused, equals: .tab(tab))
-                // The focused tab takes the width its name needs, past the rail's edge, over the page.
-                .fixedSize(horizontal: popped, vertical: false)
                 .frame(width: inner, alignment: .leading)
             }
           }
@@ -328,28 +319,18 @@ struct TVRail: View {
           VStack(alignment: .leading, spacing: 10) {
             Spacer(minLength: 0)
             status
-            // The version, which checks for a newer Courtside (Apple TV is updated from the Mac): an icon, with its
-            // text popping out when focused.
-            let versionPopped = focused == .version
+            // Checks for a newer Courtside (Apple TV is updated from the Mac): an icon only, orange when one is out.
             Button {
                 Task { await versions.check() }
             } label: {
-                HStack(spacing: 16) {
-                    Image(systemName: versions.checking ? "hourglass"
-                          : (versions.newer != nil ? "arrow.down.circle.fill" : "arrow.clockwise"))
-                        .font(.system(size: 24))
-                        .frame(width: 40)
-                    if versionPopped {
-                        Text(versions.newer.map { "Version \($0) is out: update from your Mac" } ?? "v\(versions.current)")
-                            .font(.system(size: 21, weight: .medium))
-                            .lineLimit(1)
-                    }
-                }
-                .foregroundStyle(versionPopped ? Theme.bg : (versions.newer != nil ? Theme.accent : Theme.muted))
+                Image(systemName: versions.checking ? "hourglass"
+                      : (versions.newer != nil ? "arrow.down.circle.fill" : "arrow.clockwise"))
+                    .font(.system(size: 24))
+                    .frame(width: 40)
+                    .foregroundStyle(focused == .version ? Theme.bg : (versions.newer != nil ? Theme.accent : Theme.muted))
             }
             .buttonStyle(TVRowButtonStyle())
             .focused($focused, equals: .version)
-            .fixedSize(horizontal: versionPopped, vertical: false)
             .frame(width: inner, alignment: .leading)
           }
           .frame(maxHeight: .infinity, alignment: .bottom)
