@@ -540,12 +540,14 @@ fun TouchField(hint: String, value: String, onChange: (String) -> Unit, type: Ke
 }
 
 /** A filter chip (sports, leagues, favourites, settings sections): white when selected. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun TouchChip(selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit, content: @Composable RowScope.(Color) -> Unit) {
+fun TouchChip(selected: Boolean, modifier: Modifier = Modifier, onLongClick: (() -> Unit)? = null, onClick: () -> Unit,
+              content: @Composable RowScope.(Color) -> Unit) {
     val color = if (selected) Theme.bg else Theme.soft
     Row(modifier.height(36.dp).clip(RoundedCornerShape(18.dp)).background(if (selected) Theme.text else Theme.card)
         .border(1.dp, if (selected) Color.Transparent else Theme.border, RoundedCornerShape(18.dp))
-        .clickable(onClick = onClick).padding(horizontal = 14.dp),
+        .combinedClickable(onLongClick = onLongClick, onClick = onClick).padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) { content(color) }
 }
 

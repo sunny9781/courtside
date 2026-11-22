@@ -254,8 +254,10 @@ fun PhoneSetupPanel(title: String = "Or set up from your phone", onVpn: (suspend
         if (port == 80) "http://$address" else "http://$address:$port"
     } else null
     val code = remember(base, pin) { base?.let { PhoneSetupServer.qr("$it/?pin=$pin") } }
-    Column(Modifier.width(300.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Label(title, size = 17.sp, weight = FontWeight.SemiBold)
+    // As wide as the title needs (2.43: "Send a WireGuard config from your phone" was cut off at 300 dp).
+    Column(Modifier.widthIn(min = 300.dp, max = 520.dp).width(androidx.compose.foundation.layout.IntrinsicSize.Max),
+        horizontalAlignment = Alignment.CenterHorizontally) {
+        Label(title, size = 17.sp, weight = FontWeight.SemiBold, maxLines = 2)
         Spacer(Modifier.height(4.dp))
         if (base == null || code == null) {
             Label("Connect the TV to your home network to use your phone.", size = 13.sp, color = Theme.muted, maxLines = 3)

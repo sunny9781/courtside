@@ -155,6 +155,33 @@ private fun TabletSportSidebar(model: AppModel, sport: Sport?) {
 }
 
 /** Tablets: the sport's leagues along the top, All first (left to right, unlike the phone's thumb-side row). */
+/** A league chip: tap to show its games; hold for Hide (2.43, Settings › Hidden brings it back). */
+@Composable
+private fun LeagueChip(model: AppModel, league: League, sport: Sport, selection: HomeSelection) {
+    val g = model.gamesIn(league.id)
+    val live = g.count { it.state == GameState.LIVE }
+    var menu by remember { mutableStateOf(false) }
+    Box {
+        TouchChip((selection as? HomeSelection.OfLeague)?.leagueId == league.id, Modifier.alpha(if (g.isEmpty()) 0.5f else 1f),
+            onLongClick = { menu = true },
+            onClick = { model.pickedSport = true; model.homeSelection = HomeSelection.OfLeague(league.id) }) { color ->
+            LeagueLogo(model, league, 18.dp)
+            Label(league.name, size = 14.sp, weight = FontWeight.SemiBold, color = color)
+            if (live > 0) Badge("$live", fill = Theme.accent, color = Theme.onAccent)
+            else if (g.isNotEmpty()) Label("${g.size}", size = 13.sp, color = color.copy(alpha = 0.6f))
+        }
+        androidx.compose.material3.DropdownMenu(menu, { menu = false }) {
+            androidx.compose.material3.DropdownMenuItem(text = { androidx.compose.material3.Text("Hide ${league.name}") },
+                onClick = {
+                    menu = false
+                    if (selection == HomeSelection.OfLeague(league.id)) model.homeSelection = HomeSelection.OfSport(sport)
+                    model.setLeagueHidden(league.id, true)
+                    model.notice = "${league.name} is hidden. Settings › Hidden brings it back."
+                })
+        }
+    }
+}
+
 @Composable
 private fun LeagueChips(model: AppModel, sport: Sport) {
     val selection = model.homeSelection
@@ -164,15 +191,7 @@ private fun LeagueChips(model: AppModel, sport: Sport) {
             model.pickedSport = true; model.homeSelection = HomeSelection.OfSport(sport)
         }) { color -> Label("All", size = 14.sp, weight = FontWeight.SemiBold, color = color) }
         for (league in model.leagues(sport)) {
-            val g = model.gamesIn(league.id)
-            val live = g.count { it.state == GameState.LIVE }
-            TouchChip((selection as? HomeSelection.OfLeague)?.leagueId == league.id, Modifier.alpha(if (g.isEmpty()) 0.5f else 1f),
-                onClick = { model.pickedSport = true; model.homeSelection = HomeSelection.OfLeague(league.id) }) { color ->
-                LeagueLogo(model, league, 18.dp)
-                Label(league.name, size = 14.sp, weight = FontWeight.SemiBold, color = color)
-                if (live > 0) Badge("$live", fill = Theme.accent, color = Theme.onAccent)
-                else if (g.isNotEmpty()) Label("${g.size}", size = 13.sp, color = color.copy(alpha = 0.6f))
-            }
+            LeagueChip(model, league, sport, selection)
         }
     }
 }
@@ -221,7 +240,26 @@ private fun GameList(model: AppModel, selection: HomeSelection, sport: Sport?, c
             Label(if (model.loading || model.games.isEmpty()) "Loading today's games…" else "No games today.",
                 size = 15.sp, color = Theme.muted, modifier = Modifier.padding(16.dp))
         }
-        for (s in sections) {
+        // Leagues with only one game (with two to a row) share a row (2.43), each with its name above its card.
+        val packs = packRows(sections, columns) { sec -> if (sec.games.any { it.state == GameState.FINISHED }) columns else sec.games.size }
+        for (pack in packs) if (pack.size > 1) {
+            item(key = "pk:${pack.first().id}") {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    for (sec in pack) Column(Modifier.weight(sec.games.size.toFloat())) {
+                        Row(Modifier.padding(top = 14.dp, bottom = 9.dp), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            LeagueLogo(model, sec.league, 24.dp)
+                            Label(sec.league.name, size = 20.sp, weight = FontWeight.Bold)
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            for (game in sec.games) PhoneGameCard(model, game, Modifier.weight(1f)) { model.openGameId = game.id }
+                        }
+                    }
+                    val used = pack.sumOf { it.games.size }
+                    if (used < columns) Spacer(Modifier.weight((columns - used).toFloat()))
+                }
+            }
+        } else for (s in pack) {
             item(key = "h:${s.id}") {
                 Row(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -348,15 +386,7 @@ private fun HomeBottomBar(model: AppModel, sport: Sport?) {
         if (sport != null && model.leagues(sport).size > 1) TrailingRow {
             // Right to left: All nearest the thumb, then the most popular league (NBA, WNBA, NCAA...).
             for (league in model.leagues(sport).reversed()) {
-                val g = model.gamesIn(league.id)
-                val live = g.count { it.state == GameState.LIVE }
-                TouchChip((selection as? HomeSelection.OfLeague)?.leagueId == league.id, Modifier.alpha(if (g.isEmpty()) 0.5f else 1f),
-                    onClick = { model.pickedSport = true; model.homeSelection = HomeSelection.OfLeague(league.id) }) { color ->
-                    LeagueLogo(model, league, 18.dp)
-                    Label(league.name, size = 14.sp, weight = FontWeight.SemiBold, color = color)
-                    if (live > 0) Badge("$live", fill = Theme.accent, color = Theme.onAccent)
-                    else if (g.isNotEmpty()) Label("${g.size}", size = 13.sp, color = color.copy(alpha = 0.6f))
-                }
+                LeagueChip(model, league, sport, selection)
             }
             TouchChip(selection == HomeSelection.OfSport(sport), onClick = {
                 model.pickedSport = true; model.homeSelection = HomeSelection.OfSport(sport)

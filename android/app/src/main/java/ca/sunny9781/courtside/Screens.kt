@@ -1097,7 +1097,40 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
                 }, size = 14.sp, color = Theme.muted, maxLines = 3, modifier = Modifier.padding(10.dp))
             }
         }
-        for (section in open) {
+        // Leagues with only a few games share a row when they fit (2.43): each keeps its heading above its cards.
+        val packs = if (open.size > 1) packRows(open, cols) { it.games.size } else open.map { listOf(it) }
+        for (pack in packs) if (pack.size > 1) {
+            item(key = "pk:${pack.first().id}", contentType = "pack") {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (section in pack) {
+                        Column(Modifier.weight(section.games.size.toFloat())) {
+                            Row(Modifier.padding(start = 6.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                                if (section.league != null) LeagueLogo(model, section.league, 15.dp)
+                                Label(section.title.uppercase(), size = 10.sp, weight = FontWeight.Bold, color = Theme.muted)
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                for (game in section.games) {
+                                    val main = model.mainStreams(game.id)
+                                    GameCard(game, main.size, main.any { it.is4K },
+                                        modifier = Modifier.weight(1f).tracked(targets, "game:${game.id}"),
+                                        onHold = if (alongside && main.isNotEmpty() && game.state != GameState.FINISHED) {
+                                            { prompt = HoldPrompt(game.title, listOf(
+                                                HoldOption("Watch alongside", Icons.Filled.ViewColumn) { model.watchAlongside(game.id) })) }
+                                        } else null,
+                                        onFocus = {
+                                            onFocusGame(game.id)
+                                            if (pack === packs.first() && redZone == null) showHeading("pk:${pack.first().id}", false, true)
+                                        }) { onOpen(game.id) }
+                                }
+                            }
+                        }
+                    }
+                    val used = pack.sumOf { it.games.size }
+                    if (used < cols) Spacer(Modifier.weight((cols - used).toFloat()))
+                }
+            }
+        } else for (section in pack) {
             if (section.title.isNotEmpty() && open.size > 1) item(key = "h:${section.id}", contentType = "heading") {
                 Row(Modifier.padding(start = 10.dp, top = 10.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -1192,6 +1225,22 @@ private fun GameCard(game: Game, streams: Int, has4K: Boolean, modifier: Modifie
 }
 
 /** A folded group on Home ("Finished · 6", "Later today · 18"): click to show or hide its games. */
+/**
+ * Groups consecutive sections into rows (2.43): sections with fewer items than a row holds share one while they
+ * fit; a section that fills a row (or more) stays on its own.
+ */
+fun <T> packRows(sections: List<T>, cols: Int, size: (T) -> Int): List<List<T>> {
+    val out = mutableListOf<MutableList<T>>()
+    var used = 0
+    for (s in sections) {
+        val n = size(s)
+        val last = out.lastOrNull()
+        if (n < cols && last != null && used > 0 && used + n <= cols) { last.add(s); used += n }
+        else { out.add(mutableListOf(s)); used = if (n < cols) n else 0 }
+    }
+    return out
+}
+
 /** NFL RedZone (2.42): one slim bar across the whole row, above the cards; opens its game screen. */
 @Composable
 private fun RedZoneBar(game: Game, streams: Int, modifier: Modifier, onFocus: () -> Unit, onClick: () -> Unit) {
@@ -1262,6 +1311,9 @@ private fun SportChannels(model: AppModel, sport: Sport, targets: FocusTargets, 
 private fun LeagueList(model: AppModel, sport: Sport, targets: FocusTargets, modifier: Modifier) {
     val selection = model.homeSelection
     val settle = rememberSettle()
+    // Hold select on a league (2.43): Hide (Settings › Hidden brings it back).
+    var prompt by remember { mutableStateOf<HoldPrompt?>(null) }
+    prompt?.let { p -> HoldMenu(p) { prompt = null } }
     fun choose(s: HomeSelection, now: Boolean) {
         val apply = { if (model.homeSelection != s) model.homeSelection = s }
         if (now) settle.now(apply) else settle.later(apply)
@@ -1279,15 +1331,21 @@ private fun LeagueList(model: AppModel, sport: Sport, targets: FocusTargets, mod
             val g = model.gamesIn(league.id)
             val s = HomeSelection.OfLeague(league.id)
             LeagueRow(targets, "lg:${league.id}", league, league.name, g.count { it.state == GameState.LIVE }, g.size,
-                selection == s, model, dimmed = g.isEmpty(), onFocus = { choose(s, false) }) { choose(s, true) }
+                selection == s, model, dimmed = g.isEmpty(), onFocus = { choose(s, false) },
+                onHold = { prompt = HoldPrompt(league.name, listOf(HoldOption("Hide", Icons.Filled.VisibilityOff) {
+                    if (model.homeSelection == s) model.homeSelection = HomeSelection.OfSport(sport)
+                    model.setLeagueHidden(league.id, true)
+                    model.notice = "${league.name} is hidden. Settings › Hidden brings it back."
+                })) }) { choose(s, true) }
         }
     }
 }
 
 @Composable
 private fun LeagueRow(targets: FocusTargets, key: String, league: League?, name: String, live: Int, total: Int, selected: Boolean,
-                      model: AppModel, dimmed: Boolean = false, onFocus: () -> Unit, select: () -> Unit) {
-    TvButton(onClick = select, selected = selected, onFocus = onFocus,
+                      model: AppModel, dimmed: Boolean = false, onFocus: () -> Unit, onHold: (() -> Unit)? = null,
+                      select: () -> Unit) {
+    TvButton(onClick = select, selected = selected, onFocus = onFocus, onLongClick = onHold,
         modifier = Modifier.fillMaxWidth().tracked(targets, key).alpha(if (dimmed) 0.5f else 1f)) { focused ->
         val color = if (focused) Theme.bg else Theme.text
         Row(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically,
