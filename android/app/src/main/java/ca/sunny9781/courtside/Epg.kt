@@ -135,7 +135,10 @@ fun EpgScreen(model: AppModel) {
     }
     fun holdChannel(ch: Channel) {
         val fav = model.isFavoriteChannel(ch.id)
-        prompt = HoldPrompt(ch.name, listOf(
+        // 2.39: Watch alongside, while another stream plays.
+        val alongside = if (model.canWatchAlongside && ch.id != model.pinned?.channel?.id)
+            listOf(HoldOption("Watch alongside", Icons.Filled.ViewColumn) { model.watchChannelAlongside(ch) }) else emptyList()
+        prompt = HoldPrompt(ch.name, alongside + listOf(
             HoldOption(if (fav) "Remove from Favourites" else "Add to Favourites",
                 if (fav) Icons.Filled.HeartBroken else Icons.Filled.Favorite) { model.toggleFavoriteChannel(ch.id) },
             HoldOption("Hide", Icons.Filled.VisibilityOff) {

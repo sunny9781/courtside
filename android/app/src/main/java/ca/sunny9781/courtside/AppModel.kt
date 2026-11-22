@@ -1064,7 +1064,14 @@ class AppModel(app: Application) : AndroidViewModel(app) {
      * Hold select › Watch alongside: multiview with the stream playing now as tile 1 and this game's stream as tile 2
      * (`pick`, or the best one for it). The provider's count is checked first: there must be a free connection.
      */
-    fun watchAlongside(gameId: String, pick: StreamMatch? = null) {
+    /** Hold select on an EPG channel (2.39): this channel beside the stream playing (no game). */
+    fun watchChannelAlongside(ch: Channel) {
+        if (!canWatchAlongside) { notice = "Start a stream first, then hold a channel to watch it alongside"; return }
+        if (ch.id == pinned?.channel?.id) { notice = "${ch.name} is already playing"; return }
+        watchAlongside(null, StreamMatch(ch, "EPG", 0, "", 0, false, false, false, null))
+    }
+
+    fun watchAlongside(gameId: String?, pick: StreamMatch? = null) {
         if (multiview || multiviewChecking || nowPlaying == null && pinned == null) return
         val creds = credentials ?: return
         if (Vpn.blocked) { notice = "The VPN isn't connected. Check Settings › VPN."; return }
@@ -1079,7 +1086,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 // Our own stream is already counted in active.
                 if (max < 2 || max - active < 1) { notice = "No free connection for multiview"; return@launch }
                 val first = nowPlaying ?: pinned ?: return@launch
-                val candidates = if (pick != null) listOf(pick) else multiviewCandidates(gameId, avoid = first.channel.id)
+                val candidates = if (pick != null) listOf(pick) else multiviewCandidates(gameId ?: return@launch, avoid = first.channel.id)
                 val second = candidates.firstOrNull() ?: run { notice = "No other stream for this game"; return@launch }
                 if (nowPlaying != null) { lastPlayedChannelId = first.channel.id; nowPlaying = null }
                 pinned = first

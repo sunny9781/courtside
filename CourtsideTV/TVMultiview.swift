@@ -702,3 +702,22 @@ struct TVMultiviewPanel: View {
         }
     }
 }
+
+/// Hold select on an EPG channel (2.39): watch this channel beside the stream that's playing.
+struct WatchAlongsideButton: View {
+    let channel: Channel
+    @EnvironmentObject var model: AppModel
+    @AppStorage(Prefs.multiview) private var multiviewOn = true
+
+    var body: some View {
+        if multiviewOn && channel.id != model.pinned?.channel.id {
+            Button("Watch alongside", systemImage: "rectangle.split.2x1") {
+                if model.pinned == nil || model.nowPlaying != nil {
+                    model.notice = "Start a stream first, then hold a channel to watch it alongside"
+                } else {
+                    TVMultiview.shared.watchAlongside(channel, game: nil, model: model)
+                }
+            }
+        }
+    }
+}
