@@ -1393,17 +1393,18 @@ fun GameScreen(model: AppModel, gameId: String) {
     var lastRow by remember { mutableStateOf<String?>(null) }
 
     // Opening a game plays its first stream that isn't 4K (or the first, if they all are) in the player, unless one
-    // of its streams already is; focus starts on the stream that's playing.
+    // of its streams already is or another stream is playing (2.37: press a stream to replace it, hold it for Watch
+    // alongside); focus starts on the stream that's playing.
     LaunchedEffect(gameId, all.isNotEmpty()) {
         var id = previewId
         // Lite mode has no player in the corner, so nothing starts until you pick a stream.
-        if (!pinnedHere && !model.settings.liteNoAutoplay && !model.settings.liteNoCorner) (main.firstOrNull { m ->
+        if (!pinnedHere && model.pinned == null && model.nowPlaying == null && !model.settings.liteNoAutoplay && !model.settings.liteNoCorner) (main.firstOrNull { m ->
             !(m.is4K || m.quality == "4K" || model.measuredQuality[m.channel.id] == "4K" ||
                 Categories.isUHD(m.channel.name) || Categories.isUHD(m.channel.categoryName))
         } ?: main.firstOrNull())
             ?.let { model.pin(it.channel, game.title, main.map { m -> m.channel }); id = it.channel.id }
         delay(80)
-        rows.focus("s:$id") || cats.focus("cat:All")
+        rows.focus("s:${id ?: main.firstOrNull()?.channel?.id}") || cats.focus("cat:All")
     }
     // Back from full screen: focus goes back to the stream you were watching.
     AfterFullScreen(model, "game") { rows.focus("s:${model.lastPlayedChannelId}") }
