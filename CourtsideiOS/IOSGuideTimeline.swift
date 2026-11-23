@@ -77,6 +77,7 @@ struct IOSGuideTimeline: View {
                         .foregroundStyle(playing ? Theme.accent : Theme.text)
                         .lineLimit(2)
                 }
+                ReliabilityDot(channelID: channel.id, size: 7, bare: true)
             }
             .frame(width: channelWidth, alignment: .leading)
             .padding(.leading, 8)

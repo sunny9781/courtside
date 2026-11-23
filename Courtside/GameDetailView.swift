@@ -79,8 +79,10 @@ struct GameDetailView: View {
             }
         }
         .onAppear {
-            // Opening a game plays its first stream that isn't 4K in the player, unless one of its streams already is.
-            if previewChannel == nil, let first = main.firstToPlay(model.measuredQuality) { preview(first.channel) }
+            // Opening a game plays its first stream that isn't 4K in the player, unless one of its streams already is
+            // or another stream is playing (2.44, like the TVs' 2.37: click a stream to switch, or right-click it for
+            // Watch alongside).
+            if previewChannel == nil, model.pinned == nil, model.nowPlaying == nil, let first = main.firstToPlay(model.measuredQuality) { preview(first.channel) }
         }
         .onChange(of: search) {
             if !categories.contains(where: { $0.name == selected }) { selected = "All" }
@@ -129,7 +131,7 @@ struct GameDetailView: View {
                                                if match.channel.id == previewChannel?.id { watch(match.channel) }
                                                else { preview(match.channel) }
                                            },
-                                           onWatch: { watch(match.channel) })
+                                           onWatch: { watch(match.channel) }, game: game)
                         }
                     }
                 }
@@ -163,6 +165,8 @@ struct GameStreamLine: View {
     let playing: Bool
     let onSelect: () -> Void
     let onWatch: () -> Void
+    /// The game it's for (Watch alongside keeps the tile with its game).
+    var game: Game? = nil
 
     var body: some View {
         let channel = match.channel
@@ -213,6 +217,8 @@ struct GameStreamLine: View {
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(playing ? Theme.accent : Color.clear, lineWidth: 1.5))
         }
         .simultaneousGesture(TapGesture(count: 2).onEnded { onWatch() })
+        // Right-click › Watch alongside (2.44, like the TVs): this stream beside the one playing.
+        .contextMenu { MacWatchAlongsideButton(channel: channel, game: game) }
         .help("\(channel.name)\(channel.categoryName.isEmpty ? "" : " · \(channel.categoryName)") — click to play in the mini player, double-click for full screen")
     }
 }

@@ -341,9 +341,19 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Guide due (`guideDue`): empty, older than Settings › Updates (`refreshHours`, file time via `Cache.guideSavedAt`), or
   within 1 h of `guideEnd` (median of channels' last programme end). Guide kept to refreshHours (min 3) + 3 h ahead.
 - Failed auto downloads retry after 15 min (`lastAutoRefresh`). The scores loop starts once (refresh no longer restarts it).
-- Timing line: "Matched streams to N games in X ms" after each channel/guide download (Android; Apple apps still log
-  from Matcher at most every 10 min until the port).
-- To port to Apple apps.
+- Timing line: "Matched streams to N games in X ms" after each channel/guide download.
+- Apple apps since 2.44 (`refreshIfDue` in Shared/AppModel.swift, from the minute loop and didBecomeActive;
+  `checkChannels`, `guideDue`, `guideEnd`, `lastAutoRefresh`; `rematch(timed:)` logs the timing; Matcher no longer does).
+
+## 2.44 (2026-11-23, Mac multiview, Apple catch-up)
+- Multiview logic moved to `Shared/Multiview.swift` (class `Multiview`; `typealias TVMultiview = Multiview` keeps the
+  Apple TV code). `resume()` on leaving: Apple TV goes full screen, the Mac goes back to the mini player.
+- Mac: `MacMultiview.swift` (over the whole window from ShellView, zIndex 2). Click tile = `select`, right-click =
+  streams / Pick another game / Remove tile, Esc or Done = leave, 1/2 keys. `MacWatchAlongsideButton` in right-click
+  menus of `GameStreamLine`, `LiveGameCard` and EPG `ChannelCell`. PinnedPlayerBar treats `multiview.active` like
+  hidden (the video can only be in one place); tiles record quality/fps/sound. Settings › Playback › Multiview.
+- Mac + iPhone: reliability dots in the EPG (Mac on the logo's corner, iPhone list + timeline); game screens don't
+  autoplay while another stream plays (TVs' 2.37).
 
 ## 2.30 (2026-11-21, multiview, both TVs)
 - Two tiles max (Sunny's plan has 2 connections). "Watch alongside" on hold menus of game-screen streams (that stream)
