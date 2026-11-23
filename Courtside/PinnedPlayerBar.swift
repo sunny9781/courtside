@@ -20,6 +20,10 @@ struct PinnedPlayerBar<Details: View>: View {
     let item: NowPlaying
     /// True while full screen is showing the stream (the video can only be in one place).
     let hidden: Bool
+    /// Multiview (2.44) shows the stream in its own tiles while it's open.
+    @ObservedObject private var multiview = Multiview.shared
+    /// The video is somewhere else (full screen or multiview): it can only be in one place.
+    private var away: Bool { hidden || multiview.active }
     /// Drawn as a card in the page (the game screen) rather than a strip under the top bar.
     var card = false
     /// One line for the slim panel (the score on a game screen); otherwise the title.
@@ -66,20 +70,20 @@ struct PinnedPlayerBar<Details: View>: View {
                 Theme.card.overlay(alignment: .bottom) { Rectangle().fill(Theme.raised).frame(height: 1) }
             }
         }
-        .task(id: "\(item.channel.id)|\(hidden)") {
+        .task(id: "\(item.channel.id)|\(away)") {
             // Already playing this (e.g. coming back from full screen): play() carries on without reconnecting.
-            guard !hidden, let url = model.streamURL(for: item.channel, hls: !PlaybackController.usesVLC) else { return }
+            guard !away, let url = model.streamURL(for: item.channel, hls: !PlaybackController.usesVLC) else { return }
             controller.play(url, bufferMs: bufferMs)
             model.checkConnectionsSoon()
         }
         .onChange(of: controller.resolution) {
-            if !hidden, !controller.resolution.isEmpty { model.recordQuality(item.channel.id, controller.resolution) }
+            if !away, !controller.resolution.isEmpty { model.recordQuality(item.channel.id, controller.resolution) }
         }
         .onChange(of: controller.frameRate) {
-            if !hidden { model.recordFrameRate(item.channel.id, controller.frameRate) }
+            if !away { model.recordFrameRate(item.channel.id, controller.frameRate) }
         }
         .onChange(of: controller.audio) {
-            if !hidden { model.recordAudio(item.channel.id, controller.audio) }
+            if !away { model.recordAudio(item.channel.id, controller.audio) }
         }
     }
 
@@ -88,7 +92,7 @@ struct PinnedPlayerBar<Details: View>: View {
     private var video: some View {
         ZStack {
             Color.black
-            if !hidden && !model.poppedOut {
+            if !away && !model.poppedOut {
                 VideoSurface(view: controller.view)
                 switch controller.status {
                 case .opening, .buffering:

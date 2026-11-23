@@ -373,6 +373,10 @@ struct LiveGameCard: View {
         }
         .opacity(game.state == .upcoming ? 0.55 : (game.state == .finished ? 0.8 : 1))
         .help(game.state == .upcoming ? "Starts \(game.statusText). Click to see its streams." : "")
+        // Right-click › Watch alongside (2.44, like the TVs): the best stream of this game beside the one playing.
+        .contextMenu {
+            if !game.isChannel, game.state != .finished { MacWatchAlongsideButton(game: game) }
+        }
     }
 }
 

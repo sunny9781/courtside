@@ -3,7 +3,6 @@ import Foundation
 /// Ties games to the provider's channels using three signals:
 /// the channel name has both teams, the guide shows the game on that channel, or the channel is an official broadcaster.
 enum Matcher {
-    private static var lastTimingLog = Date.distantPast
     struct IndexedChannel {
         let channel: Channel
         let tokens: [String]
@@ -492,7 +491,6 @@ enum Matcher {
     static func matchAll(games: [Game], channels: [IndexedChannel], guide: [String: [Programme]],
                          extras: [String: [Broadcast]] = [:], measured: [Int: String] = [:],
                          recent: Set<Int>, now: Date) -> Result {
-        let started = Date()
         let keys = games.map { key(for: $0, now: now) }
         let triggers = keys.reduce(into: Set<String>()) { $0.formUnion($1.triggers) }
         var result = Result()
@@ -626,11 +624,6 @@ enum Matcher {
                 if $0.qualityRank != $1.qualityRank { return $0.qualityRank > $1.qualityRank }
                 return $0.channel.name < $1.channel.name
             }
-        }
-        // In the connection log at most every 10 minutes (it's rerun on every score update).
-        if now.timeIntervalSince(lastTimingLog) > 600 {
-            lastTimingLog = now
-            ConnLog.add("Matched streams to \(keys.count) games in \(Int(Date().timeIntervalSince(started) * 1000)) ms")
         }
         return result
     }

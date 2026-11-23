@@ -101,8 +101,8 @@ struct IOSGameView: View {
         .toolbar(.hidden, for: .navigationBar)
         .onAppear {
             // Opening a game plays its first stream in the pinned player (unless one of its streams is already
-            // playing); after that, only tapping plays something else.
-            if previewID == nil, let first = streams.firstToPlay(model.measuredQuality), let game {
+            // playing, or another stream is: 2.44, like the TVs' 2.37); after that, only tapping plays something else.
+            if previewID == nil, model.pinned == nil, model.nowPlaying == nil, let first = streams.firstToPlay(model.measuredQuality), let game {
                 model.pin(first.channel, gameTitle: game.title, lineup: lineup)
             }
         }

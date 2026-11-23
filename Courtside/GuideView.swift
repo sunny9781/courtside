@@ -750,6 +750,12 @@ struct ChannelCell: View {
             .padding(4)
             .frame(width: Self.logoWidth, height: height - 18)
             .background(RoundedRectangle(cornerRadius: 7).fill(Theme.raised))
+            // How reliable the channel has been (2.44, like the TVs and Android): a dot on the logo's corner.
+            .overlay(alignment: .bottomTrailing) {
+                ReliabilityDot(channelID: channel.id, size: 9, bare: true)
+                    .overlay(Circle().stroke(Theme.sidebar, lineWidth: 2))
+                    .offset(x: 3, y: 3)
+            }
 
             Group {
                 if !nameFits && (hovering || selected) {
@@ -788,6 +794,8 @@ struct ChannelCell: View {
         .contentShape(Rectangle())
         .onHover { hovering = $0 }
         .contextMenu {
+            // Watch this channel beside the stream that's playing (2.44, like the TVs' 2.39).
+            MacWatchAlongsideButton(channel: channel)
             if let onFavorite {
                 Button(favorite ? "Remove from Favourites" : "Add to Favourites", action: onFavorite)
             }

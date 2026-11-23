@@ -11,6 +11,8 @@ struct SettingsView: View {
     @AppStorage(Prefs.sportOrder) private var sportOrder = ""
     @AppStorage(Prefs.hiddenSports) private var hiddenSports = ""
     @AppStorage(Prefs.hiddenLeagues) private var hiddenLeagues = ""
+    @AppStorage(Prefs.multiview) private var multiview = true
+    @AppStorage(Prefs.multiviewSelect) private var multiviewSelect = "big"
     @State private var section: SettingsSection = .account
     @State private var openSport: Sport?
     @State private var editingAccount = false
@@ -156,6 +158,23 @@ struct SettingsView: View {
                 toggle("Switch to the next stream when one stalls (USA and Canada first)", $autoSwitch)
                 toggle("Mini player previews (EPG and game screens)", $guidePreview)
                 engineNote
+            }
+
+            // 2.44, like the TVs: two streams side by side.
+            panel("Multiview") {
+                toggle("Watch alongside (right-click a stream, a game or an EPG channel while something plays)", $multiview)
+                if multiview {
+                    setting("Clicking a tile", multiviewSelect == "sound"
+                            ? "Moves the sound there; the tiles stay the same size."
+                            : "Moves the sound there and makes it big; again goes back to side by side.") {
+                        Picker("", selection: $multiviewSelect) {
+                            Text("Make big").tag("big")
+                            Text("Move sound only").tag("sound")
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 260)
+                    }
+                }
             }
 
             panel("Games") {

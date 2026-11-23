@@ -20,6 +20,7 @@ struct ShellView: View {
     /// The sport picked in Home's left column; nil means "All sports".
     @State private var selectedSport: Sport?
     @State private var selectedLeague: String?
+    @ObservedObject private var multiview = Multiview.shared
 
     var body: some View {
         ZStack {
@@ -44,8 +45,16 @@ struct ShellView: View {
                     .transition(.opacity)
                     .zIndex(1)
             }
+
+            // Multiview (2.44): two streams side by side over the whole window.
+            if multiview.active {
+                MacMultiviewView()
+                    .transition(.opacity)
+                    .zIndex(2)
+            }
         }
         .animation(.easeInOut(duration: 0.2), value: model.nowPlaying)
+        .animation(.easeInOut(duration: 0.2), value: multiview.active)
         .animation(.easeOut(duration: 0.25), value: model.pinned == nil)
         .overlay(alignment: .bottom) {
             if let notice = model.notice {

@@ -74,6 +74,15 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.44", date: "2026-11-23", time: "00:55", title: "Multiview on the Mac, smarter refreshes", changes: [
+            Change(text: "Multiview: while a stream plays in the mini player, right-click a game's stream, a score card or an EPG channel and pick Watch alongside to watch two side by side over the whole window (needs a second free connection). Click a tile for its sound (and to make it big), right-click it to swap its stream, pick another game or remove it; Esc or Done keeps the one with the sound playing in the mini player.", apps: mac),
+            Change(text: "Settings › Playback › Multiview: on or off, and whether clicking a tile makes it big or only moves the sound.", apps: mac),
+            Change(text: "EPG: the green, amber or red reliability dot now shows on the channels too, like on the TVs.", apps: [.mac, .ios]),
+            Change(text: "Opening a game while another stream plays no longer starts one of its streams: click (or tap) a stream to switch to it.", apps: [.mac, .ios]),
+            Change(text: "The channel list is checked every hour while the app is open, so event channels added on game day show up and get matched without waiting for the next guide download. When nothing changed, nothing on screen reloads.", apps: all),
+            Change(text: "The guide downloads again after the time in Settings, or sooner if your provider's guide is about to run out, and keeps 3 hours more than that, so the EPG never goes blank before the next download.", apps: all),
+            Change(text: "Connection log: how long matching took, after each channel or guide download (instead of every 10 minutes).", apps: all),
+        ], titleApps: [.mac]),
         Release(version: "2.43", date: "2026-11-22", time: "14:40", title: "Hide leagues, leagues share rows", changes: [
             Change(text: "Hide a league straight from Home: hold select on it in the league list", apps: tvAndroid),
             Change(text: "Hide a league straight from Home: right-click its chip", apps: mac),

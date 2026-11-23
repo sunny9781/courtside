@@ -322,8 +322,9 @@ struct IOSChannelRow: View {
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(playing ? Theme.accent : Theme.text)
                         .lineLimit(1)
+                    // How reliable it has been on this device (2.44, like the TVs and Android).
+                    ReliabilityDot(channelID: channel.id, size: 8, bare: true)
                     Spacer()
-
                 }
                 if let now {
                     Text(now.title).font(.footnote).foregroundStyle(Theme.soft).lineLimit(1)
