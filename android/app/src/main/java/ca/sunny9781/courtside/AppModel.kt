@@ -24,6 +24,8 @@ sealed class HomeSelection {
     data object LiveNow : HomeSelection()
     data class OfSport(val sport: Sport) : HomeSelection()
     data class OfLeague(val leagueId: String) : HomeSelection()
+    /** A sport's finished games (2.45): their own entry at the end of the league list, out of the other lists. */
+    data class Finished(val sport: Sport) : HomeSelection()
 }
 
 class AppModel(app: Application) : AndroidViewModel(app) {

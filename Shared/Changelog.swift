@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.45", date: "2026-11-23", time: "15:05", title: "Finished games get their own entry", changes: [
+            Change(text: "Finished games have their own Finished entry at the end of a sport's league list, instead of folding under the live and upcoming games", apps: tvAndroid),
+            Change(text: "Finished games have their own Finished chip after a sport's leagues, instead of folding under each league", apps: [.mac, .ios, .android]),
+            Change(text: "League counts on Home leave out finished games", apps: everywhere),
+        ]),
         Release(version: "2.44", date: "2026-11-23", time: "00:55", title: "Multiview on the Mac, smarter refreshes", changes: [
             Change(text: "Multiview: while a stream plays in the mini player, right-click a game's stream, a score card or an EPG channel and pick Watch alongside to watch two side by side over the whole window (needs a second free connection). Click a tile for its sound (and to make it big), right-click it to swap its stream, pick another game or remove it; Esc or Done keeps the one with the sound playing in the mini player.", apps: mac),
             Change(text: "Settings › Playback › Multiview: on or off, and whether clicking a tile makes it big or only moves the sound.", apps: mac),

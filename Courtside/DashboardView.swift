@@ -25,7 +25,9 @@ struct DashboardView: View {
                 } else if let sport = selectedSport {
                     // Like the Apple TV: sports down the left, the sport's leagues across the top.
                     VStack(spacing: 0) {
-                        if model.leagues(for: sport).count > 1 { leagueChips(sport) }
+                        if model.leagues(for: sport).count > 1 || model.games(for: sport).contains(where: { $0.state == .finished }) {
+                            leagueChips(sport)
+                        }
                         SportView(sport: sport, leagueID: selectedLeague, onOpen: onOpenGame)
                             .id("\(sport.rawValue)|\(selectedLeague ?? "")")
                     }
@@ -120,11 +122,14 @@ struct DashboardView: View {
 
     /// The chosen sport's leagues as chips along the top ("All" first, then leagues with games).
     private func leagueChips(_ sport: Sport) -> some View {
-        let games = model.games(for: sport)
+        // Counts leave out finished games (2.45): they're under Finished, at the end.
+        let games = model.games(for: sport).filter { $0.state != .finished }
+        let done = model.games(for: sport).filter { $0.state == .finished }.count
         // Only one league on screen (picked, or the only one with games): its logo, name and "9 coming up" sit at
         // the right end of this row instead of taking a row of their own above the cards.
-        let shown = selectedLeague.flatMap { id in sport.leagues.first { $0.id == id } }.map { [$0] }
-            ?? model.leagues(for: sport).filter { l in games.contains { $0.league == l } }
+        let shown = selectedLeague == finishedLeagueID ? []
+            : selectedLeague.flatMap { id in sport.leagues.first { $0.id == id } }.map { [$0] }
+                ?? model.leagues(for: sport).filter { l in games.contains { $0.league == l } }
         return HStack(spacing: 16) {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
@@ -155,6 +160,15 @@ struct DashboardView: View {
                             hideLeague(league, model: model)
                         }
                     }
+                }
+                if done > 0 {
+                    Button { selectedLeague = finishedLeagueID } label: {
+                        HStack(spacing: 6) {
+                            Text("Finished")
+                            chipCount(live: 0, total: done, selected: selectedLeague == finishedLeagueID)
+                        }
+                    }
+                    .buttonStyle(ChipStyle(selected: selectedLeague == finishedLeagueID))
                 }
             }
             .padding(.leading, 32)
