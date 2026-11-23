@@ -47,6 +47,9 @@ final class TVNav: ObservableObject {
     @Published var tab: TVTab = .home
     @Published var homeSelection: HomeSelection = .liveNow
     @Published var homePath: [String] = []
+    /// You moved through Home's sports yourself (up/down or a click). Until then Home stays on the top sport, also
+    /// when focus lands on another row by itself while the list loads (2.45).
+    var pickedSport = false
     /// Focus is on Home / EPG / Settings at the top. The player's video can't take focus then, so pressing down
     /// from the tabs still lands on the page's left column.
     @Published var tabsFocused = false
@@ -292,7 +295,7 @@ struct TVRail: View {
     }
 
     var body: some View {
-        // The three tabs in the middle of the screen's height (2.36); the status and version at the bottom.
+        // The three tabs at the top (2.45; 2.36 had them in the middle); the status and version at the bottom.
         ZStack(alignment: .leading) {
           VStack(alignment: .leading, spacing: 10) {
             ForEach(TVTab.allCases) { tab in
@@ -315,7 +318,8 @@ struct TVRail: View {
                 .frame(width: inner, alignment: .leading)
             }
           }
-          .frame(maxHeight: .infinity, alignment: .center)
+          .padding(.top, TVLayout.margin)
+          .frame(maxHeight: .infinity, alignment: .top)
           VStack(alignment: .leading, spacing: 10) {
             Spacer(minLength: 0)
             status

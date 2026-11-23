@@ -200,6 +200,10 @@ struct TVSportList: View {
         .onAppear { leaveLiveNow() }
         .onChange(of: nav.homeSelection) { leaveLiveNow() }
         .onChange(of: model.games.count) { followTopSport() }
+        .onChange(of: topSport) { followTopSport() }
+        .onChange(of: nav.sideFocused) { if nav.sideFocused { followTopSport() } }
+        // Up or down on the sports: you're picking one yourself from now on (2.45).
+        .onMoveCommand { if $0 == .up || $0 == .down { nav.pickedSport = true } }
         .onChange(of: focused.wrappedValue) {
             // Moving onto a row shows its games once you stop on it (a quarter second), so passing several sports
             // doesn't draw each one's games. Moving right into the games shows it straight away. Coming back to the
@@ -217,6 +221,13 @@ struct TVSportList: View {
                 try? await Task.sleep(for: .milliseconds(250))
                 guard !Task.isCancelled else { return }
                 waitingSelection = nil
+                // Focus landing on another sport by itself (the list growing while it loads) doesn't pick it: back
+                // to the top one (2.45).
+                if !nav.pickedSport, case .sport(let s) = focused, let top = topSport, s != top {
+                    self.focused.wrappedValue = .sport(top)
+                    if nav.homeSelection != .sport(top) { nav.homeSelection = .sport(top) }
+                    return
+                }
                 nav.homeSelection = focused
             }
         }
@@ -235,19 +246,26 @@ struct TVSportList: View {
 
     /// Live games as an orange number; otherwise today's count.
     private func leaveLiveNow() {
-        if nav.homeSelection == .liveNow, let first = sports.first {
+        if nav.homeSelection == .liveNow, let first = topSport ?? sports.first {
             nav.homeSelection = .sport(first)
             autoSport = first
         }
     }
 
-    /// While today's games are still coming in (the first 30 seconds), Home keeps moving to the top sport until you
-    /// pick one yourself (2.21, like Android), instead of staying on whichever sport loaded first.
+    /// The sport at the top of the list (sports with scores, then channel sports, then the rest).
+    private var topSport: Sport? { groups.first?.first }
+
+    /// Until you move through the sports yourself, Home stays on the top sport (2.21; 2.45: for good, and the
+    /// highlight follows it), instead of whichever sport loaded first (channel sports like Fighting come in before the
+    /// scores). While you're in the games it only follows for the first 30 seconds, so the list doesn't change under you.
     private func followTopSport() {
-        guard let auto = autoSport, nav.homeSelection == .sport(auto), Date().timeIntervalSince(openedAt) < 30,
-              let first = sports.first, first != auto else { return }
+        guard !nav.pickedSport, let first = topSport, case .sport(let current) = nav.homeSelection, current != first,
+              nav.zone != .page || Date().timeIntervalSince(openedAt) < 30 else { return }
+        pendingSelection?.cancel()
+        waitingSelection = nil
         nav.homeSelection = .sport(first)
         autoSport = first
+        if focused.wrappedValue != nil { focused.wrappedValue = .sport(first) }
     }
 
     private func row(_ selection: TVNav.HomeSelection, symbol: String, name: String, live: Int, total: Int, detail: String,
@@ -255,6 +273,7 @@ struct TVSportList: View {
         Button {
             pendingSelection?.cancel()
             waitingSelection = nil
+            nav.pickedSport = true
             nav.homeSelection = selection
             if case .sport(let sport) = selection, model.leagues(for: sport).count > 1,
                !isChannelSport(sport, model: model) {

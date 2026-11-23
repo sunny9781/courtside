@@ -362,7 +362,7 @@ fun NavRail(model: AppModel) {
         if (changed) model.tab = tab
         intoPage(changed)
     }
-    // The three tabs in the middle of the screen's height (2.36); the status and the update button at the bottom.
+    // The three tabs at the top (2.45; 2.36 had them in the middle); the status and the update button at the bottom.
     Box(Modifier.width(RAIL_WIDTH).fillMaxHeight().background(Theme.bg)
         .onFocusChanged {
             model.tabsFocused = it.hasFocus
@@ -377,7 +377,7 @@ fun NavRail(model: AppModel) {
         }
         .enterAt { tabs[model.tab] }
         .padding(horizontal = 8.dp, vertical = Theme.margin)) {
-      Column(Modifier.fillMaxWidth().align(Alignment.CenterStart), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+      Column(Modifier.fillMaxWidth().align(Alignment.TopStart), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (tab in Tab.entries) {
             TvButton(onClick = { open(tab) }, selected = model.tab == tab,
                 onFocus = { focusedItem = tab },
@@ -773,9 +773,14 @@ fun HomeScreen(model: AppModel) {
     var firstGame by remember { mutableStateOf<String?>(null) }
     // Live Now isn't listed any more (each sport shows its live games): it stands for the first sport.
     val sports = model.orderedSports()
-    LaunchedEffect(model.homeSelection, sports.firstOrNull()) {
-        val top = sports.firstOrNull() ?: return@LaunchedEffect
-        val following = !model.pickedSport && System.currentTimeMillis() - model.openedAt < 90_000
+    val top = topSport(model)
+    // 2.45: until you move through the sports yourself, Home stays on the top sport, also when you come into it from
+    // the side menu (channel sports like Fighting load first, so focus used to land on them). While you're in the
+    // games it only follows for the first 90 seconds, so the list doesn't change under you.
+    LaunchedEffect(model.homeSelection, top, model.sideFocused, model.tabsFocused) {
+        val top = top ?: return@LaunchedEffect
+        val following = !model.pickedSport &&
+            (System.currentTimeMillis() - model.openedAt < 90_000 || model.sideFocused || model.tabsFocused)
         if (model.homeSelection == HomeSelection.LiveNow || (following && model.homeSelection is HomeSelection.OfSport && model.homeSelection != HomeSelection.OfSport(top))) {
             model.homeSelection = HomeSelection.OfSport(top)
             // The highlight on the left follows it too.
@@ -869,14 +874,24 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
     // Holding the select button on a sport: favourite or hide it.
     var prompt by remember { mutableStateOf<HoldPrompt?>(null) }
     prompt?.let { p -> HoldMenu(p) { prompt = null } }
+    val scope = rememberCoroutineScope()
     fun choose(s: HomeSelection, now: Boolean) {
-        if (model.homeSelection != s) model.pickedSport = true
+        if (now && model.homeSelection != s) model.pickedSport = true
+        // Focus landing on a sport by itself (the list growing while it loads) doesn't pick it: back to the top one.
+        val top = topSport(model)
+        if (!now && !model.pickedSport && top != null && s != HomeSelection.OfSport(top)) {
+            settle.cancel()
+            scope.launch { androidx.compose.runtime.withFrameNanos { }; targets.focus(top.name) }
+            return
+        }
         val apply = { if (model.homeSelection != s) model.homeSelection = s }
         if (now) settle.now(apply) else settle.later(apply)
     }
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-    val scope = rememberCoroutineScope()
     Column(modifier.fillMaxHeight().onPreviewKeyEvent { e ->
+            // Up or down on the sports: you're picking one yourself from now on (2.45).
+            if (e.type == KeyEventType.KeyDown && (e.key.nativeKeyCode == KeyEvent.KEYCODE_DPAD_UP ||
+                    e.key.nativeKeyCode == KeyEvent.KEYCODE_DPAD_DOWN)) model.pickedSport = true
             // Right: show the sport you stopped on first, then into its leagues (when it has several) or its games.
             if (e.type != KeyEventType.KeyDown || e.key.nativeKeyCode != KeyEvent.KEYCODE_DPAD_RIGHT) return@onPreviewKeyEvent false
             val flushed = settle.flush()
@@ -928,6 +943,10 @@ private fun SportList(model: AppModel, targets: FocusTargets, compact: Boolean, 
         }
     }
 }
+
+/** The sport at the top of Home's list (sports with scores, then channel sports, then the rest). */
+private fun topSport(model: AppModel): Sport? =
+    model.home.scoreSports.firstOrNull() ?: model.home.channelSports.firstOrNull() ?: model.home.emptySports.firstOrNull()
 
 /** Live games as an orange number; otherwise today's count. Moving onto a row shows its games. */
 @Composable
@@ -1314,6 +1333,7 @@ private fun LeagueList(model: AppModel, sport: Sport, targets: FocusTargets, mod
     // Hold select on a league (2.43): Hide (Settings › Hidden brings it back).
     var prompt by remember { mutableStateOf<HoldPrompt?>(null) }
     prompt?.let { p -> HoldMenu(p) { prompt = null } }
+    val scope = rememberCoroutineScope()
     fun choose(s: HomeSelection, now: Boolean) {
         val apply = { if (model.homeSelection != s) model.homeSelection = s }
         if (now) settle.now(apply) else settle.later(apply)

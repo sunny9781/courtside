@@ -345,6 +345,13 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
 - Apple apps since 2.44 (`refreshIfDue` in Shared/AppModel.swift, from the minute loop and didBecomeActive;
   `checkChannels`, `guideDue`, `guideEnd`, `lastAutoRefresh`; `rematch(timed:)` logs the timing; Matcher no longer does).
 
+## 2.45 (2026-11-23, both TVs)
+- Rail tabs at the top again (Android `Alignment.TopStart`, Apple TV `.top` + margin); still no C logo.
+- `pickedSport` (Android AppModel, Apple TV TVNav) is set only by up/down on the sports (onPreviewKeyEvent /
+  onMoveCommand) or a click. Until then Home follows the top sport (`topSport`: first of scores | channels | empty)
+  whenever the rail or the sports have focus (in the games only for the first 90 s / 30 s), and focus landing on
+  another sport by itself is sent back to the top one.
+
 ## 2.44 (2026-11-23, Mac multiview, Apple catch-up)
 - Multiview logic moved to `Shared/Multiview.swift` (class `Multiview`; `typealias TVMultiview = Multiview` keeps the
   Apple TV code). `resume()` on leaving: Apple TV goes full screen, the Mac goes back to the mini player.
