@@ -33,6 +33,8 @@ final class IOSNav: ObservableObject {
         case liveNow
         case sport(Sport)
         case league(String)
+        /// A sport's finished games (2.45): their own chip after the leagues, out of the other lists.
+        case finished(Sport)
     }
 
     @Published var tab: IOSTab = .home
@@ -55,6 +57,7 @@ final class IOSNav: ObservableObject {
         case .liveNow: return nil
         case .sport(let s): return s
         case .league(let id): return League.all.first { $0.id == id }?.sport
+        case .finished(let s): return s
         }
     }
 }

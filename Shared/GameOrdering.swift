@@ -165,3 +165,6 @@ func packRows<T>(_ sections: [T], columns: Int, size: (T) -> Int) -> [[T]] {
     model.sportsChanged()
     model.notice = "\(league.name) is hidden. Settings › Hidden brings it back."
 }
+
+/// The Mac's "league" id for a sport's Finished chip (2.45): its finished games, out of the other lists.
+let finishedLeagueID = "finished"

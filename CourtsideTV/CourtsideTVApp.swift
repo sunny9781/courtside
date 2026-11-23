@@ -42,6 +42,16 @@ final class TVNav: ObservableObject {
         case liveNow
         case sport(Sport)
         case league(String)
+        /// A sport's finished games (2.45): their own entry at the end of the league list, out of the other lists.
+        case finished(Sport)
+
+        var sport: Sport? {
+            switch self {
+            case .sport(let s), .finished(let s): return s
+            case .league(let id): return League.all.first { $0.id == id }?.sport
+            case .liveNow: return nil
+            }
+        }
     }
 
     @Published var tab: TVTab = .home

@@ -119,16 +119,23 @@ struct IOSGamesList: View {
         case .liveNow:
             // No Live Now page any more: until today's games are in, nothing is picked.
             return []
+        // Finished games are under the Finished chip (2.45), not on a sport's or league's page.
         case .sport(let sport):
             return model.leagues(for: sport).compactMap { league in
-                let games = model.games.filter { $0.league.id == league.id }
+                let games = model.games.filter { $0.league.id == league.id && $0.state != .finished }
                 return games.isEmpty ? nil
                     : GameSection(id: league.id, title: league.name, symbol: nil, league: league, games: sortedGames(games))
             }
         case .league(let id):
             guard let league = League.all.first(where: { $0.id == id }) else { return [] }
             return [GameSection(id: id, title: league.name, symbol: nil, league: league,
-                                games: sortedGames(model.games.filter { $0.league.id == id }))]
+                                games: sortedGames(model.games.filter { $0.league.id == id && $0.state != .finished }))]
+        case .finished(let sport):
+            return model.leagues(for: sport).compactMap { league in
+                let games = model.games.filter { $0.league.id == league.id && $0.state == .finished }
+                return games.isEmpty ? nil
+                    : GameSection(id: league.id, title: league.name, symbol: nil, league: league, games: sortedGames(games))
+            }
         }
     }
 
@@ -138,6 +145,7 @@ struct IOSGamesList: View {
         case .liveNow: return "Courtside"
         case .sport(let s): return s.rawValue
         case .league(let id): return League.all.first { $0.id == id }?.sport.rawValue ?? ""
+        case .finished(let s): return s.rawValue
         }
     }
 
@@ -146,7 +154,7 @@ struct IOSGamesList: View {
             // "Updated" lives in Settings; pull down to refresh.
             VStack(alignment: .leading, spacing: 22) {
                 // iPhone: sports and leagues are at the bottom, in easy reach of the thumb. iPad: leagues stay here.
-                if !showsSportChips, let sport = nav.selectedSport, model.leagues(for: sport).count > 1 { leagueChips(sport) }
+                if !showsSportChips, let sport = nav.selectedSport, hasChips(sport) { leagueChips(sport) }
 
                 epgStatus
 
@@ -188,7 +196,7 @@ struct IOSGamesList: View {
 
                 // iPhone (two cards to a row): leagues with one game share a row (2.43), each with its name above.
                 let packs = showsSportChips && sections.count > 1
-                    ? packRows(sections, columns: 2) { $0.games.contains { $0.state == .finished } ? 2 : $0.games.count }
+                    ? packRows(sections, columns: 2) { $0.games.count }
                     : sections.map { [$0] }
                 ForEach(packs, id: \.first!.id) { pack in
                   if pack.count > 1 {
@@ -224,11 +232,7 @@ struct IOSGamesList: View {
                                                 ?? (section.id == "finals" ? section.games
                                                     : model.games(for: Sport(rawValue: section.title) ?? .basketball)),
                                               charWidth: 9.5, fixed: 90, minimum: 280, maximum: 560)
-                        let finished = section.id == "finals" ? [] : section.games.filter { $0.state == .finished }
-                        let shown = section.games.filter { game in
-                            if game.state == .finished && section.id != "finals" { return openFinished.contains(section.id) }
-                            return true
-                        }
+                        let shown = section.games
                         // iPhone: two cards side by side; iPad: as many as fit.
                         LazyVGrid(columns: showsSportChips
                                       ? [GridItem(.flexible(), spacing: 10, alignment: .top), GridItem(.flexible(), spacing: 10, alignment: .top)]
@@ -242,7 +246,6 @@ struct IOSGamesList: View {
                             }
                         }
                         .padding(.horizontal)
-                        if !finished.isEmpty { foldButton("Finished · \(finished.count)", id: section.id, in: $openFinished) }
                     }
                   }
                 }
@@ -340,7 +343,7 @@ struct IOSGamesList: View {
     /// used (Live Now, "All") sit nearest the thumb, the rest further left.
     private var bottomBar: some View {
         VStack(spacing: 8) {
-            if let sport = nav.selectedSport, model.leagues(for: sport).count > 1 {
+            if let sport = nav.selectedSport, hasChips(sport) {
                 trailingRow { leagueItems(sport) }
             }
             trailingRow { sportItems }
@@ -388,10 +391,11 @@ struct IOSGamesList: View {
     @ViewBuilder
     private func leagueItems(_ sport: Sport) -> some View {
         let leagues = model.leagues(for: sport)
-        // Always the same order: All, then the most popular league first (NBA, WNBA, NCAA...).
+        // Always the same order: All, then the most popular league first (NBA, WNBA, NCAA...), Finished last.
         let ordered = leagues
+        finishedChip(sport)
         ForEach(ordered.reversed()) { league in
-            let count = model.games.filter { $0.league.id == league.id }.count
+            let count = model.games.filter { $0.league.id == league.id && $0.state != .finished }.count
             IOSChip(selected: nav.homeSelection == .league(league.id), action: { nav.homeSelection = .league(league.id) }) {
                 HStack(spacing: 6) {
                     IOSLeagueLogo(league: league, size: 18)
@@ -437,6 +441,25 @@ struct IOSGamesList: View {
         }
     }
 
+    /// Chips when the sport has several leagues, or finished games (for the Finished chip, 2.45).
+    private func hasChips(_ sport: Sport) -> Bool {
+        model.leagues(for: sport).count > 1 || model.games(for: sport).contains { $0.state == .finished }
+    }
+
+    /// Finished (2.45): the sport's finished games on their own, out of the other lists.
+    @ViewBuilder
+    private func finishedChip(_ sport: Sport) -> some View {
+        let done = model.games(for: sport).filter { $0.state == .finished }.count
+        if done > 0 {
+            IOSChip(selected: nav.homeSelection == .finished(sport), action: { nav.homeSelection = .finished(sport) }) {
+                HStack(spacing: 6) {
+                    Text("Finished")
+                    Text("\(done)").opacity(0.6)
+                }
+            }
+        }
+    }
+
     private func leagueChips(_ sport: Sport) -> some View {
         let leagues = model.leagues(for: sport)
         // Always the same order: All, then the most popular league first (NBA, WNBA, NCAA...).
@@ -447,7 +470,7 @@ struct IOSGamesList: View {
                     Text("All")
                 }
                 ForEach(ordered) { league in
-                    let count = model.games.filter { $0.league.id == league.id }.count
+                    let count = model.games.filter { $0.league.id == league.id && $0.state != .finished }.count
                     IOSChip(selected: nav.homeSelection == .league(league.id), action: { nav.homeSelection = .league(league.id) }) {
                         HStack(spacing: 6) {
                             IOSLeagueLogo(league: league, size: 18)
@@ -464,6 +487,7 @@ struct IOSGamesList: View {
                         }
                     }
                 }
+                finishedChip(sport)
             }
             .padding(.horizontal)
         }

@@ -18,21 +18,17 @@ struct TVHomeView: View {
 
     /// The sport whose leagues can open beside it (more than one league, and not a channel sport).
     private var leagueSport: Sport? {
-        let sport: Sport?
-        switch nav.homeSelection {
-        case .sport(let s): sport = s
-        case .league(let id): sport = League.all.first { $0.id == id }?.sport
-        case .liveNow: sport = nil
-        }
-        guard let sport, model.leagues(for: sport).count > 1, !isChannelSport(sport, model: model) else { return nil }
+        guard let sport = nav.homeSelection.sport, hasLeagueList(sport, model: model) else { return nil }
         return sport
     }
 
     /// The league row to land on: the selected league, or All.
     private var leagueTarget: TVNav.HomeSelection? {
         guard let sport = leagueSport else { return nil }
-        if case .league = nav.homeSelection { return nav.homeSelection }
-        return .sport(sport)
+        switch nav.homeSelection {
+        case .league, .finished: return nav.homeSelection
+        default: return .sport(sport)
+        }
     }
 
     private func focusLeagues() {
@@ -54,6 +50,7 @@ struct TVHomeView: View {
         case .liveNow: return first
         case .sport(let s): return .sport(s)
         case .league(let id): return League.all.first { $0.id == id }.map { .sport($0.sport) } ?? first
+        case .finished(let s): return .sport(s)
         }
     }
 
@@ -147,11 +144,7 @@ struct TVSportList: View {
 
     /// The sport highlighted on the left: the one selected, or the one a selected league belongs to.
     private var openSport: Sport? {
-        switch nav.homeSelection {
-        case .sport(let s): return s
-        case .league(let id): return League.all.first { $0.id == id }?.sport
-        case .liveNow: return nil
-        }
+        nav.homeSelection.sport
     }
 
     var body: some View {
@@ -256,8 +249,7 @@ struct TVSportList: View {
             pendingSelection?.cancel()
             waitingSelection = nil
             nav.homeSelection = selection
-            if case .sport(let sport) = selection, model.leagues(for: sport).count > 1,
-               !isChannelSport(sport, model: model) {
+            if case .sport(let sport) = selection, hasLeagueList(sport, model: model) {
                 openLeagues?()
             }
         } label: {
@@ -320,11 +312,12 @@ struct TVLeagueList: View {
                     .foregroundStyle(Theme.muted)
                     .padding(.leading, 22)
                     .padding(.bottom, 4)
-                let all = model.games(for: sport)
+                // Counts leave out finished games (2.45): they're under Finished, at the end.
+                let all = model.games(for: sport).filter { $0.state != .finished }
                 row(.sport(sport), league: nil, name: "All", games: all)
                 ForEach(model.leagues(for: sport)) { league in
                     row(.league(league.id), league: league, name: league.name,
-                        games: model.games.filter { $0.league.id == league.id })
+                        games: model.games.filter { $0.league.id == league.id && $0.state != .finished })
                         // Hold select (2.43): hide the league (Settings › Hidden brings it back).
                         .contextMenu {
                             Button("Hide", systemImage: "eye.slash") {
@@ -336,6 +329,11 @@ struct TVLeagueList: View {
                                 model.notice = "\(league.name) is hidden. Settings › Hidden brings it back."
                             }
                         }
+                }
+                let done = model.games(for: sport).filter { $0.state == .finished }
+                if !done.isEmpty {
+                    row(.finished(sport), league: nil, name: "Finished", games: done)
+                        .padding(.top, 10)
                 }
             }
             .padding(.vertical, 20)
@@ -414,6 +412,13 @@ struct TVGamesPane: View {
             guard let league = League.all.first(where: { $0.id == id }) else { return [] }
             let games = model.games.filter { $0.league.id == id }
             return [PaneSection(id: id, title: league.name, symbol: nil, league: league, games: sortedGames(games))]
+        case .finished(let sport):
+            // 2.45: the sport's finished games, under a heading per league.
+            return model.leagues(for: sport).compactMap { league in
+                let games = model.games.filter { $0.league.id == league.id && $0.state == .finished }
+                return games.isEmpty ? nil
+                    : PaneSection(id: league.id, title: league.name, symbol: nil, league: league, games: sortedGames(games))
+            }
         }
     }
 
@@ -422,19 +427,22 @@ struct TVGamesPane: View {
         case .liveNow: return "Live Now"
         case .sport(let s): return s.rawValue
         case .league(let id): return League.all.first { $0.id == id }?.sport.rawValue ?? ""
+        case .finished(let s): return s.rawValue
         }
     }
 
-    /// The sections with only the games that are live or coming up; finished ones are folded (below). (No "Later
-    /// today" fold since 2.2: that's an Android Lite mode option only.)
+    /// The sections with only the games that are live or coming up; finished ones have their own entry in the league
+    /// list (2.45). (No "Later today" fold since 2.2: that's an Android Lite mode option only.)
     private var open: [PaneSection] {
-        sections.compactMap { s in
+        if case .finished = nav.homeSelection { return sections }
+        return sections.compactMap { s in
             let games = s.games.filter { $0.state != .finished }
             return games.isEmpty ? nil : PaneSection(id: s.id, title: s.title, symbol: s.symbol, league: s.league, games: games)
         }
     }
 
-    private var finished: [Game] { sections.flatMap { $0.games.filter { $0.state == .finished } } }
+    /// Nothing folds any more (2.45): finished games are under Finished in the league list.
+    private var finished: [Game] { [] }
 
     /// NFL RedZone (2.41): while any NFL game is live, a card at the top of Football / NFL that opens a game screen of
     /// its channels, grouped like any game's streams.
@@ -444,6 +452,7 @@ struct TVGamesPane: View {
         case .liveNow: here = true
         case .sport(let s): here = s == .football
         case .league(let id): here = id == "nfl"
+        case .finished: here = false
         }
         guard here, model.games.contains(where: { $0.league.id == "nfl" && $0.state == .live }) else { return nil }
         return model.redZoneGame
@@ -593,11 +602,7 @@ struct TVGamesPane: View {
 
     /// The sport whose league filters show above the games.
     private var filterSport: Sport? {
-        switch nav.homeSelection {
-        case .sport(let s): return s
-        case .league(let id): return League.all.first { $0.id == id }?.sport
-        case .liveNow: return nil
-        }
+        nav.homeSelection.sport
     }
 
     /// Live games as an orange number, otherwise today's games in grey.
@@ -918,4 +923,11 @@ struct TVCardButtonStyle: ButtonStyle {
                 .animation(.easeOut(duration: 0.15), value: focused)
         }
     }
+}
+
+/// A sport gets the league list beside it when it has several leagues, or finished games (for the Finished entry,
+/// 2.45); not channel sports.
+@MainActor func hasLeagueList(_ sport: Sport, model: AppModel) -> Bool {
+    !isChannelSport(sport, model: model)
+        && (model.leagues(for: sport).count > 1 || model.games(for: sport).contains { $0.state == .finished })
 }

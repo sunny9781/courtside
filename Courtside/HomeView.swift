@@ -8,7 +8,9 @@ struct SportView: View {
     var leagueID: String? = nil
     let onOpen: (Game) -> Void
 
-    private var allGames: [Game] { model.games(for: sport) }
+    /// Finished games only under the Finished chip (2.45); everywhere else, what's live or coming up.
+    private var finishedPage: Bool { leagueID == finishedLeagueID }
+    private var allGames: [Game] { model.games(for: sport).filter { ($0.state == .finished) == finishedPage } }
     @State private var width: CGFloat = 0
 
     private var league: League? {
@@ -59,7 +61,7 @@ struct SportView: View {
                 let packs = sections.count > 1 && width > 0
                     ? packRows(sections, columns: cols) { l in
                         let g = allGames.filter { $0.league == l }
-                        return g.contains { $0.state == .finished } ? cols : g.count
+                        return g.count
                     }
                     : sections.map { [$0] }
                 ForEach(packs, id: \.first!.id) { pack in
@@ -82,8 +84,8 @@ struct SportView: View {
                     } else if let item = pack.first {
                         // One league on screen with the chip row above: its name sits at the end of that row instead.
                         LeagueSection(league: item, games: allGames.filter { $0.league == item },
-                                      showHeading: sections.count > 1 || model.leagues(for: sport).count <= 1,
-                                      onOpen: onOpen)
+                                      showHeading: sections.count > 1 || model.leagues(for: sport).count <= 1 || finishedPage,
+                                      onOpen: onOpen, finishedPage: finishedPage)
                     }
                 }
             }
@@ -119,6 +121,8 @@ struct LeagueSection: View {
     let games: [Game]
     let showHeading: Bool
     let onOpen: (Game) -> Void
+    /// The Finished chip's page (2.45): the finished games as ordinary cards, no fold.
+    var finishedPage = false
     /// Finished games show under the cards (as on the TVs); "Finished · 6" folds them away.
     @State private var showFinished = true
 
@@ -139,8 +143,8 @@ struct LeagueSection: View {
             // The smallest width that fits the longest names; the grid fits as many as it can per row and stretches
             // them to fill it (no empty band on the right).
             let width = cardWidth(for: model.games(for: league.sport), charWidth: 9.5, fixed: 112, minimum: 260, maximum: 560) * 0.86
-            grid(live.sorted(by: byStart) + upcoming.sorted(by: byStart), width: width)
-            if !finished.isEmpty {
+            grid(finishedPage ? finished.sorted(by: byStart) : live.sorted(by: byStart) + upcoming.sorted(by: byStart), width: width)
+            if !finished.isEmpty && !finishedPage {
                 FoldButton(text: "Finished · \(finished.count)", open: $showFinished)
                 if showFinished { grid(finished.sorted(by: byStart), width: width) }
             }

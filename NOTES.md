@@ -143,6 +143,13 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   sections with fewer games than a row (phones/Mac: sections with finished games stay alone). iPad not packed.
 - Android `PhoneSetupPanel` is as wide as its title (300–520 dp).
 
+## 2.45 Finished entry (all apps, Sunny)
+- Finished games are out of the sport/league pages: a "Finished" item ends the league list (TVs) / chips (Mac,
+  iPhone, Android phone), showing that sport's finished games under league headings. Android `HomeSelection.Finished`,
+  Apple TV / iOS `.finished(Sport)` (TVNav.HomeSelection has `.sport` helper), Mac `selectedLeague = finishedLeagueID`.
+  A one-league sport gets the league list / chips too when it has finished games (`hasLeagueList`, `hasChips`).
+  The old Finished folds are gone (Android Lite "Finished games" option no longer does anything).
+
 ## Android phone app (2.0, 2026-11-20)
 - Same APK as the TVs. `Device.tv` (Device.kt: UI mode television, leanback, Fire TV, or no touchscreen) picks the
   layout in `CourtsideApp`: TVs keep `Shell`, phones/tablets get `PhoneApp` (Phone.kt, PhoneHome.kt, PhoneEpg.kt,
