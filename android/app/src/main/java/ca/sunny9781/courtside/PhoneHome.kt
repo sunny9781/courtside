@@ -32,7 +32,25 @@ import kotlinx.coroutines.launch
 private fun phoneSport(s: HomeSelection): Sport? = when (s) {
     is HomeSelection.OfSport -> s.sport
     is HomeSelection.OfLeague -> League.all.firstOrNull { it.id == s.leagueId }?.sport
+    is HomeSelection.Finished -> s.sport
     else -> null
+}
+
+/** A sport's leagues get chips when there are several, or finished games (for the Finished chip, 2.45). */
+private fun hasChips(model: AppModel, sport: Sport) =
+    model.leagues(sport).size > 1 || model.games(sport).any { it.state == GameState.FINISHED }
+
+/** Finished (2.45): the sport's finished games on their own, out of the other lists. */
+@Composable
+private fun FinishedChip(model: AppModel, sport: Sport, selection: HomeSelection) {
+    val done = model.games(sport).count { it.state == GameState.FINISHED }
+    if (done == 0) return
+    TouchChip(selection == HomeSelection.Finished(sport), onClick = {
+        model.pickedSport = true; model.homeSelection = HomeSelection.Finished(sport)
+    }) { color ->
+        Label("Finished", size = 14.sp, weight = FontWeight.SemiBold, color = color)
+        Label("$done", size = 13.sp, color = color.copy(alpha = 0.6f))
+    }
 }
 
 private fun phoneSorted(games: List<Game>) = games.sortedWith(
@@ -109,7 +127,7 @@ fun TabletHome(model: AppModel) {
             val open = model.openGameId
             if (open != null) PhoneGame(model, open)
             else {
-                if (sport != null && model.leagues(sport).size > 1) LeagueChips(model, sport)
+                if (sport != null && hasChips(model, sport)) LeagueChips(model, sport)
                 PullToRefresh(model, Modifier.weight(1f).fillMaxWidth()) {
                     if (sport != null && sport in model.home.channelSports) SportChannelList(model, sport)
                     else BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -158,7 +176,7 @@ private fun TabletSportSidebar(model: AppModel, sport: Sport?) {
 /** A league chip: tap to show its games; hold for Hide (2.43, Settings › Hidden brings it back). */
 @Composable
 private fun LeagueChip(model: AppModel, league: League, sport: Sport, selection: HomeSelection) {
-    val g = model.gamesIn(league.id)
+    val g = model.gamesIn(league.id).filter { it.state != GameState.FINISHED }
     val live = g.count { it.state == GameState.LIVE }
     var menu by remember { mutableStateOf(false) }
     Box {
@@ -193,22 +211,27 @@ private fun LeagueChips(model: AppModel, sport: Sport) {
         for (league in model.leagues(sport)) {
             LeagueChip(model, league, sport, selection)
         }
+        FinishedChip(model, sport, selection)
     }
 }
 
 @Composable
 private fun GameList(model: AppModel, selection: HomeSelection, sport: Sport?, columns: Int = 2) {
     val sections = when (selection) {
+        // Finished games are under Finished (2.45), not here.
         is HomeSelection.OfSport -> model.leagues(selection.sport).mapNotNull { l ->
-            val g = model.gamesIn(l.id)
+            val g = model.gamesIn(l.id).filter { it.state != GameState.FINISHED }
             if (g.isEmpty()) null else Sec(l.id, l, phoneSorted(g))
         }
         is HomeSelection.OfLeague -> League.all.firstOrNull { it.id == selection.leagueId }?.let {
-            listOf(Sec(it.id, it, phoneSorted(model.gamesIn(it.id))))
+            listOf(Sec(it.id, it, phoneSorted(model.gamesIn(it.id).filter { g -> g.state != GameState.FINISHED })))
         } ?: emptyList()
+        is HomeSelection.Finished -> model.leagues(selection.sport).mapNotNull { l ->
+            val g = model.gamesIn(l.id).filter { it.state == GameState.FINISHED }
+            if (g.isEmpty()) null else Sec(l.id, l, phoneSorted(g))
+        }
         else -> emptyList()
     }
-    var openFinished by remember { mutableStateOf(setOf<String>()) }
     // NFL RedZone (2.41): a card that opens a game screen of its channels, while an NFL game is live.
     val nflLive = (sport == Sport.FOOTBALL) && model.gamesIn("nfl").any { it.state == GameState.LIVE }
     val redZone = if (nflLive) model.redZoneGame() else null
@@ -241,7 +264,7 @@ private fun GameList(model: AppModel, selection: HomeSelection, sport: Sport?, c
                 size = 15.sp, color = Theme.muted, modifier = Modifier.padding(16.dp))
         }
         // Leagues with only one game (with two to a row) share a row (2.43), each with its name above its card.
-        val packs = packRows(sections, columns) { sec -> if (sec.games.any { it.state == GameState.FINISHED }) columns else sec.games.size }
+        val packs = packRows(sections, columns) { sec -> sec.games.size }
         for (pack in packs) if (pack.size > 1) {
             item(key = "pk:${pack.first().id}") {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -267,19 +290,7 @@ private fun GameList(model: AppModel, selection: HomeSelection, sport: Sport?, c
                     Label(s.league.name, size = 20.sp, weight = FontWeight.Bold)
                 }
             }
-            val finished = s.games.filter { it.state == GameState.FINISHED }
-            val shown = s.games.filter { g ->
-                when {
-                    g.state == GameState.FINISHED -> s.id in openFinished
-                    else -> true
-                }
-            }
-            cards(shown, s.id)
-            if (finished.isNotEmpty()) item(key = "fin:${s.id}") {
-                Fold("Finished · ${finished.size}", s.id in openFinished) {
-                    openFinished = if (s.id in openFinished) openFinished - s.id else openFinished + s.id
-                }
-            }
+            cards(s.games, s.id)
         }
     }
 }
@@ -383,8 +394,9 @@ private fun HomeBottomBar(model: AppModel, sport: Sport?) {
     val favs = model.settings.favoriteSet
     Column(Modifier.fillMaxWidth().background(Theme.sidebar.copy(alpha = 0.96f)).padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (sport != null && model.leagues(sport).size > 1) TrailingRow {
-            // Right to left: All nearest the thumb, then the most popular league (NBA, WNBA, NCAA...).
+        if (sport != null && hasChips(model, sport)) TrailingRow {
+            // Right to left: All nearest the thumb, then the most popular league (NBA, WNBA, NCAA...), Finished last.
+            FinishedChip(model, sport, selection)
             for (league in model.leagues(sport).reversed()) {
                 LeagueChip(model, league, sport, selection)
             }

@@ -789,10 +789,16 @@ fun HomeScreen(model: AppModel) {
     var folded by remember { mutableStateOf(false) }
     var leaguesFocused by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
-    fun leagueKey() = (model.homeSelection as? HomeSelection.OfLeague)?.let { "lg:${it.leagueId}" } ?: "lg:all"
+    fun leagueKey() = when (val h = model.homeSelection) {
+        is HomeSelection.OfLeague -> "lg:${h.leagueId}"
+        is HomeSelection.Finished -> "lg:finished"
+        else -> "lg:all"
+    }
     fun hasLeagues(sel: HomeSelection): Boolean {
         val sp = selectedSport(sel) ?: return false
-        return sp !in model.home.channelSports && model.leagues(sp).size > 1
+        // 2.45: a one-league sport gets the list too when it has finished games (for the Finished entry).
+        return sp !in model.home.channelSports &&
+            (model.leagues(sp).size > 1 || model.games(sp).any { it.state == GameState.FINISHED })
     }
     val canFold = hasLeagues(model.homeSelection)
     LaunchedEffect(canFold) { if (!canFold) folded = false }
@@ -850,11 +856,13 @@ private fun sidebarKey(s: HomeSelection): String = when (s) {
     is HomeSelection.LiveNow -> ""
     is HomeSelection.OfSport -> s.sport.name
     is HomeSelection.OfLeague -> League.all.firstOrNull { it.id == s.leagueId }?.sport?.name ?: ""
+    is HomeSelection.Finished -> s.sport.name
 }
 
 private fun selectedSport(s: HomeSelection): Sport? = when (s) {
     is HomeSelection.OfSport -> s.sport
     is HomeSelection.OfLeague -> League.all.firstOrNull { it.id == s.leagueId }?.sport
+    is HomeSelection.Finished -> s.sport
     else -> null
 }
 
@@ -1003,23 +1011,30 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
         is HomeSelection.OfLeague -> League.all.firstOrNull { it.id == selection.leagueId }?.let { l ->
             listOf(PaneSection(l.id, l.name, null, l, sortedGames(model.gamesIn(l.id))))
         } ?: emptyList()
+        // 2.45: the sport's finished games, under a heading per league.
+        is HomeSelection.Finished -> model.leagues(selection.sport).mapNotNull { l ->
+            val g = model.gamesIn(l.id).filter { it.state == GameState.FINISHED }
+            if (g.isEmpty()) null else PaneSection(l.id, l.name, null, l, sortedGames(g))
+        }
     }
+    val finishedPage = selection is HomeSelection.Finished
     // A sport with no live scores but channels (pickleball): its channels as an EPG list, not score cards.
     if (sport != null && sport in model.home.channelSports) {
         SportChannels(model, sport, targets, modifier)
         return
     }
-    // Finished games fold into one row at the bottom ("Finished · 6", click to show them), so a page mostly draws the
-    // games that are live or coming up.
+    // Finished games have their own entry in the league list (2.45), so a sport's or league's page only has the games
+    // that are live or coming up.
     // Lite mode only (2.2): games starting more than 2 hours from now fold the same way ("Later today · 18"), so a
     // busy day (31 basketball games) mostly draws what's live or about to start. Elsewhere they're ordinary cards.
     val soon = System.currentTimeMillis() + 2 * 3600_000L
     val foldLater = Perf.foldLater
     fun isLater(g: Game) = foldLater && g.state == GameState.UPCOMING && (g.start ?: 0L) > soon
-    val open = sections.map { it.copy(games = it.games.filter { g -> g.state != GameState.FINISHED && !isLater(g) }) }
-        .filter { it.games.isNotEmpty() }
-    val later = sections.flatMap { it.games.filter { g -> isLater(g) } }
-    val finished = sections.flatMap { it.games.filter { g -> g.state == GameState.FINISHED } }
+    val open = if (finishedPage) sections
+        else sections.map { it.copy(games = it.games.filter { g -> g.state != GameState.FINISHED && !isLater(g) }) }
+            .filter { it.games.isNotEmpty() }
+    val later = if (finishedPage) emptyList() else sections.flatMap { it.games.filter { g -> isLater(g) } }
+    val finished = emptyList<Game>()
     // Finished games show by default; Lite mode folds them (less to draw).
     var showFinished by remember(selection) { mutableStateOf(!Perf.foldFinished) }
     // NFL RedZone (2.41): while any NFL game is live, a card at the top of Football / NFL that opens a game screen of
@@ -1322,13 +1337,14 @@ private fun LeagueList(model: AppModel, sport: Sport, targets: FocusTargets, mod
         .verticalScroll(rememberScrollState()).padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Label(sport.title.uppercase(), size = 10.sp, weight = FontWeight.Bold, color = Theme.muted,
             modifier = Modifier.padding(start = 10.dp, top = 2.dp, bottom = 4.dp))
-        val all = model.games(sport)
+        // Counts leave out finished games (2.45): they're under Finished, at the end.
+        val all = model.games(sport).filter { it.state != GameState.FINISHED }
         LeagueRow(targets, "lg:all", null, "All", all.count { it.state == GameState.LIVE }, all.size,
             selection == HomeSelection.OfSport(sport), model, onFocus = { choose(HomeSelection.OfSport(sport), false) }) {
             choose(HomeSelection.OfSport(sport), true)
         }
         for (league in model.leagues(sport)) {
-            val g = model.gamesIn(league.id)
+            val g = model.gamesIn(league.id).filter { it.state != GameState.FINISHED }
             val s = HomeSelection.OfLeague(league.id)
             LeagueRow(targets, "lg:${league.id}", league, league.name, g.count { it.state == GameState.LIVE }, g.size,
                 selection == s, model, dimmed = g.isEmpty(), onFocus = { choose(s, false) },
@@ -1337,6 +1353,13 @@ private fun LeagueList(model: AppModel, sport: Sport, targets: FocusTargets, mod
                     model.setLeagueHidden(league.id, true)
                     model.notice = "${league.name} is hidden. Settings › Hidden brings it back."
                 })) }) { choose(s, true) }
+        }
+        val done = model.games(sport).count { it.state == GameState.FINISHED }
+        if (done > 0) {
+            val s = HomeSelection.Finished(sport)
+            Spacer(Modifier.height(6.dp))
+            LeagueRow(targets, "lg:finished", null, "Finished", 0, done, selection == s, model,
+                onFocus = { choose(s, false) }) { choose(s, true) }
         }
     }
 }
