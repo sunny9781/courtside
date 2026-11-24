@@ -642,6 +642,9 @@ struct TVChannelRow: View {
                 if !showNext { ReliabilityDot(channelID: channel.id, size: 14, padding: 9) }
             }
             .fixedSize()
+            // Game screen (2.47): the tags in a fixed slot, so what's on and its progress bar are as wide on every
+            // stream whatever tags it has, and the rows line up.
+            .frame(width: showNext ? nil : 330, alignment: .trailing)
             Spacer(minLength: 0)
         }
     }

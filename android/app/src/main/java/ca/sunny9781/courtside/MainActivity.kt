@@ -39,6 +39,32 @@ class MainActivity : ComponentActivity() {
             }
             previous?.uncaughtException(thread, error)
         }
+        // 2.47: closes the handler above can't see (Android ending the app for memory, "not responding", a crash in
+        // the video decoder): Android 11+ keeps the reason, so record the newest one we haven't seen yet.
+        if (!crashFile.exists() && Build.VERSION.SDK_INT >= 30) runCatching {
+            val am = getSystemService(android.app.ActivityManager::class.java)
+            val last = am.getHistoricalProcessExitReasons(packageName, 0, 1).firstOrNull()
+            val prefs = getSharedPreferences("courtside", MODE_PRIVATE)
+            val seen = prefs.getLong("lastExitSeen", 0L)
+            if (last != null && last.timestamp > seen) {
+                prefs.edit().putLong("lastExitSeen", last.timestamp).apply()
+                val why = when (last.reason) {
+                    android.app.ApplicationExitInfo.REASON_LOW_MEMORY -> "Android closed it: the TV ran out of memory"
+                    android.app.ApplicationExitInfo.REASON_ANR -> "Android closed it: not responding"
+                    android.app.ApplicationExitInfo.REASON_CRASH_NATIVE -> "Crash in the video decoder or system code"
+                    android.app.ApplicationExitInfo.REASON_SIGNALED -> "Android stopped it (signal ${last.status})"
+                    android.app.ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "Android closed it: too much CPU or memory"
+                    android.app.ApplicationExitInfo.REASON_INITIALIZATION_FAILURE -> "It failed to start"
+                    else -> null // Closed normally (Back, Home, swiped away, updated): nothing to report.
+                }
+                if (why != null && seen != 0L) {
+                    val trace = if (last.reason == android.app.ApplicationExitInfo.REASON_ANR)
+                        runCatching { last.traceInputStream?.bufferedReader()?.readText()?.take(3000) }.getOrNull() ?: "" else ""
+                    crashFile.writeText("${java.util.Date(last.timestamp)} · v${BuildConfig.VERSION_NAME} · ${Build.MODEL} · " +
+                        "used ${last.pss / 1000} MB (rss ${last.rss / 1000} MB)\n$why. ${last.description ?: ""}\n$trace")
+                }
+            }
+        }
         if (crashFile.exists()) runCatching {
             val text = crashFile.readText()
             val first = text.lines().getOrNull(1)?.take(110) ?: ""

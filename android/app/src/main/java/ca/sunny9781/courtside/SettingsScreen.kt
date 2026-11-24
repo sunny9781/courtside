@@ -302,8 +302,9 @@ private fun LiteSection(model: AppModel) {
     Action("Lite mode", "Turns everything below off at once. Or turn them off one at a time, from the bottom up, if this TV feels slow.",
         value = when { s.lite -> "On"; s.anyLite -> "Custom"; else -> "Off" }) {
         val on = !s.lite
-        s.lite = on
+        // 2.47: stop the stream first, then switch (the corner player going away under a playing stream).
         if (on) model.stopPinned()
+        s.lite = on
     }
     Spacer(Modifier.height(6.dp))
     // Each option says what you get when it's on (Logos: On), not what Lite mode takes away.
@@ -311,8 +312,6 @@ private fun LiteSection(model: AppModel) {
         modifier = Modifier.padding(start = 10.dp))
     Toggle("Quick page switching", "Moving through sports, tabs and categories shows a page after a short pause (250 ms; off: 350 ms).",
         !s.liteSettle) { s.liteSettle = !it }
-    Toggle("Finished games", "Home shows finished games (off: they fold into one row at the bottom, Finished · 6).",
-        !s.liteFoldFinished) { s.liteFoldFinished = !it }
     Toggle("Later games", "Home shows games starting more than 2 hours away (off: they fold into one row, Later today · 18).",
         !s.liteFoldLater) { s.liteFoldLater = !it }
     Toggle("Logos", "Team logos on Home and the game screen, channel logos in the EPG and the now-playing bar.",
@@ -322,7 +321,7 @@ private fun LiteSection(model: AppModel) {
     Toggle("Start a stream on the game screen", "Opening a game plays its first stream (off: it waits for you to pick one).",
         !s.liteNoAutoplay) { s.liteNoAutoplay = !it }
     Toggle("Player in the corner", "Channels play in the corner first (off: they open straight in full screen, and leaving full screen stops the stream).",
-        !s.liteNoCorner) { s.liteNoCorner = !it; if (!it) model.stopPinned() }
+        !s.liteNoCorner) { if (!it) model.stopPinned(); s.liteNoCorner = !it }
 }
 
 @Composable
