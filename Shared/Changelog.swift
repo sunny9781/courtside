@@ -74,12 +74,12 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
-        Release(version: "2.47", date: "2026-11-24", time: "00:40", title: "Better crash reports", changes: [
+        Release(version: "2.47", date: "2026-11-24", time: "00:40", title: "Streams line up, better crash reports", changes: [
             Change(text: "Settings › General › Last crash now also records when Android closes the app (out of memory, not responding, a video decoder crash), with how much memory it was using", apps: android),
             Change(text: "Turning on Lite mode (or turning off Player in the corner) stops the stream before the screen changes", apps: android),
             Change(text: "Lite mode: the Finished games option is gone (finished games have their own entry since 2.45)", apps: android),
-            Change(text: "Game screen: channel names and progress bars line up on every stream, whatever tags each one has", apps: android),
-        ]),
+            Change(text: "Game screen: channel names and progress bars line up on every stream, whatever tags each one has", apps: [.tv, .mac, .android]),
+        ], titleApps: [.android]),
         Release(version: "2.46", date: "2026-11-23", time: "23:30", title: "EPG groups fix", changes: [
             Change(text: "EPG with Auto-Group on: opening a group from far down a list (Sports › NBA) no longer shows a blank category list; it starts at the top on the first row", apps: tv),
         ]),

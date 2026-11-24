@@ -162,7 +162,8 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   with pss/rss MB. Sunny's Chromecast choppiness → crash (2026-11-24, Lite off) left no Java crash: one of these.
   Lite switch and "Player in the corner" now stop the stream before flipping the flags.
 - Game screen `ChannelRow(showNext = false)`: tags in a fixed `TAGS_WIDTH` (176 dp, right-aligned) and the 0.42/0.58
-  columns kept even with nothing on, so names and progress bars line up (Sunny, Chromecast).
+  columns kept even with nothing on, so names and progress bars line up (Sunny, Chromecast). Apple TV `TVChannelRow`
+  tags in a 330 pt slot on the game screen; Mac stream rows' what's-on column fixed at 300 pt (bar 260).
 
 ## Android phone app (2.0, 2026-11-20)
 - Same APK as the TVs. `Device.tv` (Device.kt: UI mode television, leanback, Fire TV, or no touchscreen) picks the

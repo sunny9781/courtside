@@ -204,9 +204,11 @@ struct GameStreamLine: View {
                         ProgressView(value: min(max(Date().timeIntervalSince(now.start) / total, 0), 1))
                             .progressViewStyle(.linear)
                             .tint(Theme.accent)
-                            .frame(maxWidth: 260)
+                            .frame(width: 260)
                     }
                 }
+                // As wide on every stream (2.47): the progress bars used to follow the programme title's length.
+                .frame(width: 300, alignment: .leading)
                 Spacer(minLength: 8)
                 ForEach(tags, id: \.self) { Badge(text: $0) }
                 ReliabilityDot(channelID: channel.id)
