@@ -197,10 +197,12 @@ struct TVLiveView: View {
     // MARK: Categories
 
     private func categoryList(_ currentID: String?) -> some View {
+        ScrollViewReader { proxy in
         ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: 4) {
                 // One search for categories and channels; results show on the right.
                 TextField("Filter", text: $search)
+                    .id("catTop")
                     .font(.system(size: 24))
                     // Done on the keyboard goes to the first result.
                     .onSubmit {
@@ -289,6 +291,7 @@ struct TVLiveView: View {
                             }
                             .buttonStyle(TVRowButtonStyle(selected: currentID == "g:" + node.id))
                             .focused($focusedCategory, equals: "g:" + node.id)
+                            .id("g:" + node.id)
                             .contextMenu { favoriteButton(category: node.id); hideButton(category: node.id, name: node.name) }
                         } else {
                             categoryRow(Entry(id: node.id, name: node.name, categories: node.categories), currentID: currentID)
@@ -306,6 +309,27 @@ struct TVLiveView: View {
         .ignoresSafeArea(.container, edges: .horizontal)
         // Back on the categories inside a group goes up a level; at the top, up to the tabs (TVShell).
         .onExitCommand(perform: path.isEmpty ? nil : { path.removeLast() })
+        // Opening or leaving a group swaps the rows (2.46): the list kept its old scroll position, so a group opened
+        // from far down (Sports › NBA) showed a blank list until you moved. Back to the top, then focus the first
+        // row inside (or, going up, the group you came out of).
+        .onChange(of: nav.guidePath) { old, new in
+            proxy.scrollTo("catTop", anchor: .top)
+            let target: String?
+            if new.count < old.count, let left = old.last {
+                target = "g:" + left
+            } else if let first = (new.isEmpty ? levelNodes.filter { !model.isFavorite(category: $0.id) }
+                                               : model.favoritesFirst(levelNodes)).first {
+                target = first.isGroup ? "g:" + first.id : first.id
+            } else {
+                target = nil
+            }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(60))
+                focusedCategory = target
+                if let target { proxy.scrollTo(target, anchor: .center) }
+            }
+        }
+        }
     }
 
     private func categoryRow(_ entry: Entry, currentID: String?, count: Int? = nil, symbol: String? = nil) -> some View {
@@ -334,6 +358,7 @@ struct TVLiveView: View {
         }
         .buttonStyle(TVRowButtonStyle(selected: entry.id == currentID))
         .focused($focusedCategory, equals: entry.id)
+        .id(entry.id)
         .contextMenu {
             if entry.id != Self.favoritesID {
                 favoriteButton(category: key)

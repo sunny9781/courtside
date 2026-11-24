@@ -150,6 +150,12 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   A one-league sport gets the league list / chips too when it has finished games (`hasLeagueList`, `hasChips`).
   The old Finished folds are gone (Android Lite "Finished games" option no longer does anything).
 
+## 2.46 Apple TV EPG groups
+- Opening/leaving a group swapped the category rows but the ScrollView kept its offset (blank list after Sports › NBA).
+  TVLiveView `categoryList` now has a ScrollViewReader: on `nav.guidePath` change it scrolls to "catTop" and focuses
+  the first row (or the group you backed out of). Rows carry `.id`. Android already refocuses (`pathMoves`); iPhone
+  pushes a screen per group and the Mac expands in place, so they never had it.
+
 ## Android phone app (2.0, 2026-11-20)
 - Same APK as the TVs. `Device.tv` (Device.kt: UI mode television, leanback, Fire TV, or no touchscreen) picks the
   layout in `CourtsideApp`: TVs keep `Shell`, phones/tablets get `PhoneApp` (Phone.kt, PhoneHome.kt, PhoneEpg.kt,
