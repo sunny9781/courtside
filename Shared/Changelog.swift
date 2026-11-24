@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.46", date: "2026-11-23", time: "23:30", title: "EPG groups fix", changes: [
+            Change(text: "EPG with Auto-Group on: opening a group from far down a list (Sports › NBA) no longer shows a blank category list; it starts at the top on the first row", apps: tv),
+        ]),
         Release(version: "2.45", date: "2026-11-23", time: "15:05", title: "Finished games get their own entry", changes: [
             Change(text: "Finished games have their own Finished entry at the end of a sport's league list, instead of folding under the live and upcoming games", apps: tvAndroid),
             Change(text: "Finished games have their own Finished chip after a sport's leagues, instead of folding under each league", apps: [.mac, .ios, .android]),
