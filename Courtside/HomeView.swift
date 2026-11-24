@@ -55,15 +55,10 @@ struct SportView: View {
                     emptyState
                 }
 
-                // Leagues with only a few games (and none finished) share a row when they fit (2.43).
+                // 2.48 (Sunny): every league on its own row again (sharing rows, 2.43, stays on phones only).
                 let cardMin = cardWidth(for: allGames, charWidth: 9.5, fixed: 112, minimum: 260, maximum: 560) * 0.86
                 let cols = max(1, Int((width + 16) / (cardMin + 16)))
-                let packs = sections.count > 1 && width > 0
-                    ? packRows(sections, columns: cols) { l in
-                        let g = allGames.filter { $0.league == l }
-                        return g.count
-                    }
-                    : sections.map { [$0] }
+                let packs = sections.map { [$0] }
                 ForEach(packs, id: \.first!.id) { pack in
                     if pack.count > 1 {
                         let card = (width - 16 * CGFloat(cols - 1)) / CGFloat(cols)

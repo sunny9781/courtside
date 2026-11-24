@@ -566,7 +566,8 @@ struct TVGamesPane: View {
                         .padding(22)
                 }
 
-                let packs = open.count > 1 && paneWidth > 0 ? packRows(open, columns: columns) { $0.games.count } : open.map { [$0] }
+                // 2.48 (Sunny): every league on its own row again (sharing rows, 2.43, stays on phones only).
+                let packs = open.map { [$0] }
                 ForEach(packs, id: \.first!.id) { pack in
                     if pack.count > 1 {
                         sharedRow(pack)

@@ -1113,7 +1113,8 @@ private fun GamesPane(model: AppModel, targets: FocusTargets, onOpen: (String) -
             }
         }
         // Leagues with only a few games share a row when they fit (2.43): each keeps its heading above its cards.
-        val packs = if (open.size > 1) packRows(open, cols) { it.games.size } else open.map { listOf(it) }
+        // 2.48 (Sunny): every league on its own row again on the TVs (sharing rows, 2.43, stays on phones only).
+        val packs = open.map { listOf(it) }
         for (pack in packs) if (pack.size > 1) {
             item(key = "pk:${pack.first().id}", contentType = "pack") {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
