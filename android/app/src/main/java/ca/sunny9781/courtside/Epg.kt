@@ -430,6 +430,9 @@ internal fun CategoryRow(
     }
 }
 
+/** The game screen's tag slot (quality, fps, sound, HDR, reliability dot): fixed, so rows line up (2.47). */
+private val TAGS_WIDTH = 176.dp
+
 /** A channel: logo and name, what's on now (with progress), and what's next. */
 @Composable
 internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, modifier: Modifier, badge: String? = null,
@@ -446,7 +449,9 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
         if (!showNext) {
             Row(Modifier.padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(COLUMN_GAP)) {
-                Row(Modifier.weight(if (now != null) 0.42f else 1f), verticalAlignment = Alignment.CenterVertically,
+                // 2.47: the same columns on every row (the name, what's on, then the tags in a fixed slot), so names and
+                // progress bars line up down the list whatever tags a stream has, or whether anything is on.
+                Row(Modifier.weight(0.42f), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (!Perf.noLogos) ChannelIcon(channel.icon, 24.dp)
                     Label(channel.name, size = 12.sp, weight = FontWeight.SemiBold, color = if (playing && !focused) Theme.accent else color,
@@ -455,16 +460,19 @@ internal fun ChannelRow(model: AppModel, channel: Channel, playing: Boolean, mod
                     if (model.isFavoriteChannel(channel.id))
                         Icon(Icons.Filled.Favorite, null, tint = if (focused) Theme.bg else Theme.accent, modifier = Modifier.size(10.dp))
                 }
-                if (now != null) Column(Modifier.weight(0.58f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Label(now.title, size = 12.sp, color = color, maxLines = 2)
-                    val total = (now.end - now.start).toFloat()
-                    ProgressLine(if (total > 0) (System.currentTimeMillis() - now.start) / total else 0f, focused)
+                Column(Modifier.weight(0.58f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    if (now != null) {
+                        Label(now.title, size = 12.sp, color = color, maxLines = 2)
+                        val total = (now.end - now.start).toFloat()
+                        ProgressLine(if (total > 0) (System.currentTimeMillis() - now.start) / total else 0f, focused)
+                    }
                 }
                 val quality = badge?.takeIf { it.isNotEmpty() } ?: model.measuredQuality[channel.id]
                 val fps = model.measuredFrameRate[channel.id]
                 val sound = model.measuredAudio[channel.id]
                 val hdr = model.measuredHdr[channel.id]
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.width(TAGS_WIDTH), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically) {
                     if (!quality.isNullOrEmpty()) Badge(quality, fill = if (quality == "4K") Theme.accent else Theme.raised,
                         color = if (quality == "4K") Theme.onAccent else Theme.soft)
                     if (fps != null && fps > 0) Badge(Playback.fpsLabel(fps), fill = Theme.raised, color = Theme.soft)
