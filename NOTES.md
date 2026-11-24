@@ -156,6 +156,12 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   the first row (or the group you backed out of). Rows carry `.id`. Android already refocuses (`pathMoves`); iPhone
   pushes a screen per group and the Mac expands in place, so they never had it.
 
+## 2.47 Android exit reasons
+- MainActivity also writes crash.txt from `ApplicationExitInfo` (Android 11+, newest unseen, pref `lastExitSeen`;
+  first run only sets the baseline) for LOW_MEMORY / ANR (with trace) / CRASH_NATIVE / SIGNALED / EXCESSIVE_RESOURCE,
+  with pss/rss MB. Sunny's Chromecast choppiness → crash (2026-11-24, Lite off) left no Java crash: one of these.
+  Lite switch and "Player in the corner" now stop the stream before flipping the flags.
+
 ## Android phone app (2.0, 2026-11-20)
 - Same APK as the TVs. `Device.tv` (Device.kt: UI mode television, leanback, Fire TV, or no touchscreen) picks the
   layout in `CourtsideApp`: TVs keep `Shell`, phones/tablets get `PhoneApp` (Phone.kt, PhoneHome.kt, PhoneEpg.kt,
