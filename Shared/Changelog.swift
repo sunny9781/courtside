@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.48", date: "2026-11-24", time: "17:05", title: "Leagues on their own rows", changes: [
+            Change(text: "Home: every league is on its own row again on the TVs and the Mac (phones still put leagues with one game side by side)", apps: [.tv, .mac, .android]),
+        ]),
         Release(version: "2.47", date: "2026-11-24", time: "00:40", title: "Streams line up, better crash reports", changes: [
             Change(text: "Settings › General › Last crash now also records when Android closes the app (out of memory, not responding, a video decoder crash), with how much memory it was using", apps: android),
             Change(text: "Turning on Lite mode (or turning off Player in the corner) stops the stream before the screen changes", apps: android),

@@ -141,6 +141,7 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   contextMenu), Mac right-click chip, iPhone/Android phone hold chip. Apple apps share `hideLeague()` (GameOrdering).
 - Home league sections share a row when they fit: `packRows` (Screens.kt and GameOrdering.swift) packs consecutive
   sections with fewer games than a row (phones/Mac: sections with finished games stay alone). iPad not packed.
+  2.48 (Sunny): back to one league per row on both TVs and the Mac; only the phones still pack.
 - Android `PhoneSetupPanel` is as wide as its title (300–520 dp).
 
 ## 2.45 Finished entry (all apps, Sunny)
