@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.50", date: "2026-11-24", time: "23:30", title: "No more wrong \"No sound\"", changes: [
+            Change(text: "Streams with sound no longer get a \"No sound\" tag when the player can't tell what kind of sound it is (no Stereo or 5.1 to show). \"No sound\" now means no audio at all, and a wrong one goes away once sound is heard.", apps: [.mac, .tv]),
+        ]),
         Release(version: "2.49", date: "2026-11-24", time: "21:20", title: "Updates at set times", changes: [
             Change(text: "Channels and the EPG now download at set times: 3 PM, 9 PM, 3 AM and 9 AM (and when you press Refresh now)", apps: everywhere),
             Change(text: "Downloads no longer wait for the stream to stop (\"EPG refreshes after this stream\" is gone), so every device stays up to date while you watch", apps: everywhere),

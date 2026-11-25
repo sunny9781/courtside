@@ -206,6 +206,9 @@ struct MacMultiviewTile: View {
         .onChange(of: controller.audio) {
             if !controller.audio.isEmpty { model.recordAudio(tile.channel.id, controller.audio) }
         }
+        .onChange(of: controller.soundHeard) {
+            if controller.soundHeard { model.soundHeard(tile.channel.id) }
+        }
     }
 
     @ViewBuilder

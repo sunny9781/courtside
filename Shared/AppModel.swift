@@ -185,6 +185,11 @@ final class AppModel: ObservableObject {
         measuredHDR[channelID] = label
     }
 
+    /// Sound turned up on a channel that VLC can't name: drop an earlier "No sound" for it (2.50).
+    func soundHeard(_ channelID: Int) {
+        if measuredAudio[channelID] == StreamSections.noSound { measuredAudio[channelID] = nil }
+    }
+
     func recordAudio(_ channelID: Int, _ label: String) {
         guard !label.isEmpty, measuredAudio[channelID] != label else { return }
         measuredAudio[channelID] = label

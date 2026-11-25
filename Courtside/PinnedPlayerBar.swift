@@ -85,6 +85,9 @@ struct PinnedPlayerBar<Details: View>: View {
         .onChange(of: controller.audio) {
             if !away { model.recordAudio(item.channel.id, controller.audio) }
         }
+        .onChange(of: controller.soundHeard) {
+            if !away, controller.soundHeard { model.soundHeard(item.channel.id) }
+        }
     }
 
     private var videoWidth: CGFloat { height * 16 / 9 }
