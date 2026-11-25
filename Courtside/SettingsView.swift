@@ -196,16 +196,8 @@ struct SettingsView: View {
             }
 
             panel("Updates") {
-                setting("Refresh channels and guide", "Opening the app reuses the saved channels and guide until they're this old. Scores always update every minute.") {
-                    Picker("", selection: $refreshHours) {
-                        Text("1 h").tag(1)
-                        Text("3 h").tag(3)
-                        Text("6 h").tag(6)
-                        Text("12 h").tag(12)
-                        Text("24 h").tag(24)
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(width: 260)
+                setting("Channels and guide", "Download at 3 PM, 9 PM, 3 AM and 9 AM (after the stream, if one is playing). Scores always update every minute.") {
+                    EmptyView()
                 }
                 HStack {
                     Text(model.savedAt.map { "Last downloaded \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "Not downloaded yet")

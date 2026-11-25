@@ -285,14 +285,28 @@ final class AppModel: ObservableObject {
         return caches.appendingPathComponent("Courtside", isDirectory: true).appendingPathComponent("channels.json")
     }
 
-    private var refreshInterval: TimeInterval {
-        Double(max(UserDefaults.standard.integer(forKey: Prefs.refreshHours), 1)) * 3600
+    /// Channels and guide download at fixed times (2.49, Sunny): every 6 hours from 3 PM (3 PM, 9 PM, 3 AM, 9 AM,
+    /// local time), so game-day event channels and tonight's listings are in before the evening games. Never while a
+    /// stream plays (one connection): then right after it stops.
+    private var refreshInterval: TimeInterval { 6 * 3600 }
+    static let updateHours = [3, 9, 15, 21]
+
+    /// The most recent update time at or before `now`.
+    static func lastUpdateSlot(before now: Date = Date()) -> Date {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: now)
+        for day in [today, cal.date(byAdding: .day, value: -1, to: today)!] {
+            for hour in updateHours.reversed() {
+                if let slot = cal.date(byAdding: .hour, value: hour, to: day), slot <= now { return slot }
+            }
+        }
+        return now.addingTimeInterval(-6 * 3600)
     }
 
-    /// The channel list is checked every hour while the app is open (event channels appear on game day) (2.44, as
-    /// Android 2.23). The guide downloads again after Settings' interval, or sooner when the provider's guide is
-    /// about to run out.
-    private static let channelsEvery: TimeInterval = 3600
+    /// Downloaded before the latest update time (or never).
+    private func dueSince(_ date: Date?, _ now: Date = Date()) -> Bool {
+        (date ?? .distantPast) < Self.lastUpdateSlot(before: now)
+    }
 
     /// When most channels' guide runs out: the median of their last programme's end.
     private var guideEnd: Date? {
@@ -303,7 +317,7 @@ final class AppModel: ObservableObject {
     /// The guide is due: none yet, older than Settings › Updates, or within an hour of running out.
     private func guideDue(_ now: Date = Date()) -> Bool {
         if guide.isEmpty { return true }
-        guard let updated = guideUpdated, now.timeIntervalSince(updated) < refreshInterval else { return true }
+        if dueSince(guideUpdated, now) { return true }
         if let end = guideEnd, now >= end.addingTimeInterval(-3600) { return true }
         return false
     }
@@ -311,13 +325,15 @@ final class AppModel: ObservableObject {
     /// The last download the minute check started, so one that fails is tried again in 15 minutes, not every minute.
     private var lastAutoRefresh = Date.distantPast
 
-    /// Checked every minute (and when the app comes back to the front) while nothing plays: downloads what's due.
+    /// Checked every minute (and when the app comes back to the front) while nothing plays: downloads what's due
+    /// (channels first, then the guide on the next check).
     func refreshIfDue() {
-        guard !DemoData.isOn, credentials != nil, !isLoading, !checkingChannels, !guideDownloading, !streamOpen,
+        // 2.49 (Sunny): also while a stream plays (no more "after this stream").
+        guard !DemoData.isOn, credentials != nil, !isLoading, !checkingChannels, !guideDownloading,
               !channelsPending, !guidePending, !channels.isEmpty else { return }
         let now = Date()
         guard now.timeIntervalSince(lastAutoRefresh) >= 15 * 60 else { return }
-        if now.timeIntervalSince(savedAt ?? .distantPast) >= Self.channelsEvery {
+        if dueSince(savedAt, now) {
             lastAutoRefresh = now
             Task { await self.checkChannels() }
         } else if guideDue(now) {
@@ -332,7 +348,7 @@ final class AppModel: ObservableObject {
     /// The hourly check: downloads the channel list again. An unchanged list rebuilds nothing on screen; a changed one
     /// (an event channel added today) is matched straight away, without waiting for the guide.
     private func checkChannels() async {
-        guard let creds = credentials, !isLoading, !checkingChannels, !streamOpen else { return }
+        guard let creds = credentials, !isLoading, !checkingChannels else { return }
         checkingChannels = true
         downloadingChannels = true
         defer { checkingChannels = false; downloadingChannels = false }
@@ -421,16 +437,8 @@ final class AppModel: ObservableObject {
     }
 
     private func streamsChanged() {
-        if streamOpen {
-            // Only the download itself uses a connection; reading the file afterwards carries on.
-            if guideDownloading && !guideReading {
-                ConnLog.add("Paused the guide download (a stream started)")
-                guideTask?.cancel()
-                guidePending = true
-                refreshWaiting = true
-            }
-            return
-        }
+        // 2.49: downloads carry on while a stream plays (they used to pause and wait for it to stop).
+        if streamOpen { return }
         guard channelsPending || guidePending else { return }
         Task { @MainActor in
             // A moment for the provider to see the stream closed.
@@ -524,22 +532,15 @@ final class AppModel: ObservableObject {
             account = saved.account ?? account
             savedAt = saved.savedAt
         }
-        if let savedAt, !force, !downloadChannels, !channels.isEmpty, Date().timeIntervalSince(savedAt) < Self.channelsEvery {
+        if !force, !downloadChannels, !channels.isEmpty, !dueSince(savedAt) {
             stale = false
         }
 
         // The saved guide right after the saved channels, so the EPG fills in without waiting for today's scores.
         if guide.isEmpty, !channels.isEmpty { await loadSavedGuide() }
 
-        // 2. Channels from the provider only when the saved copy is too old (or you asked), and never while a stream
-        // plays (that would be a second connection): then it waits until the stream stops.
-        if stale && streamOpen && !channels.isEmpty {
-            ConnLog.add("Waiting for the stream to stop before downloading the channels")
-            channelsPending = true
-            channelsPendingForce = channelsPendingForce || force
-            refreshWaiting = true
-            stale = false
-        }
+        // 2. Channels from the provider when the saved copy is from before the last update time (or you asked), also
+        // while a stream plays (2.49).
         if stale {
             ConnLog.add("Downloading the channels")
             downloadingChannels = true
@@ -909,12 +910,6 @@ final class AppModel: ObservableObject {
         if guide.isEmpty { await loadSavedGuide() }
         if !download && !guide.isEmpty { return }   // the saved guide is recent enough
 
-        if streamOpen {
-            ConnLog.add("Waiting for the stream to stop before downloading the guide")
-            guidePending = true
-            refreshWaiting = true
-            return
-        }
         let (from, to) = guideWindow
         let end = savedGuideEnd
         let file = Self.guideFile

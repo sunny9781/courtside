@@ -111,34 +111,37 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     /** A stream is open (or about to be). Downloads wait until it's closed, so only one connection is ever in use. */
     private val streamOpen get() = Playback.currentUrl != null || Cast.hasMedia || tile2.isOpen
 
-    private suspend fun waitForNoStream() {
-        if (!streamOpen) return
-        ConnLog.add("Waiting for the stream to stop before downloading")
-        refreshWaiting = true
-        try {
-            while (streamOpen) kotlinx.coroutines.delay(3000)
-            // A moment for the provider to see the stream closed.
-            kotlinx.coroutines.delay(2000)
-        } finally {
-            refreshWaiting = false
-        }
-    }
+    /** 2.49 (Sunny): downloads no longer wait for the stream to stop (kept so callers don't change). */
+    @Suppress("RedundantSuspendModifier")
+    private suspend fun waitForNoStream() {}
 
-    /** A stream is starting: a guide download in progress stops and starts again once nothing plays. */
+    /** A stream is starting (downloads used to pause; 2.49 they carry on). */
     private fun pauseDownloads() {
-        if (guideJob?.isActive != true) return
-        ConnLog.add("Paused the guide download (a stream started)")
-        guideJob?.cancel()
-        val creds = credentials ?: return
-        startGuide(XtreamClient(creds))
+        // 2.49: a guide download carries on when a stream starts.
     }
 
     /**
-     * When the downloads are due. The channel list is checked every hour (new event channels appear on game day);
-     * the guide downloads again after Settings › Updates' interval, or sooner when the provider's guide runs out
-     * (an hour before most channels' last programme ends).
+     * When the downloads are due (2.49, Sunny): channels and guide at fixed times, every 6 hours from 3 PM (3 PM,
+     * 9 PM, 3 AM, 9 AM local), also while a stream plays; the guide sooner if the provider's runs out (an hour before
+     * most channels' last programme ends).
      */
-    private val channelsEvery = 3600_000L
+    private val channelsEvery = 6 * 3600_000L
+
+    /** The most recent update time at or before [now]. */
+    private fun lastUpdateSlot(now: Long = System.currentTimeMillis()): Long {
+        val cal = java.util.Calendar.getInstance().apply { timeInMillis = now }
+        for (back in 0..1) {
+            for (hour in listOf(21, 15, 9, 3)) {
+                val c = (cal.clone() as java.util.Calendar).apply {
+                    add(java.util.Calendar.DAY_OF_YEAR, -back)
+                    set(java.util.Calendar.HOUR_OF_DAY, hour); set(java.util.Calendar.MINUTE, 0)
+                    set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+                }
+                if (c.timeInMillis <= now) return c.timeInMillis
+            }
+        }
+        return now - channelsEvery
+    }
 
     private fun guideEnd(g: Map<String, List<Programme>>): Long {
         val ends = g.values.mapNotNull { it.lastOrNull()?.end }.sorted()
@@ -148,7 +151,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
     private fun guideDue(now: Long = System.currentTimeMillis()): Boolean {
         val g = guide
         if (g.isEmpty()) return true
-        if (now - Cache.guideSavedAt(context) >= settings.refreshHours * 3600_000L) return true
+        if (Cache.guideSavedAt(context) < lastUpdateSlot(now)) return true
         return now >= guideEnd(g) - 3600_000L
     }
 
@@ -157,11 +160,10 @@ class AppModel(app: Application) : AndroidViewModel(app) {
 
     /** Checked every minute while the app is on screen and nothing plays: downloads what's due. */
     private fun refreshIfDue() {
-        if (loading || guideLoading || guideJob?.isActive == true || streamOpen || credentials == null) return
+        if (loading || guideLoading || guideJob?.isActive == true || credentials == null) return
         val now = System.currentTimeMillis()
         if (now - lastAutoRefresh < 15 * 60_000L) return
-        val channelsAge = now - (updatedAt ?: 0L)
-        if (channelsAge >= channelsEvery) { lastAutoRefresh = now; refresh() }
+        if ((updatedAt ?: 0L) < lastUpdateSlot(now)) { lastAutoRefresh = now; refresh() }
         else if (guideDue(now)) { lastAutoRefresh = now; credentials?.let { startGuide(XtreamClient(it)) } }
     }
 
@@ -478,10 +480,9 @@ class AppModel(app: Application) : AndroidViewModel(app) {
             error = null
             try {
                 val client = XtreamClient(creds)
-                val maxAge = channelsEvery
                 val stored = withContext(Dispatchers.IO) { Cache.loadLive(context) }
                     ?.takeIf { it.server == owner && it.channels.isNotEmpty() }
-                val saved = if (force) null else stored?.takeIf { System.currentTimeMillis() - it.savedAt < maxAge }
+                val saved = if (force) null else stored?.takeIf { it.savedAt >= lastUpdateSlot() }
                 if (saved != null) {
                     // The saved guide is read alongside the channels and shown before today's scores come in (which
                     // can take a while on a slower TV), so the EPG is there straight away after an update or reopen.
@@ -630,7 +631,7 @@ class AppModel(app: Application) : AndroidViewModel(app) {
                 // Last hour to the refresh interval ahead (at least 3 hours, for the guide's two and a half hours on
                 // screen) plus 3 hours: only what's needed, light on a 2 GB TV.
                 // Three hours past the next download, so the EPG never runs out before it.
-                val ahead = (maxOf(settings.refreshHours, 3) + 3) * 3600_000L
+                val ahead = (6 + 3) * 3600_000L
                 val g = client.guide(wanted, now - 3600_000L, now + ahead) { read, total ->
                     // A stream started: stop reading (the download starts again once it's closed).
                     if (job?.isActive == false) throw java.io.InterruptedIOException("paused")

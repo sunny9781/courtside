@@ -74,6 +74,11 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.49", date: "2026-11-24", time: "21:20", title: "Updates at set times", changes: [
+            Change(text: "Channels and the EPG now download at set times: 3 PM, 9 PM, 3 AM and 9 AM (and when you press Refresh now)", apps: everywhere),
+            Change(text: "Downloads no longer wait for the stream to stop (\"EPG refreshes after this stream\" is gone), so every device stays up to date while you watch", apps: everywhere),
+            Change(text: "Settings: the refresh interval choice is gone", apps: everywhere),
+        ]),
         Release(version: "2.48", date: "2026-11-24", time: "17:05", title: "Leagues on their own rows", changes: [
             Change(text: "Home: every league is on its own row again on the TVs and the Mac (phones still put leagues with one game side by side)", apps: [.tv, .mac, .android]),
         ]),

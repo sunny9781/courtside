@@ -214,12 +214,8 @@ struct TVSettingsView: View {
         case .general:
             toggle("Hide SD streams", detail: "Most providers have HD versions of the same channels.", $hideSD)
 
-            action("Download fresh channels and guide after",
-                   detail: "Opening the app reuses the saved channels and guide until they're this old. Scores always update every minute.",
-                   value: "\(refreshHours) h") {
-                refreshHours = next(after: refreshHours, in: [1, 3, 6, 12, 24])
-            }
-            action("Refresh now", detail: model.savedAt.map { "Last downloaded \($0.formatted(date: .abbreviated, time: .shortened))" },
+            action("Refresh now", detail: (model.savedAt.map { "Last downloaded \($0.formatted(date: .abbreviated, time: .shortened)). " } ?? "")
+                       + "Channels and guide download at 3 PM, 9 PM, 3 AM and 9 AM (after the stream, if one is playing).",
                    value: model.refreshWaiting ? "After this stream" : (model.downloadingChannels || model.guideDownloading ? "Refreshing…" : nil)) {
                 Task { await model.refresh(force: true) }
             }

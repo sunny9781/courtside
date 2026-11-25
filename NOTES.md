@@ -166,6 +166,15 @@ Sports IPTV app for Xtream Codes providers. Repo `sunny9781/courtside` (public).
   columns kept even with nothing on, so names and progress bars line up (Sunny, Chromecast). Apple TV `TVChannelRow`
   tags in a 330 pt slot on the game screen; Mac stream rows' what's-on column fixed at 300 pt (bar 260).
 
+## 2.49 Fixed update times (all apps, Sunny)
+- Channels + guide download when the last download is older than the latest slot of 3/9/15/21 h local
+  (`AppModel.lastUpdateSlot` Swift static / Kotlin private), checked by the minute timer; the guide also when it's about
+  to run out. Settings' refresh-hours choice is gone (pref still stored, unused).
+- No more waiting for streams: refreshIfDue/checkChannels/refresh/loadGuide download while a stream plays, and a
+  starting stream no longer pauses a guide download (Swift `streamsChanged`, Android `waitForNoStream`/`pauseDownloads`
+  are no-ops). `refreshWaiting` is never set, so the "after this stream" labels never show. Sunny accepted the risk
+  for one-connection providers that count API downloads as a connection.
+
 ## Android phone app (2.0, 2026-11-20)
 - Same APK as the TVs. `Device.tv` (Device.kt: UI mode television, leanback, Fire TV, or no touchscreen) picks the
   layout in `CourtsideApp`: TVs keep `Shell`, phones/tablets get `PhoneApp` (Phone.kt, PhoneHome.kt, PhoneEpg.kt,
