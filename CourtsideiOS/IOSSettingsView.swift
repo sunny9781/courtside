@@ -132,13 +132,9 @@ struct IOSSettingsView: View {
 
                 if section == .general {
                 Section {
-                    Picker("Download fresh channels after", selection: $refreshHours) {
-                        Text("1 h").tag(1)
-                        Text("3 h").tag(3)
-                        Text("6 h").tag(6)
-                        Text("12 h").tag(12)
-                        Text("24 h").tag(24)
-                    }
+                    Text("Channels and guide download at 3 PM, 9 PM, 3 AM and 9 AM (after the stream, if one is playing).")
+                        .font(.footnote)
+                        .foregroundStyle(Theme.soft)
                     Button(model.downloadingChannels ? "Downloading…" : "Refresh now") {
                         Task { await model.refresh(force: true) }
                     }

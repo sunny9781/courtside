@@ -193,13 +193,8 @@ private fun Updates(model: AppModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val s = model.settings
-    Action("Download a fresh guide after",
-        "The channel list is checked every hour. The guide downloads again after this long, or sooner if your provider's guide runs out. Scores update every minute.",
-        value = "${s.refreshHours} h") {
-        val list = listOf(1, 3, 6, 12, 24)
-        s.refreshHours = list[(list.indexOf(s.refreshHours) + 1) % list.size]
-    }
-    Action("Refresh now", model.updatedAt?.let { "Last downloaded ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))}" },
+    Action("Refresh now", (model.updatedAt?.let { "Last downloaded ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))}. " } ?: "") +
+        "Channels and guide download at 3 PM, 9 PM, 3 AM and 9 AM. Scores update every minute.",
         value = if (model.refreshWaiting) "After this stream" else if (model.loading || model.guideLoading) "Refreshing…" else null) { model.refresh(force = true) }
     val ready = Updater.readyVersion
     if (ready != null) {

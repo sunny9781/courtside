@@ -272,11 +272,9 @@ private fun GeneralSection(model: AppModel) {
     val s = model.settings
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    Group("Updates", footer = model.updatedAt?.let {
-        "Channels last checked ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))} (every hour). The guide downloads again after the time above, or sooner if your provider's guide runs out. Scores update every minute."
-    }) {
-        Choice("Download a fresh guide after", listOf(1 to "1 h", 3 to "3 h", 6 to "6 h", 12 to "12 h", 24 to "24 h"), s.refreshHours) { s.refreshHours = it }
-        Divider()
+    Group("Updates", footer = (model.updatedAt?.let {
+        "Last downloaded ${DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(it))}. "
+    } ?: "") + "Channels and guide download at 3 PM, 9 PM, 3 AM and 9 AM. Scores update every minute.") {
         Line(when {
             model.refreshWaiting -> "Refreshes after this stream"
             model.loading || model.guideLoading -> "Refreshing…"
