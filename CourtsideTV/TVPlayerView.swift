@@ -120,6 +120,7 @@ struct TVPlayerView: View {
             }
         }
         .onChange(of: controller.audio) { model.recordAudio(item.channel.id, controller.audio) }
+        .onChange(of: controller.soundHeard) { if controller.soundHeard { model.soundHeard(item.channel.id) } }
         .onChange(of: controller.dynamicRange) { model.recordHDR(item.channel.id, controller.dynamicRange) }
         .onChange(of: controller.frameRate) {
             model.recordFrameRate(item.channel.id, controller.frameRate)

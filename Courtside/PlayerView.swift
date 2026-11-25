@@ -125,6 +125,7 @@ struct PlayerView: View {
             model.recordFrameRate(item.channel.id, controller.frameRate)
         }
         .onChange(of: controller.audio) { model.recordAudio(item.channel.id, controller.audio) }
+        .onChange(of: controller.soundHeard) { if controller.soundHeard { model.soundHeard(item.channel.id) } }
         .onDisappear {
             hideTask?.cancel()
             flipTask?.cancel()

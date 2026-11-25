@@ -46,6 +46,9 @@ struct TVPinnedStrip: View {
         .onChange(of: controller.audio) {
             if model.nowPlaying == nil { model.recordAudio(item.channel.id, controller.audio) }
         }
+        .onChange(of: controller.soundHeard) {
+            if model.nowPlaying == nil, controller.soundHeard { model.soundHeard(item.channel.id) }
+        }
         .onChange(of: controller.dynamicRange) {
             if model.nowPlaying == nil { model.recordHDR(item.channel.id, controller.dynamicRange) }
         }

@@ -26,6 +26,8 @@ final class PlaybackController: ObservableObject {
     @Published var frameRate: Double = 0
     /// The sound: "Stereo", "5.1 Dolby", "5.1 Dolby+" (VLC engine only).
     @Published var audio = ""
+    /// Sound is playing even if VLC can't name it (no "Stereo"/"5.1"): clears an earlier "No sound" for the channel.
+    @Published var soundHeard = false
     /// "HDR10", "HLG", "Dolby Vision" when the stream is HDR (Apple TV's HDR player only; VLC doesn't say).
     @Published var dynamicRange = ""
     /// Half-second ticks the current stream has been playing (to time the frame-rate check).
@@ -178,6 +180,7 @@ final class PlaybackController: ObservableObject {
             resolution = ""
             frameRate = 0
             audio = ""
+            soundHeard = false
             dynamicRange = ""
             playingPolls = 0
         }
@@ -382,9 +385,13 @@ final class PlaybackController: ObservableObject {
             if playingPolls == 4 && frameRate == 0, let fps = Self.videoFrameRate(player.media) { frameRate = fps }
             // Sound: asked every 2 seconds until VLC knows it. Still nothing after 8 seconds of picture: "No sound"
             // (2.17, a dead audio feed), replaced if the sound turns up later.
-            if playingPolls >= 4 && playingPolls % 4 == 0 && (audio.isEmpty || audio == StreamSections.noSound),
-               let sound = Self.soundLabel(player.media) { audio = sound }
-            if playingPolls == 16 && audio.isEmpty { audio = StreamSections.noSound }
+            // Sound VLC can't name (no channel count, a plain AAC/MP2 track, or no track details yet) still counts:
+            // "No sound" only when there's no audio track and VLC has decoded no audio at all (2.50).
+            if playingPolls >= 4 && playingPolls % 4 == 0 && (audio.isEmpty || audio == StreamSections.noSound) {
+                if let sound = Self.soundLabel(player.media) { audio = sound }
+                else if Self.hasSound(player.media) { audio = ""; soundHeard = true }
+            }
+            if playingPolls == 16 && audio.isEmpty && !Self.hasSound(player.media) { audio = StreamSections.noSound }
         }
         #else
         guard let item = player.currentItem else { return }
@@ -451,6 +458,14 @@ final class PlaybackController: ObservableObject {
     #endif
 
     #if canImport(VLCKitSPM)
+    /// Is there any sound: an audio track in VLC's track details, or audio VLC has actually decoded.
+    private static func hasSound(_ media: VLCMedia?) -> Bool {
+        guard let media else { return false }
+        if media.numberOfDecodedAudioBlocks > 0 { return true }
+        let tracks = media.tracksInformation as? [[AnyHashable: Any]] ?? []
+        return tracks.contains { ($0["type"] as? String) == "audio" }
+    }
+
     /// The audio track as "Stereo", "5.1 Dolby" and so on, from VLC's track details.
     private static func soundLabel(_ media: VLCMedia?) -> String? {
         guard let tracks = media?.tracksInformation as? [[AnyHashable: Any]] else { return nil }
