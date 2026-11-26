@@ -74,8 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
-        Release(version: "2.51", date: "2026-11-25", time: "23:45", title: "Fewer false crash notes", changes: [
+        Release(version: "2.51", date: "2026-11-25", time: "23:45", title: "Lighter channel updates", changes: [
             Change(text: "No more \"closed unexpectedly: the TV ran out of memory\" when Android simply closed Courtside in the background to free memory (that's normal on smaller TVs like the Chromecast). It's still reported if it happens while the app is on screen.", apps: android),
+            Change(text: "Much less memory while the channel list updates (it's now read a channel at a time). Since 2.49 that update can happen while you watch, and on the Chromecast it could make video choppy or get the app closed.", apps: android),
         ]),
         Release(version: "2.50", date: "2026-11-24", time: "23:30", title: "No more wrong \"No sound\"", changes: [
             Change(text: "Streams with sound no longer get a \"No sound\" tag when the player can't tell what kind of sound it is (no Stereo or 5.1 to show). \"No sound\" now means no audio at all, and a wrong one goes away once sound is heard.", apps: [.mac, .tv]),
