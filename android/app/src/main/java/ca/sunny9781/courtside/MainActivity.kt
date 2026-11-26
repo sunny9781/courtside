@@ -48,8 +48,12 @@ class MainActivity : ComponentActivity() {
             val seen = prefs.getLong("lastExitSeen", 0L)
             if (last != null && last.timestamp > seen) {
                 prefs.edit().putLong("lastExitSeen", last.timestamp).apply()
+                // 2.51: Android routinely closes apps sitting in the background to free memory (Home, another app,
+                // the TV asleep). That's not a crash, so it's only reported if the app was on screen at the time.
+                val onScreen = last.importance <= android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_VISIBLE
                 val why = when (last.reason) {
-                    android.app.ApplicationExitInfo.REASON_LOW_MEMORY -> "Android closed it: the TV ran out of memory"
+                    android.app.ApplicationExitInfo.REASON_LOW_MEMORY ->
+                        if (onScreen) "Android closed it while on screen: the TV ran out of memory" else null
                     android.app.ApplicationExitInfo.REASON_ANR -> "Android closed it: not responding"
                     android.app.ApplicationExitInfo.REASON_CRASH_NATIVE -> "Crash in the video decoder or system code"
                     android.app.ApplicationExitInfo.REASON_SIGNALED -> "Android stopped it (signal ${last.status})"
@@ -61,7 +65,7 @@ class MainActivity : ComponentActivity() {
                     val trace = if (last.reason == android.app.ApplicationExitInfo.REASON_ANR)
                         runCatching { last.traceInputStream?.bufferedReader()?.readText()?.take(3000) }.getOrNull() ?: "" else ""
                     crashFile.writeText("${java.util.Date(last.timestamp)} · v${BuildConfig.VERSION_NAME} · ${Build.MODEL} · " +
-                        "used ${last.pss / 1000} MB (rss ${last.rss / 1000} MB)\n$why. ${last.description ?: ""}\n$trace")
+                        "used ${last.pss / 1000} MB (rss ${last.rss / 1000} MB) · ${if (onScreen) "on screen" else "in the background"}\n$why. ${last.description ?: ""}\n$trace")
                 }
             }
         }
