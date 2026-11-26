@@ -75,7 +75,6 @@ class XtreamClient(private val creds: Credentials) {
     suspend fun live(): Pair<List<ChannelCategory>, List<Channel>> = coroutineScope {
         // One after the other, never both at once: some providers count each open request as a connection.
         val catsText = get(apiUrl("get_live_categories"), label = "categories")
-        val streamsText = get(apiUrl("get_live_streams"), timeoutMs = 120_000, label = "channels")
         val cats = JSONArray(catsText)
         val categories = (0 until cats.length()).mapNotNull { i ->
             val o = cats.optJSONObject(i) ?: return@mapNotNull null
@@ -83,19 +82,62 @@ class XtreamClient(private val creds: Credentials) {
             ChannelCategory(id, o.optString("category_name"))
         }
         val names = categories.associate { it.id to it.name }
-        val list = try { JSONArray(streamsText) } catch (e: Exception) {
-            throw XtreamException("The server replied with something that isn't an Xtream Codes response.")
-        }
-        val channels = (0 until list.length()).mapNotNull { i ->
-            val o = list.optJSONObject(i) ?: return@mapNotNull null
-            val id = o.flexInt("stream_id") ?: return@mapNotNull null
-            val name = o.optString("name").takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-            val catId = o.flexString("category_id") ?: ""
-            val icon = o.optString("stream_icon").takeIf { it.lowercase().startsWith("http") }
-            Channel(id, o.flexInt("num"), name, catId, names[catId] ?: "",
-                o.optString("epg_channel_id").trim().lowercase(), icon)
-        }
+        // 2.51: the channel list (tens of thousands of channels on some providers) is read straight from the
+        // download, one channel at a time. Reading it all as text and then as a JSON tree briefly took a lot of memory,
+        // and since 2.49 that can happen while a stream plays: choppy video and Android closing the app on a Chromecast.
+        val channels = channelList(apiUrl("get_live_streams"), names)
         categories to channels
+    }
+
+    private suspend fun channelList(url: String, names: Map<String, String>): List<Channel> = withContext(Dispatchers.IO) {
+        Vpn.require()
+        ConnLog.add("Downloading channels")
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            connectTimeout = 20_000
+            readTimeout = 120_000
+            setRequestProperty("User-Agent", "Courtside")
+        }
+        try {
+            if (conn.responseCode != 200) {
+                throw XtreamException("The server refused the request. Check the address, username and password.")
+            }
+            val out = ArrayList<Channel>()
+            try {
+                android.util.JsonReader(conn.inputStream.bufferedReader()).use { r ->
+                    if (r.peek() != android.util.JsonToken.BEGIN_ARRAY) throw IllegalStateException("not a list")
+                    r.beginArray()
+                    while (r.hasNext()) {
+                        if (r.peek() != android.util.JsonToken.BEGIN_OBJECT) { r.skipValue(); continue }
+                        var id: Int? = null; var num: Int? = null; var name = ""; var catId = ""
+                        var icon: String? = null; var epg = ""
+                        r.beginObject()
+                        while (r.hasNext()) {
+                            when (r.nextName()) {
+                                "stream_id" -> id = r.flex()?.toFlexInt()
+                                "num" -> num = r.flex()?.toFlexInt()
+                                "name" -> name = r.flex() ?: ""
+                                "category_id" -> catId = r.flex()?.let { v -> v.toFlexInt()?.toString() ?: v } ?: ""
+                                "stream_icon" -> icon = r.flex()?.takeIf { it.lowercase().startsWith("http") }
+                                "epg_channel_id" -> epg = r.flex()?.trim()?.lowercase() ?: ""
+                                else -> r.skipValue()
+                            }
+                        }
+                        r.endObject()
+                        if (id != null && name.isNotEmpty()) out.add(Channel(id, num, name, catId, names[catId] ?: "", epg, icon))
+                    }
+                    r.endArray()
+                }
+            } catch (e: java.io.IOException) {
+                if (e is java.net.SocketTimeoutException) throw e
+                throw XtreamException("The server replied with something that isn't an Xtream Codes response.")
+            } catch (e: IllegalStateException) {
+                throw XtreamException("The server replied with something that isn't an Xtream Codes response.")
+            }
+            ConnLog.add("Finished channels")
+            out
+        } finally {
+            conn.disconnect()
+        }
     }
 
     /**
@@ -193,6 +235,17 @@ class XtreamClient(private val creds: Credentials) {
 }
 
 /** Providers are inconsistent about numbers vs strings in their JSON. */
+/** One value as text whatever its JSON type (numbers and strings both; null and objects as null). */
+private fun android.util.JsonReader.flex(): String? = when (peek()) {
+    android.util.JsonToken.STRING, android.util.JsonToken.NUMBER -> nextString()
+    android.util.JsonToken.BOOLEAN -> nextBoolean().toString()
+    android.util.JsonToken.NULL -> { nextNull(); null }
+    else -> { skipValue(); null }
+}
+
+/** "12", "12.0" or 12.0 as 12. */
+private fun String.toFlexInt(): Int? = toIntOrNull() ?: toDoubleOrNull()?.toInt()
+
 fun JSONObject.flexInt(key: String): Int? = when (val v = opt(key)) {
     is Int -> v
     is Long -> v.toInt()
