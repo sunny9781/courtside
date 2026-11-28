@@ -74,6 +74,9 @@ enum Changelog {
     }
 
     static let releases: [Release] = [
+        Release(version: "2.52", date: "2026-11-28", time: "10:00", title: "No show channels on game screens", changes: [
+            Change(text: "Game screens no longer list channels that loop shows or films just because they carry a broadcaster's name (for example Apple TV+ Series channels under an F1 race, since Apple TV shows F1). Channels named Series, Movies, Films, Cinema, Kids or 24/7 don't count as the broadcaster.", apps: [.mac, .tv, .ios, .android]),
+        ]),
         Release(version: "2.51", date: "2026-11-25", time: "23:45", title: "Lighter channel updates", changes: [
             Change(text: "No more \"closed unexpectedly: the TV ran out of memory\" when Android simply closed Courtside in the background to free memory (that's normal on smaller TVs like the Chromecast). It's still reported if it happens while the app is on screen.", apps: android),
             Change(text: "Much less memory while the channel list updates (it's now read a channel at a time). Since 2.49 that update can happen while you watch, and on the Chromecast it could make video choppy or get the app closed.", apps: android),

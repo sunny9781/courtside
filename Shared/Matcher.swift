@@ -187,6 +187,14 @@ enum Matcher {
 
     // MARK: Broadcasters
 
+    /// Words that mark a channel looping shows or films ("Apple TV+ Series 10", "Prime Video Movies", "Netflix 24/7"):
+    /// it carries the broadcaster's name but not its live sport, so it never counts as that broadcaster (2.52).
+    static let showWords: Set<String> = ["series", "movie", "movies", "film", "films", "cinema", "kids", "boxset", "vod"]
+
+    static func isShowChannel(_ c: IndexedChannel) -> Bool {
+        !c.tokenSet.isDisjoint(with: showWords) || c.channel.name.contains("24/7") || c.channel.name.lowercased().contains("24x7")
+    }
+
     static func broadcasterAliases(_ name: String) -> [Alias] {
         var t = tokens(name)
         if name.hasSuffix("+") { t.append("plus") }
@@ -539,7 +547,9 @@ enum Matcher {
             var hits = Set<Int>()
             for a in broadcasterAliases(name) {
                 guard let first = a.tokens.first else { continue }
-                for c in byWord[first] ?? [] where !hits.contains(c.channel.id) && has(c.tokens, a) { hits.insert(c.channel.id) }
+                for c in byWord[first] ?? [] where !hits.contains(c.channel.id) && has(c.tokens, a) && !isShowChannel(c) {
+                    hits.insert(c.channel.id)
+                }
             }
             broadcasterHits[name] = hits
         }
