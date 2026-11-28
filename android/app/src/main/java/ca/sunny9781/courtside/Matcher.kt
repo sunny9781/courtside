@@ -348,6 +348,11 @@ object Matcher {
     private fun aboutOtherSport(c: Indexed, key: GameKey): Boolean =
         c.tokenSet.any { it in key.conflicts } || tokens(c.channel.categoryName).any { it in key.conflicts }
 
+    /** Channels looping shows or films ("Apple TV+ Series 10") carry a broadcaster's name but not its sport (2.52). */
+    private val showWords = setOf("series", "movie", "movies", "film", "films", "cinema", "kids", "boxset", "vod")
+    private fun isShowChannel(c: Indexed): Boolean = c.tokenSet.any { it in showWords } ||
+        c.channel.name.contains("24/7") || c.channel.name.lowercase().contains("24x7")
+
     private fun isOtherEvent(c: Indexed): Boolean = c.channel.name.contains("@") || "vs" in c.tokenSet || "v" in c.tokenSet
 
     private fun neverLive(channel: Channel): Boolean {
@@ -439,7 +444,9 @@ object Matcher {
                 val hits = HashSet<Int>()
                 for (a in broadcasterAliases(name)) {
                     val first = a.tokens.firstOrNull() ?: continue
-                    for (c in byWord[first] ?: continue) if (c.channel.id !in hits && has(c.tokens, a)) hits.add(c.channel.id)
+                    for (c in byWord[first] ?: continue) {
+                        if (c.channel.id !in hits && has(c.tokens, a) && !isShowChannel(c)) hits.add(c.channel.id)
+                    }
                 }
                 hits
             }
